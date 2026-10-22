@@ -1,6 +1,10 @@
 # 原始数据（体积大，不纳入版本控制）
 data_raw/
 tracking/data_raw/
+mgmd-linux/data_derived/
+
+# 环境（本地 bootstrap，含 numpy/cv2/scipy/pytest）
+.bootstrap/
 
 # Python
 __pycache__/
@@ -11,6 +15,9 @@ __pycache__/
 venv/
 
 # 运行产物
+mgmd-linux/outputs/runs/
+mgmd-linux/outputs/logs/
+mgmd-linux/outputs/figures/
 outputs/**/*.pt
 outputs/**/*.pth
 outputs/**/*.ckpt

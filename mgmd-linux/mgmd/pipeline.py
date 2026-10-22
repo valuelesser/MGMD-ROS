@@ -48,7 +48,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
         start: int = 1, limit: int | None = None,
         d_mode: str = "enclosing", d_min: float = 1.0,
         lac_thresh: float = 0.5, iou_thresh: float = 0.3,
-        max_age: int = 3, span: int = 3,
+        max_age: int = 3, span: int = 3, lad_conf: float = 0.5,
         progress: bool = False) -> list[FrameOutput]:
     """跑一段视频，返回逐帧输出。"""
     gt = load_video_gt(video)          # 仅用于确定帧范围与校验
@@ -65,10 +65,11 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
     if use_lac:
         from mgmd.lac import LacClassifier
         clf = LacClassifier()
+
+    lad = None
     if use_lad:
-        raise C.MgmdError("E_CONFIG", "LAD 尚未实现（需 GPU 与训练权重）",
-                          "先跑 mfe / mfe,tf / mfe,tf,lac（SPEC T09 未完成）",
-                          C.EXIT_CONFIG)
+        from mgmd.lad import LadDetector
+        lad = LadDetector(conf_thresh=lad_conf)
 
     outs: list[FrameOutput] = []
     k = mfe_cfg.k
@@ -113,6 +114,17 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
                     pool = [(b, p) for (b, _s), p in zip(keep, probs) if p >= lac_thresh]
                 else:
                     pool = []
+
+            if lad is not None and pool:
+                frame = buf[t]
+                refined = []
+                for b, _s in pool:
+                    cx = (b[0] + b[2]) / 2.0
+                    cy = (b[1] + b[3]) / 2.0
+                    rb = lad.refine(frame, (cx, cy))
+                    if rb is not None and rb.conf >= lad_conf:
+                        refined.append((rb.box, rb.conf))
+                pool = refined
 
             dt = (time.perf_counter() - t0) * 1000.0
             outs.append(FrameOutput(

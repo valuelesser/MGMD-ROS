@@ -49,6 +49,27 @@
 
 **当前策略：先做纯 CPU 可完成的部分（数据层、评测器、MFE、TF），GPU 相关模块后置。**
 
+### 2.2 实测环境明细（2026-10-22）
+
+| 组件 | 状态 | 位置 |
+|---|---|---|
+| python3 | 3.8.10 | `/usr/bin/python3`（无 pip/numpy） |
+| pip | 25.0.1 | `.bootstrap/pipmod`（`get-pip.py` 3.8 版，`--target` 安装） |
+| numpy | 1.24.4 | `.bootstrap/site` |
+| opencv-python-headless | 4.11.0 | `.bootstrap/site` |
+| scipy | 1.10.1 | `.bootstrap/site`（提供 `linear_sum_assignment`） |
+| pytest | 已装 | `.bootstrap/site` |
+| torch | ❌ 未装 | Python 3.8 无法装新版 torch；且无 GPU 驱动 |
+
+**运行方式**（所有脚本必须带此 PYTHONPATH）：
+```bash
+export PYTHONPATH=/home/gaoduan/毕业设计/.bootstrap/pipmod:/home/gaoduan/毕业设计/.bootstrap/site:/home/gaoduan/毕业设计/mgmd-linux
+python3 -m pytest tests/ -q
+python3 scripts/verify_data.py
+```
+
+**Python 3.11 portable 下载失败**（GitHub `Empty reply from server`），暂用 3.8 推进 CPU 部分。torch 依赖模块需等 E2 解决。
+
 ---
 
 ## 3. 代码结构
@@ -162,6 +183,7 @@ frame,visible,n_obj,x1,y1,x2,y2
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
 | 2026-10-22 | 0.1.0 | 建立 SPEC，确定工程结构、数据契约、评测口径、偏差表 | 启动实施，PRD 转 SPEC | — |
+| 2026-10-22 | 0.1.0 | T01-T03 落地：config / annotations / split / metrics + verify_data.py | 骨架与关键路径（评测器）先做 | T01✅ T02✅ T03✅ |
 
 ---
 
@@ -169,9 +191,9 @@ frame,visible,n_obj,x1,y1,x2,y2
 
 | # | 任务 | 依赖 | 验收 | 状态 |
 |---|---|---|---|---|
-| T01 | 工程骨架 + SPEC + 配置 | — | 目录、config.py、本文件存在；git 提交 | ✅ |
-| T02 | 数据层：XML→GT + 划分固化 | T01 | 60 视频解析无错；split.json 45/15 且无交集 | ⏳ |
-| T03 | **IoU 评测器 + AP**（关键路径） | T01 | 构造用例全通过，含"同 GT 两检测只算 1 TP" | ⏳ |
+| T01 | 工程骨架 + SPEC + 配置 | — | 目录、config.py、本文件存在；git 提交 | ✅ 1300f44 |
+| T02 | 数据层：XML→GT + 划分固化 | T01 | 60 视频解析无错；split.json 45/15 且无交集 | ✅ 1300f44 |
+| T03 | **IoU 评测器 + AP**（关键路径） | T01 | 构造用例全通过，含"同 GT 两检测只算 1 TP" | ✅ 1300f44 |
 | T04 | MFE 移植 + 四项开关 | T02,T03 | 四项约束开关可切换；k 敏感性曲线 | ⏳ |
 | T05 | TF：SORT + Algorithm 1 + D 双模式 | T04 | 字面模式 0 通过；标定模式出指标 | ⏳ |
 | T06 | 消融框架（模块任意子集） | T05 | 6 种组合可跑 | ⏳ |

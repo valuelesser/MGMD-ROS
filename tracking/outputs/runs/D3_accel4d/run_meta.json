@@ -1,0 +1,183 @@
+{
+  "argv": [
+    "scripts/run_sequence.py",
+    "--config",
+    "configs/D3_overlap.yaml",
+    "--gt",
+    "data_derived/gt/D3_cam3.csv",
+    "--out",
+    "outputs/runs/D3_accel4d",
+    "--backend",
+    "jax",
+    "--limit",
+    "100",
+    "--repeat",
+    "1"
+  ],
+  "backend": "jax",
+  "cache_stats": {
+    "device_frames": 8,
+    "evictions": 59,
+    "hit_rate": 0.495,
+    "hits": 396,
+    "host_bytes": 2146176000,
+    "host_frames": 345,
+    "host_max_bytes": 2147483648,
+    "misses": 404
+  },
+  "chunk_bytes_used": 1610612736,
+  "config": {
+    "name": "D3_overlap",
+    "path": "configs/D3_overlap.yaml",
+    "snapshot": {
+      "backend": "jax",
+      "cache": {
+        "host_max_bytes": 2147483648
+      },
+      "config_name": "D3_overlap",
+      "metrics": {
+        "association": "round_half_up",
+        "primary_radius_px": 100,
+        "radii_px": [
+          10,
+          20,
+          50,
+          100
+        ]
+      },
+      "preprocess": {
+        "kernel_shape": "ellipse",
+        "kernel_size": 5,
+        "normalize": "divide_255"
+      },
+      "schema_version": 1,
+      "search": {
+        "batch_logical": 512,
+        "fine": {
+          "delta_f": 0.2,
+          "rf": 0.4
+        },
+        "global": {
+          "delta_c": 2.0,
+          "vmax": 15.0
+        },
+        "gpu_chunk_bytes": 1610612736,
+        "local": {
+          "delta_l": 0.25,
+          "rl": 0.6
+        },
+        "mode": "coarse_to_fine",
+        "top_k": 5
+      },
+      "seed": 0,
+      "sequence": {
+        "calibration": "data_raw/mvdt/D3/cam3/calibration.json",
+        "color_order": "BGR",
+        "fps": 25.0,
+        "frame_glob": "*.jpg",
+        "frames_dir": "data_raw/mvdt/D3/cam3/frames",
+        "name": "D3/cam3",
+        "resolution": [
+          1440,
+          1080
+        ],
+        "trajectory": "data_raw/mvdt/D3/cam3/trajectory.csv",
+        "video": "data_raw/mvdt/D3/cam3/cam3.mp4"
+      },
+      "thresholds_file": "configs/thresholds_frozen.yaml",
+      "timing": {
+        "repeats": 3,
+        "warmup_windows": 20
+      },
+      "window": {
+        "N": 8,
+        "stride": 4
+      }
+    }
+  },
+  "data": {
+    "sha256": "5c2db8c429cd61433277326a7f73efd12c7302526f10bf049e56b2948b6fcc88",
+    "video": "data_raw/mvdt/D3/cam3/cam3.mp4"
+  },
+  "environment": {
+    "backend": "jax",
+    "cv_threads_env": "4",
+    "jax": "0.11.2",
+    "jax_backend": "gpu",
+    "jax_devices": [
+      "cuda:0"
+    ],
+    "jaxlib": "0.11.2",
+    "opencv_build_summary": [
+      "Parallel framework:            pthreads"
+    ],
+    "opencv_threads": 4,
+    "opencv_version": "5.0.0",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.13.13",
+    "xla_flags": "--xla_gpu_autotune_level=0"
+  },
+  "fps": {
+    "e2e_effective_frame_fps": 10.039902241732953,
+    "e2e_window_fps": 2.5099755604332383,
+    "effective_frame_fps": 10.192576881767408,
+    "mean_e2e_window_ms": 398.41025377450023,
+    "mean_t_window_ms": 392.44246537450636,
+    "stride": 4,
+    "window_fps": 2.548144220441852
+  },
+  "frozen": {
+    "frozen_at": "2026-10-11T11:55:47.461866+00:00",
+    "path": "configs/thresholds_frozen.yaml",
+    "sha256": "bc6cc84f2957b73c3a646e5d2f0632bea1b475b0ec75cb4e2f0ab468189b4058",
+    "snapshot": {
+      "calibration": {
+        "code_commit": "HEAD",
+        "configs_sha256": {
+          "D1_no_overlap": "81c67b4f66ed15dc0084173d533b5f3b0b9f7d4afd7def5fd599c300c5d33da2"
+        },
+        "note": "D1 static target: theta_margin=0; matched-filter (DoG sigma=2.5) candidate selection",
+        "protocol_version": "prd-v1.0",
+        "scan_trace": "outputs/metrics/calibration_trace.json",
+        "synthetic_manifest_sha256": "244eadd00bd5c36dc0f4fe428fc1b81653f7b8dd5a24d3e3f39de6f7d2476c1a",
+        "validation": [
+          "D1/cam2",
+          "synthetic"
+        ]
+      },
+      "frozen_at": "2026-10-11T11:55:47.461866+00:00",
+      "preprocess": {
+        "kernel_size": 5,
+        "matched_sigma": 2.6667
+      },
+      "schema_version": 1,
+      "thresholds": {
+        "gap_prior_windows": 2,
+        "m_lost": 3,
+        "r_cont_high_formula": "max(25, 3*width_ref)",
+        "r_cont_low_formula": "max(10, 1.5*width_ref)",
+        "reacq_max": 5,
+        "rho_formula": "max(8, ceil(2*width_ref))",
+        "theta_edge_pnr": 22.0,
+        "theta_high_pnr": 20.0,
+        "theta_low_pnr": 1.0,
+        "theta_margin": 0.0,
+        "v_stat": 0.05
+      },
+      "width_ref": {
+        "D1/cam2": 2.0,
+        "seq_000": 2.0,
+        "seq_001": 4.0,
+        "synthetic": null
+      }
+    },
+    "used_default": false
+  },
+  "gt": "data_derived/gt/D3_cam3.csv",
+  "jit_compile_ms": 161190.85838700266,
+  "matched_sigma": 2.6667,
+  "n_accepted": 100,
+  "n_windows": 100,
+  "repeat": 1,
+  "seed": 0
+}

@@ -1,0 +1,5 @@
+strategy,fps,hit,abs_err,jit_compile_ms,device
+brute-force,0.4488,True,0.0,0.0,cuda:0
+multiple-hill-climbing,0.8738,True,0.0,130.4224,cuda:0
+coarse-to-fine,1.2714,True,0.0,6.0488,cuda:0
+coarse-seeded-fine-hill-climbing,1.2046,True,0.0,48.9018,cuda:0

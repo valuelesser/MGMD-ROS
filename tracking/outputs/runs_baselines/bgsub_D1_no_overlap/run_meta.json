@@ -1,0 +1,18 @@
+{
+  "baseline": "median_bg",
+  "bg_window": 50,
+  "config": {
+    "name": "D1_no_overlap",
+    "path": "configs/D1_no_overlap.yaml"
+  },
+  "environment": {
+    "numpy": "2.5.3",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.13.13"
+  },
+  "kappa": 3.0,
+  "n_frames": 400,
+  "n_windows": 80,
+  "sequence": "D1/cam2",
+  "tracker": "nn"
+}

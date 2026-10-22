@@ -1,0 +1,178 @@
+{
+  "argv": [
+    "scripts/run_sequence.py",
+    "--config",
+    "configs/D1_no_overlap.yaml",
+    "--gt",
+    "data_derived/gt/D1_cam2.csv",
+    "--out",
+    "outputs/runs/D1_no_overlap",
+    "--backend",
+    "jax",
+    "--limit",
+    "80",
+    "--repeat",
+    "1"
+  ],
+  "backend": "jax",
+  "cache_stats": {
+    "device_frames": 5,
+    "evictions": 142,
+    "hit_rate": 0.0,
+    "hits": 0,
+    "host_bytes": 2139955200,
+    "host_frames": 258,
+    "host_max_bytes": 2147483648,
+    "misses": 400
+  },
+  "chunk_bytes_used": 805306368,
+  "config": {
+    "name": "D1_no_overlap",
+    "path": "configs/D1_no_overlap.yaml",
+    "snapshot": {
+      "backend": "jax",
+      "cache": {
+        "host_max_bytes": 2147483648
+      },
+      "config_name": "D1_no_overlap",
+      "metrics": {
+        "association": "round_half_up",
+        "primary_radius_px": 100,
+        "radii_px": [
+          10,
+          20,
+          50,
+          100
+        ]
+      },
+      "preprocess": {
+        "kernel_shape": "ellipse",
+        "kernel_size": 5,
+        "normalize": "divide_255"
+      },
+      "schema_version": 1,
+      "search": {
+        "batch_logical": 512,
+        "fine": {
+          "delta_f": 0.1,
+          "rf": 0.2
+        },
+        "global": {
+          "delta_c": 0.5,
+          "vmax": 1.0
+        },
+        "gpu_chunk_bytes": 1610612736,
+        "local": {
+          "delta_l": 0.1,
+          "rl": 0.3
+        },
+        "mode": "coarse_to_fine",
+        "top_k": 5
+      },
+      "seed": 0,
+      "sequence": {
+        "calibration": "data_raw/mvdt/D1/cam2/calibration.json",
+        "color_order": "BGR",
+        "fps": 50.0,
+        "frame_glob": "*.jpg",
+        "frames_dir": "data_raw/mvdt/D1/cam2/frames",
+        "name": "D1/cam2",
+        "resolution": [
+          1920,
+          1080
+        ],
+        "trajectory": "data_raw/mvdt/D1/cam2/trajectory.csv",
+        "video": "data_raw/mvdt/D1/cam2/cam2.mp4"
+      },
+      "thresholds_file": "configs/thresholds_frozen.yaml",
+      "timing": {
+        "repeats": 3,
+        "warmup_windows": 20
+      },
+      "window": {
+        "N": 5,
+        "stride": 5
+      }
+    }
+  },
+  "data": {
+    "sha256": "6deb650e7b837e0d3974322d745dd13d4db89b2d617d7a9e03dd126722b2083b",
+    "video": "data_raw/mvdt/D1/cam2/cam2.mp4"
+  },
+  "environment": {
+    "backend": "jax",
+    "cv_threads_env": "4",
+    "jax": "0.11.2",
+    "jax_backend": "gpu",
+    "jax_devices": [
+      "cuda:0"
+    ],
+    "jaxlib": "0.11.2",
+    "opencv_build_summary": [
+      "Parallel framework:            pthreads"
+    ],
+    "opencv_threads": 4,
+    "opencv_version": "5.0.0",
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.13.13",
+    "xla_flags": "--xla_gpu_autotune_level=0"
+  },
+  "fps": {
+    "e2e_effective_frame_fps": 2.2639489358960336,
+    "e2e_window_fps": 0.45278978717920676,
+    "effective_frame_fps": 2.4562165507049003,
+    "mean_e2e_window_ms": 2208.5303783678683,
+    "mean_t_window_ms": 2035.651131234772,
+    "stride": 5,
+    "window_fps": 0.49124331014098005
+  },
+  "frozen": {
+    "frozen_at": "2026-10-11T10:48:00.531731+00:00",
+    "path": "configs/thresholds_frozen.yaml",
+    "sha256": "4bb1abedd35b3d5b742707d5e2cdca1befb8ceaab2fd687f64a1d7f1448ac6aa",
+    "snapshot": {
+      "calibration": {
+        "code_commit": "pending",
+        "configs_sha256": {},
+        "note": "real-validation calibration on D1/D3 pending (MVDT video frames); using SPEC §5.5 smoke defaults",
+        "protocol_version": "prd-v1.0",
+        "scan_trace": "outputs/metrics/calibration_trace.json",
+        "synthetic_manifest_sha256": "244eadd00bd5c36dc0f4fe428fc1b81653f7b8dd5a24d3e3f39de6f7d2476c1a",
+        "validation": [
+          "synthetic"
+        ]
+      },
+      "frozen_at": "2026-10-11T10:48:00.531731+00:00",
+      "preprocess": {
+        "kernel_size": 5
+      },
+      "schema_version": 1,
+      "thresholds": {
+        "gap_prior_windows": 2,
+        "m_lost": 3,
+        "r_cont_high_formula": "max(25, 3*width_ref)",
+        "r_cont_low_formula": "max(10, 1.5*width_ref)",
+        "reacq_max": 5,
+        "rho_formula": "max(8, ceil(2*width_ref))",
+        "theta_edge_pnr": 10.0,
+        "theta_high_pnr": 8.0,
+        "theta_low_pnr": 5.0,
+        "theta_margin": 0.02,
+        "v_stat": 0.05
+      },
+      "width_ref": {
+        "D1/cam2": 8.0,
+        "D2/cam1": 8.0,
+        "D3/cam3": 8.0,
+        "D4/cam3": 8.0
+      }
+    },
+    "used_default": false
+  },
+  "gt": "data_derived/gt/D1_cam2.csv",
+  "jit_compile_ms": 4564.794888989127,
+  "n_accepted": 63,
+  "n_windows": 80,
+  "repeat": 1,
+  "seed": 0
+}

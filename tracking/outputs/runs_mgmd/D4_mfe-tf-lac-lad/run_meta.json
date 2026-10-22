@@ -1,0 +1,143 @@
+{
+  "argv": [
+    "scripts/run_mgmd.py",
+    "--config",
+    "configs/mgmd_D4.yaml",
+    "--gt",
+    "data_derived/gt/D4_cam3.csv",
+    "--out",
+    "outputs/runs_mgmd/D4_mfe-tf-lac-lad",
+    "--modules",
+    "mfe,tf,lac,lad"
+  ],
+  "backend": "numpy",
+  "config": {
+    "name": "mgmd_D4",
+    "path": "configs/mgmd_D4.yaml",
+    "snapshot": {
+      "backend": "numpy",
+      "config_name": "mgmd_D4",
+      "lac": {
+        "device": "auto",
+        "input_size": 32,
+        "prob_thresh": 0.0,
+        "weights": "data_raw/mgmd_weights/Net_best.pth"
+      },
+      "lad": {
+        "conf_thresh": 0.5,
+        "crop_size": 320,
+        "device": "auto",
+        "imgsz": 320,
+        "weights": "data_raw/mgmd_weights/yolov5s_GLAD-crop.pt"
+      },
+      "metrics": {
+        "association": "round_half_up",
+        "primary_radius_px": 100,
+        "radii_px": [
+          10,
+          20,
+          50,
+          100
+        ]
+      },
+      "mfe": {
+        "area_max": 3000,
+        "area_min": 5,
+        "blur_kernel": 11,
+        "close_iter": 3,
+        "diff_adaptive": true,
+        "diff_thresh_base": 5,
+        "enlarge_px": 2,
+        "frame_gap": 1,
+        "grid_spacing": [
+          96,
+          72
+        ],
+        "lk_max_level": 3,
+        "lk_win_size": 15,
+        "max_boxes": 50,
+        "max_flow_px": 50,
+        "median_blur": 5,
+        "min_inliers": 9,
+        "morph_kernel": 3,
+        "motion_avg_dist_min": 1.0,
+        "motion_coherence": false,
+        "motion_ratio_dist_max": 0.8,
+        "motion_ratio_theta_max": 0.8,
+        "open_iter": 1,
+        "or_aggregation": false,
+        "overflow": "drop",
+        "ransac_thresh": 3.0,
+        "ratio_max": 3.0,
+        "ratio_min": 0.6
+      },
+      "runtime": {
+        "downscale": 0.5,
+        "limit": null
+      },
+      "schema_version": 1,
+      "seed": 0,
+      "sequence": {
+        "color_order": "BGR",
+        "fps": 21.24,
+        "frame_glob": "*.jpg",
+        "frames_dir": "data_raw/mvdt/D4/cam3/frames",
+        "name": "D4/cam3",
+        "resolution": [
+          3840,
+          2160
+        ],
+        "video": "data_raw/mvdt/D4/cam3/cam3.mp4"
+      },
+      "tf": {
+        "alg1_age": 3,
+        "alg1_d_min": 0.002,
+        "alg1_window": 3,
+        "iou_thresh": 0.3,
+        "max_age": 3,
+        "min_hits": 1
+      }
+    }
+  },
+  "environment": {
+    "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+    "python": "3.13.13"
+  },
+  "fps": {
+    "e2e_effective_frame_fps": 26.980277579804735,
+    "e2e_window_fps": 26.980277579804735,
+    "effective_frame_fps": 36.15427032251604,
+    "mean_e2e_window_ms": 37.06411088774415,
+    "mean_t_window_ms": 27.659249960777753,
+    "stride": 1,
+    "window_fps": 36.15427032251604
+  },
+  "gt": "data_derived/gt/D4_cam3.csv",
+  "mgmd": {
+    "align_fallback_frames": 0,
+    "downscale": 0.5,
+    "modules": [
+      "lac",
+      "lad",
+      "mfe",
+      "tf"
+    ],
+    "official_repo": "WindyLab/Global-Local-MAV-Detection@main",
+    "spec": "tasks/mgmd_mvdt_reproduction_spec.md",
+    "user_warnings": 1,
+    "weights": {
+      "lac": {
+        "path": "data_raw/mgmd_weights/Net_best.pth",
+        "sha256": "0d3a4631060339ee72551a89e95887fc49a2d50f9f3473ef354cf3db2830faf5"
+      },
+      "lad": {
+        "path": "data_raw/mgmd_weights/yolov5s_GLAD-crop.pt",
+        "sha256": "031813a6c7ef8446080528e198b4f4e44ee936f066d1b12612adc4ef8af0d8a0"
+      }
+    }
+  },
+  "n_accepted": 6205,
+  "n_windows": 10933,
+  "seed": 0,
+  "wall_time_s": 466.6742134750002
+}

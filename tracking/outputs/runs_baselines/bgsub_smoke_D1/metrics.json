@@ -1,0 +1,45 @@
+{
+  "association": "round_half_up",
+  "config_name": "bgsub_D1_no_overlap",
+  "correct": {
+    "10": 0,
+    "100": 5,
+    "20": 0,
+    "50": 1
+  },
+  "diagnostic_rmse_all_visible": 99.48482846540807,
+  "fp": {
+    "10": 12,
+    "100": 7,
+    "20": 12,
+    "50": 11
+  },
+  "fp_sources": {},
+  "precision": {
+    "10": 0.0,
+    "100": 0.4166666666666667,
+    "20": 0.0,
+    "50": 0.08333333333333333
+  },
+  "radii_px": [
+    10,
+    20,
+    50,
+    100
+  ],
+  "reason_counts": {
+    "BASELINE_OK": 12
+  },
+  "recall": {
+    "10": 0.0,
+    "100": 0.4166666666666667,
+    "20": 0.0,
+    "50": 0.08333333333333333
+  },
+  "rmse_p": 80.8930722852705,
+  "rmse_v": 34.900968109781715,
+  "total_window_outputs": 12,
+  "valid_absent": 0,
+  "valid_outcome": 0.4166666666666667,
+  "visible_den": 12
+}

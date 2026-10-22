@@ -1,0 +1,34 @@
+calibration:
+  code_commit: HEAD
+  configs_sha256:
+    D1_no_overlap: 81c67b4f66ed15dc0084173d533b5f3b0b9f7d4afd7def5fd599c300c5d33da2
+  note: 'D1 static target: theta_margin=0; matched-filter (DoG sigma=2.5) candidate
+    selection'
+  protocol_version: prd-v1.0
+  scan_trace: outputs/metrics/calibration_trace.json
+  synthetic_manifest_sha256: 244eadd00bd5c36dc0f4fe428fc1b81653f7b8dd5a24d3e3f39de6f7d2476c1a
+  validation:
+  - D1/cam2
+  - synthetic
+frozen_at: '2026-10-11T11:55:47.461866+00:00'
+preprocess:
+  kernel_size: 5
+  matched_sigma: 2.6667
+schema_version: 1
+thresholds:
+  gap_prior_windows: 2
+  m_lost: 3
+  r_cont_high_formula: max(25, 3*width_ref)
+  r_cont_low_formula: max(10, 1.5*width_ref)
+  reacq_max: 5
+  rho_formula: max(8, ceil(2*width_ref))
+  theta_edge_pnr: 22.0
+  theta_high_pnr: 20.0
+  theta_low_pnr: 1.0
+  theta_margin: 0.0
+  v_stat: 0.05
+width_ref:
+  D1/cam2: 2.0
+  seq_000: 2.0
+  seq_001: 4.0
+  synthetic: null

@@ -1,0 +1,7 @@
+v_true,v_wrong,pnr_correct,pnr_wrong,diff
+(np.float32(0.7), np.float32(0.0)),(np.float32(1.0), np.float32(0.0)),1091.4597,865.7186,225.7412
+(np.float32(-0.7), np.float32(0.0)),(np.float32(-1.0), np.float32(0.0)),1101.3685,861.7754,239.5931
+(np.float32(0.5), np.float32(0.5)),(np.float32(0.2), np.float32(0.5)),1108.7271,1038.4209,70.3062
+(np.float32(1.0), np.float32(-0.5)),(np.float32(0.7), np.float32(-0.5)),994.0883,1015.1564,-21.0682
+(np.float32(0.3), np.float32(-0.7)),(np.float32(0.0), np.float32(-0.6)),1203.8796,960.6822,243.1974
+(np.float32(-0.5), np.float32(-0.5)),(np.float32(-0.5), np.float32(-0.2)),1112.1491,1035.8504,76.2986

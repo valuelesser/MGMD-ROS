@@ -1,0 +1,31 @@
+schema_version: 1
+config_name: D4_overlap
+sequence:
+  name: D4/cam3
+  frames_dir: data_raw/mvdt/D4/cam3/frames
+  frame_glob: "*.jpg"
+  fps: 21.24
+  resolution: [3840, 2160]
+  color_order: BGR
+  calibration: data_raw/mvdt/D4/cam3/calibration.json
+  video: data_raw/mvdt/D4/cam3/cam3.mp4
+  trajectory: data_raw/mvdt/D4/cam3/trajectory.csv
+window: {N: 8, stride: 4}
+preprocess: {kernel_shape: ellipse, kernel_size: 5, normalize: divide_255}
+search:
+  mode: coarse_to_fine
+  global: {vmax: 15.0, delta_c: 2.0}
+  fine: {rf: 1.0, delta_f: 0.2}
+  local: {rl: 1.0, delta_l: 0.25}
+  top_k: 5
+  batch_logical: 512
+  gpu_chunk_bytes: 1610612736
+thresholds_file: configs/thresholds_frozen.yaml
+cache: {host_max_bytes: 2147483648}
+metrics:
+  radii_px: [10, 20, 50, 100]
+  primary_radius_px: 100
+  association: round_half_up
+timing: {warmup_windows: 20, repeats: 3}
+backend: jax
+seed: 0

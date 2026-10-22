@@ -1,0 +1,61 @@
+{
+  "fps": {
+    "e2e_effective_frame_fps": 20.630571473387718,
+    "e2e_window_fps": 20.630571473387718,
+    "effective_frame_fps": 22.259801713958197,
+    "mean_e2e_window_ms": 48.4717547107187,
+    "mean_t_window_ms": 44.92403000036346,
+    "stride": 1,
+    "window_fps": 22.259801713958197
+  },
+  "jit_compile_ms": 0.0,
+  "layers": {
+    "t_decode": {
+      "count": 7996,
+      "layer": "t_decode",
+      "maximum": 19.88204500048596,
+      "mean": 3.5477247103552525,
+      "median": 3.143656500014913,
+      "minimum": 0.0,
+      "p95": 6.51621549968695
+    },
+    "t_pre": {
+      "count": 7996,
+      "layer": "t_pre",
+      "maximum": 58.59762799991586,
+      "mean": 30.643295393563267,
+      "median": 30.508388499583816,
+      "minimum": 0.0,
+      "p95": 40.295635000120456
+    },
+    "t_search": {
+      "count": 7996,
+      "layer": "t_search",
+      "maximum": 31.05031099948974,
+      "mean": 14.240934948346244,
+      "median": 14.509209499919962,
+      "minimum": 0.0,
+      "p95": 19.961365250310337
+    },
+    "t_state": {
+      "count": 7996,
+      "layer": "t_state",
+      "maximum": 0.7577019996460876,
+      "mean": 0.03979965845394492,
+      "median": 0.030490500193991465,
+      "minimum": 0.0,
+      "p95": 0.10733000021900807
+    },
+    "t_window": {
+      "count": 7996,
+      "layer": "t_window",
+      "maximum": 81.87682599964319,
+      "mean": 44.92403000036346,
+      "median": 45.21192999982304,
+      "minimum": 0.0,
+      "p95": 57.68975275032062
+    }
+  },
+  "n_windows": 8016,
+  "warmup_windows": 20
+}

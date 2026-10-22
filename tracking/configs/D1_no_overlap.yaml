@@ -1,0 +1,31 @@
+schema_version: 1
+config_name: D1_no_overlap
+sequence:
+  name: D1/cam2
+  frames_dir: data_raw/mvdt/D1/cam2/frames
+  frame_glob: "*.jpg"
+  fps: 50.00
+  resolution: [1920, 1080]
+  color_order: BGR
+  calibration: data_raw/mvdt/D1/cam2/calibration.json
+  video: data_raw/mvdt/D1/cam2/cam2.mp4
+  trajectory: data_raw/mvdt/D1/cam2/trajectory.csv
+window: {N: 5, stride: 5}
+preprocess: {kernel_shape: ellipse, kernel_size: 5, normalize: divide_255}
+search:
+  mode: coarse_to_fine
+  global: {vmax: 1.0, delta_c: 0.5}
+  fine: {rf: 0.2, delta_f: 0.1}
+  local: {rl: 0.3, delta_l: 0.1}
+  top_k: 5
+  batch_logical: 512
+  gpu_chunk_bytes: 1610612736
+thresholds_file: configs/thresholds_frozen.yaml
+cache: {host_max_bytes: 2147483648}
+metrics:
+  radii_px: [10, 20, 50, 100]
+  primary_radius_px: 100
+  association: round_half_up
+timing: {warmup_windows: 20, repeats: 3}
+backend: jax
+seed: 0

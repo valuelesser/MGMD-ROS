@@ -1,0 +1,17 @@
+run,sequence,modules,ap_radius_px,ap
+D1_mfe,D1/cam2,mfe,100,0.464970487589999
+D1_mfe-tf,D1/cam2,"mfe,tf",100,0.5970474253561977
+D1_mfe-tf-lac,D1/cam2,"mfe,tf,lac",100,0.5970474253561977
+D1_mfe-tf-lac-lad,D1/cam2,"mfe,tf,lac,lad",100,0.946129878516048
+D2_mfe,D2/cam1,mfe,100,0.9129333572913818
+D2_mfe-tf,D2/cam1,"mfe,tf",100,0.9278233947126838
+D2_mfe-tf-lac,D2/cam1,"mfe,tf,lac",100,0.9278233947126838
+D2_mfe-tf-lac-lad,D2/cam1,"mfe,tf,lac,lad",100,0.9759194271422106
+D3_mfe,D3/cam3,mfe,100,0.8752115186349251
+D3_mfe-tf,D3/cam3,"mfe,tf",100,0.8754707636227448
+D3_mfe-tf-lac,D3/cam3,"mfe,tf,lac",100,0.8754707636227448
+D3_mfe-tf-lac-lad,D3/cam3,"mfe,tf,lac,lad",100,0.8512042193709104
+D4_mfe,D4/cam3,mfe,100,0.7320346493526493
+D4_mfe-tf,D4/cam3,"mfe,tf",100,0.8076433836794993
+D4_mfe-tf-lac,D4/cam3,"mfe,tf,lac",100,0.8076433836794993
+D4_mfe-tf-lac-lad,D4/cam3,"mfe,tf,lac,lad",100,0.8254653162961957

@@ -1,0 +1,64 @@
+schema_version: 1
+config_name: mgmd_D1
+sequence:
+  name: D1/cam2
+  frames_dir: data_raw/mvdt/D1/cam2/frames
+  frame_glob: "*.jpg"
+  fps: 50.00
+  resolution: [1920, 1080]
+  color_order: BGR
+  video: data_raw/mvdt/D1/cam2/cam2.mp4
+mfe:
+  blur_kernel: 3
+  grid_spacing: [96, 72]
+  lk_win_size: 15
+  lk_max_level: 3
+  max_flow_px: 50
+  min_inliers: 9
+  ransac_thresh: 3.0
+  frame_gap: 32
+  or_aggregation: true
+  overflow: topk
+  motion_coherence: false
+  diff_thresh_base: 5
+  diff_adaptive: true
+  median_blur: 5
+  open_iter: 1
+  close_iter: 3
+  morph_kernel: 3
+  area_min: 5
+  area_max: 3000
+  ratio_min: 0.6
+  ratio_max: 3.0
+  max_boxes: 50
+  enlarge_px: 2
+  motion_avg_dist_min: 1.0
+  motion_ratio_theta_max: 0.8
+  motion_ratio_dist_max: 0.8
+tf:
+  iou_thresh: 0.3
+  max_age: 3
+  min_hits: 1
+  alg1_age: 3
+  alg1_window: 3
+  alg1_d_min: 0.003
+lac:
+  weights: data_raw/mgmd_weights/Net_best.pth
+  input_size: 32
+  prob_thresh: 0.0
+  device: auto
+lad:
+  weights: data_raw/mgmd_weights/yolov5s_GLAD-crop.pt
+  crop_size: 320
+  conf_thresh: 0.5
+  imgsz: 320
+  device: auto
+metrics:
+  radii_px: [10, 20, 50, 100]
+  primary_radius_px: 100
+  association: round_half_up
+runtime:
+  downscale: 1.0
+  limit: null
+backend: numpy
+seed: 0

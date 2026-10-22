@@ -1,0 +1,46 @@
+{
+  "association": "round_half_up",
+  "config_name": "bgsub_D2_no_overlap_fullframe",
+  "correct": {
+    "10": 175,
+    "100": 399,
+    "20": 207,
+    "50": 399
+  },
+  "diagnostic_rmse_all_visible": 18.772001103722836,
+  "fp": {
+    "10": 224,
+    "100": 0,
+    "20": 192,
+    "50": 0
+  },
+  "fp_sources": {},
+  "precision": {
+    "10": 0.43859649122807015,
+    "100": 1.0,
+    "20": 0.518796992481203,
+    "50": 1.0
+  },
+  "radii_px": [
+    10,
+    20,
+    50,
+    100
+  ],
+  "reason_counts": {
+    "BASELINE_ABSENT": 1,
+    "BASELINE_OK": 399
+  },
+  "recall": {
+    "10": 0.4375,
+    "100": 0.9975,
+    "20": 0.5175,
+    "50": 0.9975
+  },
+  "rmse_p": 18.772001103722836,
+  "rmse_v": 4.119228855149072,
+  "total_window_outputs": 400,
+  "valid_absent": 0,
+  "valid_outcome": 0.9975,
+  "visible_den": 400
+}

@@ -228,6 +228,7 @@ frame,visible,n_obj,x1,y1,x2,y2
 | 2026-10-23 | 2.4.0 | MFE 参数敏感性（候选数→精确率） | 定位精确率天花板 | 见 §8.16 |
 | 2026-10-23 | 2.5.0 | 差分图归一化方案对照（5 种） | 验证"论文可能做了归一化"假设 | 见 §8.17：**假设否定** |
 | 2026-10-23 | 2.6.0 | TF d_min=0.2 全量 + LAC 前置预筛 | 验证降阈值能否救活 TF | 见 §8.18 |
+| 2026-10-23 | 2.7.0 | min_hits 1 vs 3 全量对照 + 论文原文核对 | 用户要求 | 见 §8.19 |
 
 ---
 
@@ -1334,6 +1335,89 @@ TF 确实把精确率从 0.508 拉到 0.956。但整体 F1 反而略降，因为
 
 > `[flag: 最后一个方向（TF 降权而非过滤）最接近"兼顾两端"，但它偏离论文的
 > 二值判定 P∈{0,1}，属改进项。]`
+
+---
+
+## 8.19 min_hits 对照 + 论文原文核对（2026-10-23）
+
+### min_hits=3 全量结果：与 min_hits=1 完全相同
+
+| 配置 | P | R | F1 | AP | 耗时 |
+|---|---:|---:|---:|---:|---:|
+| min_hits=1 | 0.9556 | 0.3560 | 0.5187 | 0.3445 | 30.5 min |
+| **min_hits=3** | **0.9556** | **0.3560** | **0.5187** | **0.3445** | 32.4 min |
+| 差异 | **0.0000** | **0.0000** | **0.0000** | **0.0000** | +1.9 min |
+
+**15 个视频逐个比对，四项指标全部零差异。**
+
+**原因：条件重复。** Algorithm 1 的 `lifetime >= 3` 门控已经要求轨迹活够 3 帧，
+而 `min_hits` 统计的是"累计命中次数"。两者在单目标、检测稳定的场景下几乎等价：
+
+- `lifetime`：轨迹存在帧数（含未匹配帧）
+- `min_hits`：累计匹配成功次数（只算匹配上的帧）
+
+一条活过 3 帧的轨迹，如果每帧都匹配上，`hits >= 3`；如果中间丢帧，
+`lifetime` 会先被 `max_age=3` 杀掉。所以 **`lifetime>=3` 是更严格的条件，完全覆盖 `min_hits=3`**。
+
+**结论：min_hits 在本数据集上是冗余参数，论文值 1 保持不变。**
+（耗时 +1.9 分钟是因为轨迹池更晚开始输出，无实质影响。）
+
+### 论文原文核对：perspective transformation 的出处与缺口
+
+用户要求核查 "previously mentioned perspective transformation" 在论文中的来源。
+
+**原文位置：III-A1 Frame alignment（`paper_mgmd_en.md` 第 72-78 行）**
+
+> In this paper, **2D perspective transformation** is used for motion compensation because it exactly
+> models the 2D background motion when the background results from the relative motion of a 2D plane
+> in the 3D world. In principle, the perspective transformation **requires the background to be planar
+> or the camera only rotates**.
+>
+> For computational efficiency and robustness in textureless regions such as sky and grassland,
+> **grid-based key points** are used instead of the feature detectors to calculate the homography matrix.
+> We sample **30×20 key points** uniformly distributed in each row and column across the previous k frame.
+> Then, these key points are tracked by the **pyramidal Lucas-Kanade (LK)** algorithm to obtain the
+> corresponding points in the current frame. After these key points are matched over two successive frames,
+> the homography matrix H is calculated with the **RANSAC method** to reject outliers.
+> The image in the previous k frame $I_{t-k}$ can be aligned with the current frame $I_t$.
+>
+> $$\hat{I}_{t-k} = H \cdot I_{t-k} \tag{1}$$
+
+**引用点：III-B2 第 120 行**
+
+> We first **align $s_{N-3}$ to the frame of $s_N$ by the previously mentioned perspective transformation**.
+
+#### 原文确认的三个事实
+
+| 事实 | 原文依据 |
+|---|---|
+| 用 2D 透视变换（单应），不是仿射 | "2D perspective transformation is used" |
+| 关键点在**前一帧**采样，跟踪到当前帧 | "across the previous k frame"（单数） |
+| 网格 30×20 的目的是避开无纹理区（天空、草地） | "for robustness in textureless regions such as sky and grassland" |
+
+#### 论文留下的三处缺口（我们的实现属推断）
+
+| # | 缺口 | 论文原文 | 本工程实现 | 性质 |
+|---|---|---|---|---|
+| 1 | **单应如何级联** | 只定义 $I_{t-k} \to I_t$；Algorithm 1 要 $s_{N-3} \to s_N$ | 级联每帧单应：`step[f0+1] @ ... @ step[f1]` | 🔶 推断 |
+| 2 | **RANSAC 参数** | 只说 "RANSAC method" | `cv2.findHomography(ref_pts, src_pts, RANSAC, 3.0)` | 🔶 推断（3.0 取自 GLAD） |
+| 3 | **LK 参数** | 只说 "pyramidal LK" | `winSize=(15,15), maxLevel=3` | 🔶 推断（取自 GLAD） |
+
+**缺口 1 最严重**：当轨迹寿命 N 远大于 3 时（如 N=50），要对齐 $s_{47}$ 和 $s_{50}$
+需要 47→50 的**累计变换**，而非单次 k=3 的变换。论文未说明如何组合。
+
+#### 论文自己承认平面假设失效
+
+> when the flight altitude is relatively low, 3D objects such as tall buildings, lampposts, trees,
+> and wire poles can **remarkably influence the motion compensation quality and generate many
+> false positives**. Nevertheless, our proposed trajectory-based filter and the appearance-based
+> classifier are applied to remove these false positives.
+
+**这是关键**：论文承认低空时视差会产生大量假正例，并把清除责任交给 TF + 外观分类器。
+这解释了为什么论文能接受高候选数——它假定后两级能清掉。
+
+**而我们的实测显示：后两级清不干净（LAC 后仍有 12.2 个/帧），因为我们的 LAC 用的
+是官方权重而非论文自训权重。**
 
 ### 另一个需记录的异常
 

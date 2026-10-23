@@ -49,6 +49,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
         d_mode: str = "enclosing", d_min: float = 1.0,
         lac_thresh: float = 0.5, iou_thresh: float = 0.3,
         max_age: int = 3, span: int = 3, lad_conf: float = 0.5,
+        min_hits: int = 1,
         device: str = "auto", lad_batch: int = 1, lad_topk: int = 0,
         progress: bool = False) -> list[FrameOutput]:
     """跑一段视频，返回逐帧输出。"""
@@ -59,7 +60,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
 
     tracker = None
     if use_tf:
-        tracker = SortTracker(iou_thresh=iou_thresh, max_age=max_age, min_hits=1,
+        tracker = SortTracker(iou_thresh=iou_thresh, max_age=max_age, min_hits=min_hits,
                               span=span, d_mode=d_mode, d_min=d_min)
 
     clf = None

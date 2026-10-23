@@ -31,13 +31,14 @@ RESULTS_DIR = C.LOGS / "testset"
 
 def eval_one(video: str, mods: frozenset, cfg: MFEConfig, device: str,
              lad_batch: int, d_mode: str, d_min: float,
-             lac_thresh: float, lad_topk: int = 0) -> dict:
+             lac_thresh: float, lad_topk: int = 0, min_hits: int = 1) -> dict:
     gt = load_video_gt(video)
     last = max(gt)
     t0 = time.perf_counter()
     outs = run(video, cfg, mods, start=1, limit=last,
                d_mode=d_mode, d_min=d_min, lac_thresh=lac_thresh,
-               device=device, lad_batch=lad_batch, lad_topk=lad_topk)
+               device=device, lad_batch=lad_batch, lad_topk=lad_topk,
+               min_hits=min_hits)
     dt = time.perf_counter() - t0
 
     dets = {o.frame: [Detection(b[0], b[1], b[2], b[3], conf=s)
@@ -70,11 +71,17 @@ def main(argv=None) -> int:
     ap.add_argument("--d-mode", default="self")
     ap.add_argument("--d-min", type=float, default=0.4038)
     ap.add_argument("--lac-thresh", type=float, default=0.5)
+    ap.add_argument("--min-hits", type=int, default=1,
+                    help="SORT min_hits（论文 1；调大可减少轨迹池膨胀）")
+    ap.add_argument("--out-suffix", default="", help="结果子目录后缀")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
 
     mods = parse_modules(args.modules)
     cfg = MFEConfig(k=args.k, mode=args.mode)
+    global RESULTS_DIR
+    if args.out_suffix:
+        RESULTS_DIR = RESULTS_DIR / args.out_suffix
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     # 解析设备实际值
@@ -104,7 +111,8 @@ def main(argv=None) -> int:
               f"目标中位 {st['median_w']:.0f}x{st['median_h']:.0f}px ...", flush=True)
         try:
             r = eval_one(v, mods, cfg, device, args.lad_batch,
-                         args.d_mode, args.d_min, args.lac_thresh, args.lad_topk)
+                         args.d_mode, args.d_min, args.lac_thresh, args.lad_topk,
+                         args.min_hits)
         except Exception as e:
             print(f"    ✗ 失败: {type(e).__name__}: {e}", flush=True)
             continue

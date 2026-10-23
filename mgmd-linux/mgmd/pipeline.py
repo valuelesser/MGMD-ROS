@@ -49,6 +49,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
         d_mode: str = "enclosing", d_min: float = 1.0,
         lac_thresh: float = 0.5, iou_thresh: float = 0.3,
         max_age: int = 3, span: int = 3, lad_conf: float = 0.5,
+        device: str = "auto", lad_batch: int = 1,
         progress: bool = False) -> list[FrameOutput]:
     """跑一段视频，返回逐帧输出。"""
     gt = load_video_gt(video)          # 仅用于确定帧范围与校验
@@ -64,12 +65,12 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
     clf = None
     if use_lac:
         from mgmd.lac import LacClassifier
-        clf = LacClassifier()
+        clf = LacClassifier(device=device)
 
     lad = None
     if use_lad:
         from mgmd.lad import LadDetector
-        lad = LadDetector(conf_thresh=lad_conf)
+        lad = LadDetector(conf_thresh=lad_conf, device=device)
 
     outs: list[FrameOutput] = []
     k = mfe_cfg.k
@@ -117,13 +118,13 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
 
             if lad is not None and pool:
                 frame = buf[t]
-                refined = []
-                for b, _s in pool:
-                    cx = (b[0] + b[2]) / 2.0
-                    cy = (b[1] + b[3]) / 2.0
-                    rb = lad.refine(frame, (cx, cy))
-                    if rb is not None and rb.conf >= lad_conf:
-                        refined.append((rb.box, rb.conf))
+                centers = [((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0) for b, _s in pool]
+                if lad_batch > 1:
+                    rbs = lad.refine_batch(frame, centers, batch_size=lad_batch)
+                else:
+                    rbs = [lad.refine(frame, c) for c in centers]
+                refined = [(rb.box, rb.conf) for rb in rbs
+                           if rb is not None and rb.conf >= lad_conf]
                 pool = refined
 
             dt = (time.perf_counter() - t0) * 1000.0

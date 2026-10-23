@@ -31,13 +31,13 @@ RESULTS_DIR = C.LOGS / "testset"
 
 def eval_one(video: str, mods: frozenset, cfg: MFEConfig, device: str,
              lad_batch: int, d_mode: str, d_min: float,
-             lac_thresh: float) -> dict:
+             lac_thresh: float, lad_topk: int = 0) -> dict:
     gt = load_video_gt(video)
     last = max(gt)
     t0 = time.perf_counter()
     outs = run(video, cfg, mods, start=1, limit=last,
                d_mode=d_mode, d_min=d_min, lac_thresh=lac_thresh,
-               device=device, lad_batch=lad_batch)
+               device=device, lad_batch=lad_batch, lad_topk=lad_topk)
     dt = time.perf_counter() - t0
 
     dets = {o.frame: [Detection(b[0], b[1], b[2], b[3], conf=s)
@@ -63,6 +63,8 @@ def main(argv=None) -> int:
     ap.add_argument("--modules", default="mfe,lac,lad")
     ap.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
     ap.add_argument("--lad-batch", type=int, default=8)
+    ap.add_argument("--lad-topk", type=int, default=0,
+                    help="只精修 score 最高前 k 个候选（0=全部）")
     ap.add_argument("--k", type=int, default=1)
     ap.add_argument("--mode", default="3frame_or")
     ap.add_argument("--d-mode", default="self")
@@ -82,7 +84,8 @@ def main(argv=None) -> int:
     else:
         device = args.device
     print(f"[config] device={device} modules={args.modules} lad_batch={args.lad_batch} "
-          f"lac_thresh={args.lac_thresh} d={args.d_mode}:{args.d_min}", flush=True)
+          f"lad_topk={args.lad_topk} lac_thresh={args.lac_thresh} "
+          f"d={args.d_mode}:{args.d_min}", flush=True)
 
     videos = ([args.video] if args.video
               else [C.video_id_to_name(v) for v in C.TEST_IDS])
@@ -101,7 +104,7 @@ def main(argv=None) -> int:
               f"目标中位 {st['median_w']:.0f}x{st['median_h']:.0f}px ...", flush=True)
         try:
             r = eval_one(v, mods, cfg, device, args.lad_batch,
-                         args.d_mode, args.d_min, args.lac_thresh)
+                         args.d_mode, args.d_min, args.lac_thresh, args.lad_topk)
         except Exception as e:
             print(f"    ✗ 失败: {type(e).__name__}: {e}", flush=True)
             continue
@@ -150,6 +153,7 @@ def main(argv=None) -> int:
         "k": args.k, "mfe_mode": args.mode,
         "d_mode": args.d_mode, "d_min": args.d_min,
         "lac_thresh": args.lac_thresh, "lad_batch": args.lad_batch,
+        "lad_topk": args.lad_topk,
         "n_videos": len(rows), "frames": frames,
         "tp": tp, "fp": fp, "fn": fn,
         "precision": p, "recall": rc, "f1": f1, "ap_allpoint": ap,

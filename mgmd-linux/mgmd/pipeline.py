@@ -49,7 +49,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
         d_mode: str = "enclosing", d_min: float = 1.0,
         lac_thresh: float = 0.5, iou_thresh: float = 0.3,
         max_age: int = 3, span: int = 3, lad_conf: float = 0.5,
-        device: str = "auto", lad_batch: int = 1,
+        device: str = "auto", lad_batch: int = 1, lad_topk: int = 0,
         progress: bool = False) -> list[FrameOutput]:
     """跑一段视频，返回逐帧输出。"""
     gt = load_video_gt(video)          # 仅用于确定帧范围与校验
@@ -118,6 +118,10 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
 
             if lad is not None and pool:
                 frame = buf[t]
+                # lad_topk>0 时只精修 score 最高的前 k 个候选（SPEC §8.14）
+                # 依据：实测 GT 有 83% 概率落在 LAC 排序 top-3 内
+                if lad_topk and len(pool) > lad_topk:
+                    pool = sorted(pool, key=lambda x: -x[1])[:lad_topk]
                 centers = [((b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0) for b, _s in pool]
                 if lad_batch > 1:
                     rbs = lad.refine_batch(frame, centers, batch_size=lad_batch)

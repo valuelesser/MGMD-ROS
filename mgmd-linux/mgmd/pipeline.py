@@ -51,6 +51,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
         max_age: int = 3, span: int = 3, lad_conf: float = 0.5,
         min_hits: int = 1,
         device: str = "auto", lad_batch: int = 1, lad_topk: int = 0,
+        prefilter_lac: float = 0.0,
         progress: bool = False) -> list[FrameOutput]:
     """跑一段视频，返回逐帧输出。"""
     gt = load_video_gt(video)          # 仅用于确定帧范围与校验
@@ -95,6 +96,25 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
             cand_scores = [float(w * h) for (_x, _y, w, h) in res.boxes]
 
             pool = list(zip(cand_boxes, cand_scores))
+
+            # 前置预筛（SPEC §8.18）：先 LAC 再 TF，避免 SORT 轨迹池爆炸
+            # 论文原序是 MFE→TF→LAC；此处为性能优化，报告中必须声明
+            if prefilter_lac > 0 and pool and use_lac:
+                from mgmd.lac import crop_box as _cb
+                nonlocal_clf = clf
+                if nonlocal_clf is None:
+                    from mgmd.lac import LacClassifier
+                    nonlocal_clf = LacClassifier(device=device)
+                    clf = nonlocal_clf
+                _frame = buf[t]
+                _crops = [_cb(_frame, b) for b, _ in pool]
+                _pairs = [(b, c) for (b, _s), c in zip(pool, _crops) if c is not None]
+                if _pairs:
+                    _probs = nonlocal_clf.mav_prob_batch([c for _, c in _pairs])
+                    pool = [(b, p) for (b, _c), p in zip(_pairs, _probs)
+                            if p >= prefilter_lac]
+                else:
+                    pool = []
 
             if tracker is not None:
                 tracks = tracker.update([b for b, _ in pool], t,

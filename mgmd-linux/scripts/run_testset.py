@@ -31,14 +31,15 @@ RESULTS_DIR = C.LOGS / "testset"
 
 def eval_one(video: str, mods: frozenset, cfg: MFEConfig, device: str,
              lad_batch: int, d_mode: str, d_min: float,
-             lac_thresh: float, lad_topk: int = 0, min_hits: int = 1) -> dict:
+             lac_thresh: float, lad_topk: int = 0, min_hits: int = 1,
+             prefilter_lac: float = 0.0) -> dict:
     gt = load_video_gt(video)
     last = max(gt)
     t0 = time.perf_counter()
     outs = run(video, cfg, mods, start=1, limit=last,
                d_mode=d_mode, d_min=d_min, lac_thresh=lac_thresh,
                device=device, lad_batch=lad_batch, lad_topk=lad_topk,
-               min_hits=min_hits)
+               min_hits=min_hits, prefilter_lac=prefilter_lac)
     dt = time.perf_counter() - t0
 
     dets = {o.frame: [Detection(b[0], b[1], b[2], b[3], conf=s)
@@ -73,6 +74,8 @@ def main(argv=None) -> int:
     ap.add_argument("--lac-thresh", type=float, default=0.5)
     ap.add_argument("--min-hits", type=int, default=1,
                     help="SORT min_hits（论文 1；调大可减少轨迹池膨胀）")
+    ap.add_argument("--prefilter-lac", type=float, default=0.0,
+                    help="TF 前置 LAC 预筛阈值（0=关闭，论文原序）")
     ap.add_argument("--out-suffix", default="", help="结果子目录后缀")
     ap.add_argument("--force", action="store_true")
     args = ap.parse_args(argv)
@@ -91,7 +94,8 @@ def main(argv=None) -> int:
     else:
         device = args.device
     print(f"[config] device={device} modules={args.modules} lad_batch={args.lad_batch} "
-          f"lad_topk={args.lad_topk} lac_thresh={args.lac_thresh} "
+          f"lad_topk={args.lad_topk} prefilter_lac={args.prefilter_lac} "
+          f"lac_thresh={args.lac_thresh} "
           f"d={args.d_mode}:{args.d_min}", flush=True)
 
     videos = ([args.video] if args.video
@@ -112,7 +116,7 @@ def main(argv=None) -> int:
         try:
             r = eval_one(v, mods, cfg, device, args.lad_batch,
                          args.d_mode, args.d_min, args.lac_thresh, args.lad_topk,
-                         args.min_hits)
+                         args.min_hits, args.prefilter_lac)
         except Exception as e:
             print(f"    ✗ 失败: {type(e).__name__}: {e}", flush=True)
             continue

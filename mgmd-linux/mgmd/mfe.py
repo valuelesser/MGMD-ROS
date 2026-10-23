@@ -39,14 +39,32 @@ class MFEConfig:
     open_iters: int = 1
     close_iters: int = 3
 
-    # ---- 四项额外约束（默认关闭，SPEC D-04~D-07）----
-    preprocess_blur: int = 0       # M4: 0=关闭；>0 为核大小（旧工程用 11）
-    disp_filter: bool = False      # M5: 关键点位移离群过滤
+    # ---- 官方 GLAD 口径（SPEC §8.21，默认开启以对齐官方）----
+    adaptive_thresh: bool = True   # 缺口1: T = base + int(mean(diff))
+    median_blur: int = 5           # 缺口2: 二值化后中值滤波，0=关闭
+    official_area_min: int = 0     # 缺口3: >0 时用该值覆盖 min_area（官方30）
+
+    # ---- 四项额外约束（缺口4: 官方默认开启，SPEC D-04~D-07 已修订）----
+    preprocess_blur: int = 0       # M4: 官方=11；默认0保留论文"未提"口径，official=True 时启用
+    disp_filter: bool = False      # M5: 关键点位移离群过滤（官方有，见 official）
     disp_ratio: float = 0.25       # M5 参数
-    max_area: int = 0              # M11: 0=不限制
-    aspect_filter: bool = False    # M12
-    min_aspect: float = 0.2
-    max_aspect: float = 5.0
+    max_area: int = 3000           # M11: 官方 3000（缺口4，改为默认开启）
+    aspect_filter: bool = True     # M12: 官方默认开启（缺口4）
+    min_aspect: float = 0.6        # 官方 0.6（缺口4，此前误用 0.2）
+    max_aspect: float = 3.0        # 官方 3.0（缺口4，此前误用 5.0）
+    official: bool = False         # True = 一键对齐官方 GLAD MOD2_global
+
+    def apply_official(self) -> None:
+        """一键对齐官方 GLAD MOD2_global（SPEC §8.21）。"""
+        self.adaptive_thresh = True
+        self.median_blur = 5
+        self.official_area_min = 30
+        self.max_area = 3000
+        self.aspect_filter = True
+        self.min_aspect = 0.6
+        self.max_aspect = 3.0
+        self.preprocess_blur = 11
+        self.disp_filter = True
 
     def validate(self) -> None:
         if self.mode not in ("2frame", "3frame_and", "3frame_or"):
@@ -141,10 +159,25 @@ def preprocess(frame_bgr: np.ndarray, cfg: MFEConfig) -> np.ndarray:
 # III-A2 运动提取
 # --------------------------------------------------------------------------- #
 
-def _binarize(diff: np.ndarray, threshold: int, valid: np.ndarray) -> np.ndarray:
-    """阈值二值化 + 有效区掩膜（用 bitwise_and，避免 uint8 下溢，SPEC §6 D-10）。"""
-    mask = (diff > threshold).astype(np.uint8) * 255
-    return cv2.bitwise_and(mask, valid)
+def _binarize(diff: np.ndarray, threshold: int, valid: np.ndarray,
+              cfg: "MFEConfig | None" = None) -> np.ndarray:
+    """阈值二值化 + 有效区掩膜 + 可选中值滤波。
+
+    缺口1（SPEC §8.21）：cfg.adaptive_thresh 时用 T = base + int(mean(diff))，
+                        对齐官方 MOD2_global 的 `T_1 = 5 + fix_coef`。
+    缺口2：cfg.median_blur > 0 时补 medianBlur，官方为 5。
+    掩膜用 bitwise_and（避免 uint8 下溢，SPEC D-10）。
+    """
+    t = threshold
+    if cfg is not None and cfg.adaptive_thresh:
+        t = threshold + int(np.mean(diff))
+    mask = (diff > t).astype(np.uint8) * 255
+    mask = cv2.bitwise_and(mask, valid)
+    if cfg is not None and cfg.median_blur and cfg.median_blur >= 3:
+        mask = cv2.medianBlur(mask, cfg.median_blur)
+        # 中值滤波后补回有效区（滤波可能把边界外像素拉进来）
+        mask = cv2.bitwise_and(mask, valid)
+    return mask
 
 
 def motion_mask(prev_gray, cur_gray, next_gray, cfg: MFEConfig) -> tuple[np.ndarray, dict]:
@@ -152,13 +185,13 @@ def motion_mask(prev_gray, cur_gray, next_gray, cfg: MFEConfig) -> tuple[np.ndar
     cfg.validate()
     h, w = cur_gray.shape
     prev_al, prev_valid, prev_H = align_to_reference(prev_gray, cur_gray, cfg)
-    d12 = _binarize(cv2.absdiff(cur_gray, prev_al), cfg.threshold, prev_valid)
+    d12 = _binarize(cv2.absdiff(cur_gray, prev_al), cfg.threshold, prev_valid, cfg)
 
     info = {"d12": d12, "prev_H": prev_H, "next_H": None, "d23": None}
     d23 = None
     if cfg.needs_next and next_gray is not None:
         next_al, next_valid, next_H = align_to_reference(next_gray, cur_gray, cfg)
-        d23 = _binarize(cv2.absdiff(cur_gray, next_al), cfg.threshold, next_valid)
+        d23 = _binarize(cv2.absdiff(cur_gray, next_al), cfg.threshold, next_valid, cfg)
         info.update({"d23": d23, "next_H": next_H, "next_aligned": next_al})
 
     if cfg.mode == "2frame" or d23 is None:
@@ -184,11 +217,13 @@ def postprocess(motion: np.ndarray, cfg: MFEConfig) -> tuple[np.ndarray, list[tu
 
     n, _labels, stats, _cent = cv2.connectedComponentsWithStats(closed, connectivity=8)
     boxes: list[tuple[int, int, int, int]] = []
+    # 缺口3：官方用 area > 30（开区间），论文写 15
+    amin = cfg.official_area_min if cfg.official_area_min > 0 else cfg.min_area
     for i in range(1, n):
         x, y, w, h, area = stats[i]
         if w == 0 or h == 0:
             continue
-        if area < cfg.min_area:
+        if area < amin:
             continue
         if cfg.max_area and area > cfg.max_area:      # M11
             continue

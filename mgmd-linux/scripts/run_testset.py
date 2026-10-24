@@ -70,8 +70,9 @@ def main(argv=None) -> int:
     ap.add_argument("--k", type=int, default=1)
     ap.add_argument("--mode", default="3frame_or")
     ap.add_argument("--mfe-preset", default="",
-                    choices=["", "official", "revised"],
-                    help="MFE 口径预设：official=完全对齐GLAD / revised=修订口径(§8.22)")
+                    choices=["", "paper", "official", "recommended"],
+                    help="MFE 口径: paper=论文文字 / official=完全对齐GLAD / "
+                         "recommended=推荐折中(§8.23)")
     ap.add_argument("--d-mode", default="self")
     ap.add_argument("--d-min", type=float, default=0.4038)
     ap.add_argument("--lac-thresh", type=float, default=0.5)
@@ -87,8 +88,8 @@ def main(argv=None) -> int:
     cfg = MFEConfig(k=args.k, mode=args.mode)
     if args.mfe_preset == "official":
         cfg.apply_official()
-    elif args.mfe_preset == "revised":
-        cfg.apply_revised()
+    elif args.mfe_preset == "recommended":
+        cfg.apply_recommended()
     print(f"[config] mfe_preset={args.mfe_preset or 'paper(默认)'} "
           f"adaptive={cfg.adaptive_thresh} median={cfg.median_blur} "
           f"area_min={cfg.min_area} blur={cfg.preprocess_blur} "

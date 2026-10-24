@@ -56,6 +56,8 @@ def run_seq(name, mods, cfg, downscale, limit, device, lad_batch, start=0):
         raise RuntimeError(f"无法打开 {mp4}")
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     n = min(total, limit) if limit else total
+    if start > 0:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, start)   # 必须先 seek，否则 idx 与实际帧号错位
 
     buf = {}
     k = cfg.k
@@ -158,7 +160,8 @@ def main(argv=None):
             ds = 0.5
             print(f"  [{s}] 4K 视频，自动降采样 0.5", flush=True)
         print(f"  [{s}] 开始...", flush=True)
-        st = 760 if s == "D3" else args.start
+        # D3 前 764 帧无目标，且可见帧分 40 段；用最长连续段 3884-4692（809帧）
+        st = 3884 if s == "D3" else args.start
         r = run_seq(s, mods, cfg, ds, args.limit + st if args.limit else args.limit,
                     args.device, args.lad_batch, start=st)
         rows.append(r)

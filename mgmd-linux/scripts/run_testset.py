@@ -69,6 +69,9 @@ def main(argv=None) -> int:
                     help="只精修 score 最高前 k 个候选（0=全部）")
     ap.add_argument("--k", type=int, default=1)
     ap.add_argument("--mode", default="3frame_or")
+    ap.add_argument("--mfe-preset", default="",
+                    choices=["", "official", "revised"],
+                    help="MFE 口径预设：official=完全对齐GLAD / revised=修订口径(§8.22)")
     ap.add_argument("--d-mode", default="self")
     ap.add_argument("--d-min", type=float, default=0.4038)
     ap.add_argument("--lac-thresh", type=float, default=0.5)
@@ -82,6 +85,14 @@ def main(argv=None) -> int:
 
     mods = parse_modules(args.modules)
     cfg = MFEConfig(k=args.k, mode=args.mode)
+    if args.mfe_preset == "official":
+        cfg.apply_official()
+    elif args.mfe_preset == "revised":
+        cfg.apply_revised()
+    print(f"[config] mfe_preset={args.mfe_preset or 'paper(默认)'} "
+          f"adaptive={cfg.adaptive_thresh} median={cfg.median_blur} "
+          f"area_min={cfg.min_area} blur={cfg.preprocess_blur} "
+          f"aspect={cfg.min_aspect}-{cfg.max_aspect}", flush=True)
     global RESULTS_DIR
     if args.out_suffix:
         RESULTS_DIR = RESULTS_DIR / args.out_suffix

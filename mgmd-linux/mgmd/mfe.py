@@ -40,19 +40,35 @@ class MFEConfig:
     close_iters: int = 3
 
     # ---- 官方 GLAD 口径（SPEC §8.21，默认开启以对齐官方）----
-    adaptive_thresh: bool = True   # 缺口1: T = base + int(mean(diff))
-    median_blur: int = 5           # 缺口2: 二值化后中值滤波，0=关闭
+    adaptive_thresh: bool = False  # 论文口径默认关闭；apply_recommended() 时开
+    median_blur: int = 0           # 论文口径默认关闭；apply_recommended() 时设 5
     official_area_min: int = 0     # 缺口3: >0 时用该值覆盖 min_area（官方30）
 
     # ---- 四项额外约束（缺口4: 官方默认开启，SPEC D-04~D-07 已修订）----
     preprocess_blur: int = 0       # M4: 官方=11；默认0保留论文"未提"口径，official=True 时启用
     disp_filter: bool = False      # M5: 关键点位移离群过滤（官方有，见 official）
     disp_ratio: float = 0.25       # M5 参数
-    max_area: int = 3000           # M11: 官方 3000（缺口4，改为默认开启）
-    aspect_filter: bool = True     # M12: 官方默认开启（缺口4）
-    min_aspect: float = 0.6        # 官方 0.6（缺口4，此前误用 0.2）
-    max_aspect: float = 3.0        # 官方 3.0（缺口4，此前误用 5.0）
+    max_area: int = 0              # M11: 论文未提；apply_recommended() 时设 3000
+    aspect_filter: bool = False    # M12: 论文未提；apply_recommended() 时开
+    min_aspect: float = 0.2        # 论文口径默认（apply_recommended 用 0.6）
+    max_aspect: float = 5.0        # 论文口径默认（apply_recommended 用 3.0）
     official: bool = False         # True = 一键对齐官方 GLAD MOD2_global
+
+    def apply_revised(self) -> None:
+        """修订口径（SPEC §8.22）：吸收官方两处优化，保留论文对小目标的设计。
+
+        采纳：自适应阈值（官方）、medianBlur(5)（官方）、面积上限/长宽比（官方）
+        不采纳：高斯模糊 11×11（会抹掉 <11px 目标）、area>30（论文明确 15）
+        """
+        self.adaptive_thresh = True
+        self.median_blur = 5
+        self.official_area_min = 0      # 保持论文 min_area=15
+        self.max_area = 3000
+        self.aspect_filter = True
+        self.min_aspect = 0.6
+        self.max_aspect = 3.0
+        self.preprocess_blur = 0        # 关键：不做高斯模糊
+        self.disp_filter = False
 
     def apply_official(self) -> None:
         """一键对齐官方 GLAD MOD2_global（SPEC §8.21）。"""
@@ -65,6 +81,29 @@ class MFEConfig:
         self.max_aspect = 3.0
         self.preprocess_blur = 11
         self.disp_filter = True
+        return self
+
+    def apply_recommended(self) -> None:
+        """推荐口径（SPEC §8.22）：论文参数 + 官方两处优化，不含高斯模糊/area30。
+
+        纳入官方优化：
+            自适应阈值 T = base + int(mean(diff))   （官方 MOD2.py:30-33）
+            medianBlur(5)                          （官方 MOD2.py:35）
+            面积上限 3000 + 长宽比 0.6-3            （官方 MOD2.py:52）
+        排除：
+            高斯模糊 11×11  —— 会抹掉 <11px 目标（§8.22 实测 GT 内白像素 42→0）
+            area 下限 30    —— 论文明确 15，实测小目标受害
+        """
+        self.adaptive_thresh = True
+        self.median_blur = 5
+        self.max_area = 3000
+        self.aspect_filter = True
+        self.min_aspect = 0.6
+        self.max_aspect = 3.0
+        self.preprocess_blur = 0        # 不加高斯模糊
+        self.disp_filter = False        # 不加关键点离群过滤
+        self.official_area_min = 0      # 保持论文 area=15
+        return self
 
     def validate(self) -> None:
         if self.mode not in ("2frame", "3frame_and", "3frame_or"):

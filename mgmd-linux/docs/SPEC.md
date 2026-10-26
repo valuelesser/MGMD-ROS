@@ -1,7 +1,7 @@
 # SPEC: MGMD × ARD-MAV 复现（实施规格与修正记录）
 
 > 本文件是**代码与文档的唯一事实源**。每轮代码修正必须同步更新本文件，并与代码同一次 commit 提交。
-> 派生自：`paper/prd_mgmd_reproduction.md`（v3.3, 2026-10-22）
+> 派生自：`paper/prd_mgmd_reproduction.md`（v4.1, 2026-10-26）
 > 工程根：`/home/gaoduan/毕业设计/mgmd-linux/`
 > 最后更新：2026-10-22
 
@@ -16,7 +16,7 @@
 | V3 | SPEC 的 `spec_version` 与 `git tag` 对应，每次功能性改动递增 |
 | V4 | 任何偏离 PRD 或论文的决定，必须写进 §6 偏差表，不得只在代码注释里留 |
 
-`spec_version: 0.1.0` | `prd_version: 3.3` | `paper: arXiv 2410.10527v1`
+`spec_version: 0.2.0` | `prd_version: 4.1` | `paper: arXiv 2410.10527v1`
 
 ---
 

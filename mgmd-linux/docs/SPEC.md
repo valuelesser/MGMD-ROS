@@ -2804,6 +2804,83 @@ source scripts/env_setup.sh
 python3 scripts/live_track.py --camera 10 --display
 ```
 
+---
+
+## 8.34 实时窗口调优与任务收尾（2026-10-26）
+
+### 高 DPI 屏幕导致的窗口过大问题
+
+**现象**：`--display` 弹窗在 2880×1620 屏幕上几乎占满。
+
+**根因**：Qt 在 98 DPI 下自动应用 **2× 缩放**，导致 `cv2.imshow` 的窗口
+比图像实际尺寸大一倍。1920 宽的图显示成 ~1920 逻辑像素 → 实际 ~2880 物理像素。
+
+**解决**（三处配合）：
+
+| 措施 | 代码/环境 |
+|---|---|
+| 关闭 Qt 自动 DPI 缩放 | `export QT_SCALE_FACTOR=1 QT_AUTO_SCREEN_SCALE_FACTOR=0` |
+| 新增显示缩放参数 | `--display-scale`（直接指定倍率）、`--display-max-width`（限制最大宽度） |
+| 显示前 resize | `cv2.imshow` 前按 scale 缩放到目标宽度 |
+
+**实测效果**：
+
+| 配置 | 窗口尺寸 | 是否合适 |
+|---|---|---|
+| 默认（无缩放） | 1720×1136 | ❌ 太大 |
+| `--display-max-width 700`（无 QTFix） | 1400×946 | ⚠️ 仍偏大 |
+| **`--display-max-width 700` + QT_SCALE_FACTOR=1** | **722×519** | ✅ 合适 |
+
+### 窗口操作与快捷键
+
+| 键 | 作用 |
+|---|---|
+| `q` / `ESC` | 退出 |
+| `s` | 截图到 `outputs/live_snap_NNN.jpg` |
+| `SPACE` | 暂停/继续 |
+| `d` | 切换 MFE 原始候选框（黄色细框）显示 |
+
+### 用户验收结论
+
+用户确认：**窗口能正常显示，检测与追踪工作正常**。窗口尺寸偏小但可接受，
+任务到此结束。
+
+### 收尾清理（已完成）
+
+| 项 | 状态 |
+|---|---|
+| live_track 进程 | ✅ 已终止 |
+| ffmpeg 推流进程 | ✅ 已终止 |
+| v4l2loopback 模块 | ✅ 已卸载（`/dev/video10` 消失） |
+| 临时截图文件 | ✅ 已清理 |
+
+**环境恢复到干净状态**：只剩内置摄像头 `/dev/video0`、`/dev/video1`。
+
+### 可选：下次启动的一键脚本
+
+为方便再次演示，建议记录完整启动命令（本次实际使用的）：
+
+```bash
+cd /home/gaoduan/毕业设计/mgmd-linux
+
+# 1. 加载虚拟摄像头（root，一次性）
+echo '<密码>' | sudo -S bash scripts/setup_vcam.sh
+
+# 2. 推流（后台常驻）
+nohup bash scripts/push_vcam.sh \
+  "/media/gaoduan/0C1CFCAF1CFC94C4/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV/videos/phantom70.mp4" \
+  > /tmp/push.log 2>&1 &
+
+# 3. 实时窗口（需关 Qt DPI 缩放，否则窗口过大）
+source scripts/env_setup.sh
+export QT_SCALE_FACTOR=1 QT_AUTO_SCREEN_SCALE_FACTOR=0
+python3 scripts/live_track.py --camera 10 --display --display-max-width 700
+
+# 4. 清理
+pgrep -f "ffmpeg.*video10" | xargs -r kill
+echo '<密码>' | sudo -S bash scripts/setup_vcam.sh --remove
+```
+
 ### 另一个需记录的异常
 
 轨迹数在帧 359–376 暴涨到 **150 → 519 条**。原因：MFE 在噪声段产出上百候选，SORT 为每个新候选建轨迹（min_hits=1 立即输出）。这不影响最终指标（被 LAC 过滤），但是明显的效率问题，记入 T11 优化项。

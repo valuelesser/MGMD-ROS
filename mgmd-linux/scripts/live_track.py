@@ -236,6 +236,10 @@ def main(argv=None) -> int:
     ap.add_argument("--lad-batch", type=int, default=8)
     ap.add_argument("--lad-trt-engine", default=None)
     ap.add_argument("--lac-thresh", type=float, default=0.5)
+    ap.add_argument("--display-scale", type=float, default=1.0,
+                    help="显示缩放（0.5=半尺寸，适合高 DPI 屏幕）")
+    ap.add_argument("--display-max-width", type=int, default=1280,
+                    help="显示最大宽度（超过则自动缩放）")
     args = ap.parse_args(argv)
 
     cfg = MFEConfig(k=args.k, mode="3frame_or")
@@ -311,7 +315,15 @@ def main(argv=None) -> int:
                 vis = draw(frame, result, tracker, debug, paused)
 
             if args.display:
-                cv2.imshow("MGMD Live", vis)
+                show = vis
+                # 自动缩放：按 display-scale 或 display-max-width 限制
+                scale = args.display_scale
+                if scale == 1.0 and vis.shape[1] > args.display_max_width:
+                    scale = args.display_max_width / vis.shape[1]
+                if scale != 1.0:
+                    show = cv2.resize(vis, None, fx=scale, fy=scale,
+                                      interpolation=cv2.INTER_AREA)
+                cv2.imshow("MGMD Live", show)
                 key = cv2.waitKey(1) & 0xFF
                 if key in (ord("q"), 27):
                     break

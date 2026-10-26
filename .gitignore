@@ -26,3 +26,7 @@ outputs/**/*.ckpt
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# TRT engine 与 ONNX（体积大，且 engine 绑定 GPU 架构/TRT 版本，需本机重建）
+mgmd-linux/outputs/*.engine
+mgmd-linux/outputs/*.onnx

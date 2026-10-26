@@ -2219,7 +2219,7 @@ D4 帧 562：`CAND=1068 DET=0 MISS`
 | venv 内 CUDA 库 | `libcublasLt.so.12`, `libcudnn*.so.9`, `libnvrtc.so.12` |
 | pip in venv | 原本没有，需 `python -m ensurepip`（TensorRT build 脚本依赖） |
 
-### 路线 A：ONNX Runtime —— 装得通，但无加速价值
+### 路线 A：ONNX Runtime —— 全面排查后确认无加速价值
 
 **安装**：`onnxruntime-gpu==1.22.0`（1.31 要求 CUDA 13，本机 cu12 会静默回退 CPU）
 
@@ -2236,8 +2236,23 @@ D4 帧 562：`CAND=1068 DET=0 MISS`
 | 8 | 18.67 ms | 21.23 ms | 0.88× |
 | 12 | 27.43 ms | 30.90 ms | 0.89× |
 
-**结论：batch≥2 时 ORT 反而更慢（0.87–0.95×）**，因 Detect 层的 shape 算子被分到 CPU
-（ORT 警告 "Some nodes were not assigned to the preferred execution providers"）。
+**为排除"配置不当"的可能，做了以下五轮排查（2026-10-26 追加）**：
+
+| 尝试 | 结果 | 说明 |
+|---|---|---|
+| 用 **静态 batch=8** 导出（消除 dynamic shape） | **19.64 ms（0.94×）** | 算子 1225→766，shape 算子 318→163，但**无提速** |
+| 设全 12 个 nvidia 库到 LD_LIBRARY_PATH | 19.86 ms | 确保 CUDA EP 生效 |
+| `sess.io_binding()`（预分配，避免重复拷贝） | 17.94 ms | 略有改善，仍不及 PyTorch |
+| `enable_cuda_graph=1` | 18.85 ms | 消除 kernel launch 开销，收益极小 |
+| `cudnn_conv_algo_search=HEURISTIC` | 19.69 ms | 无改善 |
+
+**关键验证：ORT profiling 显示全部 776 个节点都在 CUDAExecutionProvider 上执行**
+（`CUDAExecutionProvider 776 节点 468.6 ms` 单次 profile 采样），
+**证明 GPU 确实在工作，不是回退到 CPU 的问题。**
+
+**结论：ORT 对这个小模型的执行效率与 PyTorch 持平（18.9 vs 19.4 ms），
+所有优化手段均无有效收益。** batch=1 时 1.47× 是唯一亮点，但实际每帧 2–12 个候选，
+batch=1 反而会增加调用次数。
 
 ### 路线 B：TensorRT —— 可用，提速 2.4×
 
@@ -2283,7 +2298,7 @@ D4 帧 562：`CAND=1068 DET=0 MISS`
 
 | 路线 | 可行性 | 提速 | 判定 |
 |---|---|---|---|
-| ONNX Runtime | ✅ 可用 | 0.87–1.47×（大多更慢） | ❌ 无价值 |
+| ONNX Runtime | ✅ 可用，但**与 PyTorch 持平**（18.9 vs 19.4 ms，0.94–1.05×） | ❌ 无加速价值 |
 | **TensorRT FP16** | ✅ **可用** | **1.9–2.4×** | ✅ **推荐** |
 | TensorRT FP32 | ✅ 可用 | 1.0–1.5× | ⚠️ 不如 FP16 |
 

@@ -2594,7 +2594,9 @@ ffmpeg -re -i phantom70.mp4 -f v4l2 /dev/video10
 **本机阻塞**：`v4l2loopback.ko` 模块文件存在
 （`/lib/modules/5.15.0-198-generic/kernel/v4l2loopback/`），
 但 `modprobe` 返回 `Operation not permitted`（需 root）。
-**用户若提供 sudo 密码即可启用。**
+
+> **2026-10-26 已落地**：见 §8.32，脚本 `scripts/setup_vcam.sh` +
+> `scripts/push_vcam.sh` + 文档 `docs/vcam_setup.md` 已交付，只需 sudo 即可启用。
 
 > 但注意：路径 3 相对路径 1 没有实质优势——两者都是"喂文件给同一套代码"，
 > 路径 1 更简单。路径 3 只在需要测试"摄像头采集链路"本身时才有意义。
@@ -2631,6 +2633,85 @@ python3 scripts/live_track.py --video test_flight.mp4 --record out2.mp4 --thresh
 
 # 4. 若仍不行 → 需重训 LAC/LAD（用新场景数据微调）
 ```
+
+---
+
+## 8.32 虚拟摄像头方案落地（2026-10-26）
+
+用户选择路径 3（虚拟摄像头）。已交付完整脚本与文档。
+
+### 本机实测：模块已存在，只差 root 加载
+
+| 检查项 | 结果 |
+|---|---|
+| 模块文件 | ✅ `/lib/modules/5.15.0-198-generic/kernel/v4l2loopback/v4l2loopback.ko`（84 KB） |
+| vermagic 匹配 | ✅ `5.15.0-198-generic`（与当前内核一致） |
+| 依赖模块 | ✅ `videodev` 已加载 |
+| 当前状态 | ❌ 未加载（`modprobe` 需 root） |
+
+**结论：不需要安装任何软件包，一条 `sudo modprobe` 即可。**
+
+### 交付的三个文件
+
+| 文件 | 作用 |
+|---|---|
+| `scripts/setup_vcam.sh` | 加载/卸载/查看虚拟摄像头（需 root） |
+| `scripts/push_vcam.sh` | ffmpeg 推流到虚拟摄像头（普通权限） |
+| `docs/vcam_setup.md` | 完整操作手册（含参数说明、FAQ、能力边界） |
+
+### 使用流程（三个终端）
+
+```bash
+# 终端 A（root，一次性）
+sudo bash scripts/setup_vcam.sh
+# → /dev/video10
+
+# 终端 B（常驻推流）
+bash scripts/push_vcam.sh phantom70.mp4
+# 内部: ffmpeg -re -stream_loop -1 -i ... -f v4l2 /dev/video10
+
+# 终端 C（运行追踪）
+source scripts/env_setup.sh
+python3 scripts/live_track.py --camera 10 --display
+```
+
+### 三个关键技术点
+
+| 点 | 说明 |
+|---|---|
+| `exclusive_caps=1` | **必须**。否则应用把设备当成"采集源"而非"输出目标"，ffmpeg 写入报错 |
+| ffmpeg `-re` | **必须**。按原速推流；不加会瞬间推完，摄像头只读到最后一帧（画面冻结） |
+| `--camera 10` 而非 `0` | `/dev/video0` 是笔记本内置摄像头（本机全黑），虚拟设备在 10 |
+
+### 参数与清理
+
+```bash
+# 自定义设备号
+VIDEO_NR=11 sudo -E bash scripts/setup_vcam.sh
+
+# 查看状态（免 root）
+bash scripts/setup_vcam.sh --status
+
+# 卸载
+sudo bash scripts/setup_vcam.sh --remove
+```
+
+### 能力边界（与 §8.31 一致）
+
+**能验证**：V4L2 采集链路、实时吞吐（ffmpeg 按原速推）、算法全链路、交互功能。
+
+**不能验证**：真实无人机检测（权重域不匹配）、摄像头传感器画质、现场光照/运动模糊。
+
+### 与方案 1 的关系
+
+| | 方案 1 视频文件 | 方案 3 虚拟摄像头 |
+|---|---|---|
+| 依赖 | 无 | 需 root |
+| 验证范围 | 算法链路 | 算法链路 **+ V4L2 采集** |
+| 实时性 | 受限（读文件太快） | ✅ 真实（`-re` 按原速） |
+| 适用 | 日常调试 | **验证采集链路 / 演示** |
+
+**两者互补**：日常用方案 1（快、免 root），需要验证采集链路或演示时用方案 3。
 
 ### 另一个需记录的异常
 

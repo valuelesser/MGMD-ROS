@@ -60,7 +60,7 @@ class LadDetector:
 
     def __init__(self, weights: Path | None = None, crop_size: int = 320,
                  imgsz: int = 320, conf_thresh: float = 0.5,
-                 device: str = "auto"):
+                 device: str = "auto", trt_engine: Path | str | None = None):
         import torch
         self.weights = Path(weights) if weights else (C.WEIGHTS_DIR / "yolov5s_GLAD-crop.pt")
         if not self.weights.is_file():
@@ -93,6 +93,63 @@ class LadDetector:
         except Exception:
             self.nc = -1
             self.class_names = {}
+
+        # ---- 可选 TRT 后端（SPEC §8.28）----
+        # trt_engine 为 None 时完全走原 PyTorch 路径，行为不变。
+        # 提供 engine 路径时优先用 TRT 推理（2.4× 提速），失败则回退 PyTorch。
+        self._trt_engine = None
+        self._trt_ctx = None
+        self._trt_input_name = None
+        self._trt_output_name = None
+        if trt_engine:
+            self._init_trt(Path(trt_engine))
+
+    def _init_trt(self, engine_path: Path) -> None:
+        """加载 TRT engine（可选）。失败仅告警并回退 PyTorch，不中断。"""
+        try:
+            import tensorrt as trt
+        except ImportError as exc:
+            warnings.warn(f"[mgmd] tensorrt 未安装，回退 PyTorch: {exc}", UserWarning)
+            return
+        if not engine_path.is_file():
+            warnings.warn(f"[mgmd] TRT engine 不存在: {engine_path}，回退 PyTorch", UserWarning)
+            return
+        logger = trt.Logger(trt.Logger.ERROR)
+        runtime = trt.Runtime(logger)
+        engine = runtime.deserialize_cuda_engine(engine_path.read_bytes())
+        if engine is None:
+            warnings.warn(f"[mgmd] TRT engine 反序列化失败，回退 PyTorch", UserWarning)
+            return
+        ctx = engine.create_execution_context()
+        names = [engine.get_tensor_name(i) for i in range(engine.num_io_tensors)]
+        in_name = next(n for n in names
+                       if engine.get_tensor_mode(n) == trt.TensorIOMode.INPUT)
+        out_name = next(n for n in names
+                        if engine.get_tensor_mode(n) == trt.TensorIOMode.OUTPUT)
+        self._trt_engine = engine
+        self._trt_ctx = ctx
+        self._trt_input_name = in_name
+        self._trt_output_name = out_name
+        shape = tuple(engine.get_tensor_shape(out_name))
+        self._trt_out_shape = shape
+
+    def trt_available(self) -> bool:
+        return self._trt_ctx is not None
+
+    def _trt_forward(self, batch_np: np.ndarray):
+        """TRT 前向，输入固定 shape。返回 numpy (注意：输出缓冲必须 zeros，SPEC §8.28)。"""
+        import torch
+        ctx = self._trt_ctx
+        ctx.set_input_shape(self._trt_input_name, tuple(batch_np.shape))
+        d_in = torch.from_numpy(np.ascontiguousarray(batch_np)).cuda()
+        ctx.set_tensor_address(self._trt_input_name, d_in.data_ptr())
+        out_shape = tuple(ctx.get_tensor_shape(self._trt_output_name))
+        # 关键：必须 zeros，empty 会读到未初始化脏值（本项目踩坑点）
+        d_out = torch.zeros(out_shape, dtype=torch.float32, device="cuda")
+        ctx.set_tensor_address(self._trt_output_name, d_out.data_ptr())
+        ctx.execute_async_v3(stream_handle=torch.cuda.current_stream().cuda_stream)
+        torch.cuda.synchronize()
+        return d_out
 
     def _load(self, _w):
         """加载权重的 model（v6.0 attempt_load 等价物）。"""
@@ -192,10 +249,14 @@ class LadDetector:
                 continue
 
             batch = torch.cat(tensors, dim=0)
-            with torch.no_grad():
-                pred = self.model(batch)
-            if isinstance(pred, (list, tuple)):
-                pred = pred[0]
+            if self._trt_ctx is not None:
+                # TRT 路径：输入转 numpy → TRT → 得到 pred（已是张量，后续流程不变）
+                pred = self._trt_forward(batch.detach().cpu().numpy())
+            else:
+                with torch.no_grad():
+                    pred = self.model(batch)
+                if isinstance(pred, (list, tuple)):
+                    pred = pred[0]
 
             dets = non_max_suppression(pred, self.conf_thresh, 0.45)
             for j, i in enumerate(valid_idx):

@@ -51,7 +51,7 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
         max_age: int = 3, span: int = 3, lad_conf: float = 0.5,
         min_hits: int = 1,
         device: str = "auto", lad_batch: int = 1, lad_topk: int = 0,
-        prefilter_lac: float = 0.0,
+        prefilter_lac: float = 0.0, lad_trt_engine: str | None = None,
         progress: bool = False) -> list[FrameOutput]:
     """跑一段视频，返回逐帧输出。"""
     gt = load_video_gt(video)          # 仅用于确定帧范围与校验
@@ -72,7 +72,8 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
     lad = None
     if use_lad:
         from mgmd.lad import LadDetector
-        lad = LadDetector(conf_thresh=lad_conf, device=device)
+        lad = LadDetector(conf_thresh=lad_conf, device=device,
+                          trt_engine=lad_trt_engine)
 
     outs: list[FrameOutput] = []
     k = mfe_cfg.k

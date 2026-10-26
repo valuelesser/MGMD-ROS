@@ -2910,3 +2910,89 @@ echo '<密码>' | sudo -S bash scripts/setup_vcam.sh --remove
 | 130 | 中断 |
 
 格式：`[mgmd] <code>: <msg> → <remediation>`
+
+---
+
+## 10. 阶段二：ROS1 Noetic 实机检测跟踪（自 §10 起）
+
+> 对应 PRD v4.1 §11。本节只记录**与代码相关的约束**，需求描述在 PRD。
+
+### 10.1 环境事实（实测 2026-10-26）
+
+| 项 | 事实 | 命令 |
+|---|---|---|
+| ROS 安装 | **未安装**，`/opt/ros` 为空，`import rospy` ModuleNotFoundError | `ls /opt/ros` |
+| OS | Ubuntu 20.04.6 LTS (focal) | `lsb_release -a` |
+| 系统 Python | **3.8.10**（ROS1 Noetic 绑定版本） | `/usr/bin/python3 --version` |
+| 算法 Python | **3.11.17**（`.venv`，torch 2.5.1+cu121） | `$PY --version` |
+| CPU / 内存 | 16 核 / 15 GB | `nproc; free -g` |
+| apt | 可用（`/etc/apt/sources.list.d` 有 ros-fish.list，**不是 ROS 源**） | — |
+| `djitellopy` | 未安装 | `python3 -c "import djitellopy"` |
+
+**结论**：20.04 + py3.8 是 ROS1 Noetic 的官方支持组合，"ROS2 装不上"的阻塞消失。
+
+### 10.2 硬约束 C1：ROS1 与算法环境的 Python 不兼容
+
+**事实**：`rospy` / `cv_bridge` / `tf2_ros` 只在 `/usr/lib/python3/dist-packages`（3.8）可用；算法环境是 3.11 + torch 2.5.1。
+
+**决策（用户 Q-A，方案 A）**：检测 sidecar。
+
+| 进程 | Python | 职责 |
+|---|---|---|
+| ROS 节点 | 3.8 | 收发消息、SORT、可视化、视觉伺服 |
+| `detect_server.py` | 3.11 | MFE → TF → LAC → LAD 全链路，走本地 socket |
+
+**约束 C1-1**：`mgmd/` 包**不得直接 import 到任何 ROS 节点**。所有算法调用必须经 socket。
+**约束 C1-2**：sidecar 协议只有两样：帧进、检测出。不得把 `step_H`、候选内部排序等中间量暴露成协议。
+**约束 C1-3**：`mgmd/` 的代码一行不改。阶段一的 62 项测试与 F1=0.658 结果必须保持可复现。
+
+### 10.3 待建立的工作区
+
+```
+mgmd-linux/
+├── ros2_ws/          # 已存在，仅 7 个消息文件，从未提交 git，由 ros1_ws 取代
+├── ros1_ws/src/
+│   ├── mav_tracker_msgs/   # 复用 ros2_ws 的 4 msg + 1 action，补 catkin 构建文件
+│   └── mav_tracker/
+│       ├── scripts/tt_driver.py      # 3.8
+│       ├── scripts/mav_node.py       # 3.8
+│       ├── scripts/tracker_node.py   # 3.8
+│       ├── scripts/viz_node.py       # 3.8
+│       ├── scripts/mission_node.py   # 3.8
+│       ├── scripts/detect_server.py  # 3.11（shebang 指向 .venv）
+│       └── launch/
+```
+
+**`ros2_ws/` 的处置**：暂不删除，等 `ros1_ws` 消息定义对齐后一并删。原因是其中的 msg 字段设计已成立，直接搬迁比重写省事。
+
+### 10.4 验收对拍口径（C1 的证明方式）
+
+sidecar 拆进程最大的风险是"输出变了但看不出来"。验收必须做三方对拍：
+
+| 路径 | 说明 |
+|---|---|
+| P1 直接调用 | `mgmd.pipeline.run()` 处理视频（阶段一路径） |
+| P2 sidecar | 帧经 socket 过 `detect_server`，结果收回 |
+| **断言** | P1 与 P2 的框中心差 **< 2 px**，检出帧数差 **< 2%** |
+
+对拍不通过，说明协议有损（如 JPEG 压缩、颜色空间转换错误），必须修复而不是调宽容差。
+
+### 10.5 室外场景的代码级影响
+
+| 影响 | 代码位置 | 处理 |
+|---|---|---|
+| 风致云台抖动使候选数暴涨 | `mfe_node` / sidecar | `n_candidates > 200` 时自动禁用 LAD，只跑 LAC，并告警 |
+| 强光/逆光使阈值 5 失效 | `MFEConfig.threshold` | 暴露为 ros param `mfe_threshold`，室外需重标定 |
+| 丢图传后视觉伺服继续发指令 | `mission_node` | 500 ms 无新帧 → 零速度；2 s → `land`。**不可配置关闭** |
+| 近距离大目标被当成小目标追 | `mission_node` | 框面积 > 画面 5% → 立即停追。**不可配置关闭** |
+
+后两条是安全 gate，单元测试必须覆盖（US-017 验收项）。
+
+### 10.6 已知未做
+
+| 项 | 状态 |
+|---|---|
+| ROS1 安装 | 待用户执行（PRD §11.3） |
+| `ros1_ws` 包骨架 | 未创建 |
+| 实拍数据采集与标注 | 未开始（依赖真机） |
+| LAC/LAD 室外域微调 | 未开始（依赖数据） |

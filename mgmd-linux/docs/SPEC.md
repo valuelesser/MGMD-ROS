@@ -2538,6 +2538,100 @@ python3 scripts/live_track.py --video path/to.mp4 --display
 python3 scripts/live_track.py --display --preset mvdt --threshold 2 --min-area 5
 ```
 
+---
+
+## 8.31 无实机条件下的能力验证（2026-10-26）
+
+**背景**：用户希望系统具备实时 MAV 追踪能力，但手上没有无人机可实测。
+本节给出三种不依赖实机的验证路径，并给出真实部署需要做什么。
+
+### 路径 1：用 ARD-MAV 视频模拟实时输入（已实现，推荐）
+
+`scripts/live_track.py --video <mp4>` 与摄像头路径**完全同一套代码**，
+只是输入源从 V4L2 换成文件。处理延迟、轨迹管理、HUD 行为完全一致。
+
+**实测（phantom70，300 帧）**：
+
+| 指标 | 值 |
+|---|---|
+| 检出帧占比 | **53.0%** |
+| 建立轨迹数 | 9 |
+| 内部处理 FPS | **11.6** |
+
+**这是当前条件下最能反映真实能力的验证方式**——因为输入数据与训练域一致。
+
+### 路径 2：生成标注演示视频（已实现）
+
+`scripts/make_demo_video.py`：离线处理 ARD-MAV 视频，输出带 HUD + 轨迹线的 mp4。
+
+```bash
+python3 scripts/make_demo_video.py --video phantom70 --frames 400
+# → outputs/figures/demo_phantom70_400.mp4 (32.1 MB)
+```
+
+**实测（phantom70，400 帧，8 秒视频）**：
+
+| 指标 | 值 |
+|---|---|
+| 检出帧占比 | **59.8%** |
+| 输出文件 | 32.1 MB |
+| 处理耗时 | 45.9 s（8.7 FPS） |
+
+视觉验证：帧 3 检测框 (1037, 529, 1056, 543)，目标 19×14 px，
+画面上可见红色框与 `MAV#` 标签处于正确位置。
+
+**用途**：答辩演示、报告配图，不依赖摄像头。
+
+### 路径 3：虚拟摄像头（本机受阻）
+
+理论上可用 `v4l2loopback` 把视频推成虚拟摄像头，让 `live_track.py --camera` 直接读：
+
+```bash
+sudo modprobe v4l2loopback video_nr=10 card_label="MAV Test"
+ffmpeg -re -i phantom70.mp4 -f v4l2 /dev/video10
+```
+
+**本机阻塞**：`v4l2loopback.ko` 模块文件存在
+（`/lib/modules/5.15.0-198-generic/kernel/v4l2loopback/`），
+但 `modprobe` 返回 `Operation not permitted`（需 root）。
+**用户若提供 sudo 密码即可启用。**
+
+> 但注意：路径 3 相对路径 1 没有实质优势——两者都是"喂文件给同一套代码"，
+> 路径 1 更简单。路径 3 只在需要测试"摄像头采集链路"本身时才有意义。
+
+### 三种路径对比
+
+| 路径 | 能验证什么 | 依赖 | 推荐度 |
+|---|---|---|---|
+| 1 视频模拟 | 完整算法链路 + 轨迹 + 实时性 | 无 | ⭐⭐⭐ 推荐 |
+| 2 演示视频 | 同上 + 可直接播放的结果 | 无 | ⭐⭐⭐ 推荐 |
+| 3 虚拟摄像头 | 额外验证 V4L2 采集链路 | 需 sudo | ⭐ |
+
+### 真实部署需要补的三件事
+
+| # | 事项 | 说明 |
+|---|---|---|
+| 1 | **摄像头画面必须正常** | 本机 `/dev/video0` 全黑（像素均值 1.3），需检查物理遮挡/隐私开关/驱动 |
+| 2 | **权重需域内重训** | LAC/LAD 在 ARD-MAV（机载俯视 1080p）训练。实机若为地面视角/不同机型，必须重训或至少微调 |
+| 3 | **参数需按目标尺寸重标** | 阈值 5、min_area 15 是为 8–30 px 目标调的。实机目标尺寸不同则需重标（参考 §8.16 敏感性表） |
+
+**这三件事没有一件是代码问题，都是数据与场景适配问题。**
+
+### 若用户后续拿到无人机，最小验证流程
+
+```bash
+# 1. 先录一段，离线看检出情况（不追求实时）
+ffmpeg -f v4l2 -i /dev/video0 -t 30 -r 30 test_flight.mp4
+
+# 2. 用 live_track 离线跑，看检出率
+python3 scripts/live_track.py --video test_flight.mp4 --record out.mp4 --limit 600
+
+# 3. 若检出率低，先调阈值（静态相机用 --preset mvdt 的 th=2）
+python3 scripts/live_track.py --video test_flight.mp4 --record out2.mp4 --threshold 2
+
+# 4. 若仍不行 → 需重训 LAC/LAD（用新场景数据微调）
+```
+
 ### 另一个需记录的异常
 
 轨迹数在帧 359–376 暴涨到 **150 → 519 条**。原因：MFE 在噪声段产出上百候选，SORT 为每个新候选建轨迹（min_hits=1 立即输出）。这不影响最终指标（被 LAC 过滤），但是明显的效率问题，记入 T11 优化项。

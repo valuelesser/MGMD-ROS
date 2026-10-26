@@ -2921,7 +2921,7 @@ echo '<密码>' | sudo -S bash scripts/setup_vcam.sh --remove
 
 | 项 | 事实 | 命令 |
 |---|---|---|
-| ROS 安装 | **未安装**，`/opt/ros` 为空，`import rospy` ModuleNotFoundError | `ls /opt/ros` |
+| ROS 安装 | ✅ **ros-noetic-desktop-full 1.5.0 已装**（2026-10-26 17:52），`/opt/ros/noetic` | `ls /opt/ros; rosversion -d` |
 | OS | Ubuntu 20.04.6 LTS (focal) | `lsb_release -a` |
 | 系统 Python | **3.8.10**（ROS1 Noetic 绑定版本） | `/usr/bin/python3 --version` |
 | 算法 Python | **3.11.17**（`.venv`，torch 2.5.1+cu121） | `$PY --version` |
@@ -2930,6 +2930,25 @@ echo '<密码>' | sudo -S bash scripts/setup_vcam.sh --remove
 | `djitellopy` | 未安装 | `python3 -c "import djitellopy"` |
 
 **结论**：20.04 + py3.8 是 ROS1 Noetic 的官方支持组合，"ROS2 装不上"的阻塞消失。
+
+**装完后的实测状态（2026-10-26 17:52）**
+
+| 项 | 结果 |
+|---|---|
+| `rosversion -d` | `noetic` |
+| `roscore` | 起得来，`rostopic list` 返回 `/rosout`、`/rosout_agg` |
+| `rospy` 发布 | 通过（`init_node` + `Publisher` + `publish`） |
+| 系统 cv2 | **4.2.0**（apt 装的 `python3-opencv` 版本，比算法侧 5.0 旧） |
+| 工具链 | `catkin_make`、`catkin_create_pkg`、`rosmsg`、`rostopic` 全部可用 |
+| 3.11 环境 | **未受影响**，torch 2.5.1+cu121 + CUDA 可用 |
+
+**安装过程中踩的两个坑（复现时要注意）**
+
+1. **`ros.key` 已过期**。`http://packages.ros.org/ros.key` 下载下来是 2019 年版，`apt update` 报 `EXPKEYSIG F42ED6FBAB17C654`。必须从 keyserver 重新拉：
+   `gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 && gpg --export C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654 > /usr/share/keyrings/ros-archive-keyring.gpg`
+2. **系统里原本有一个 `ros-fish.list`，里面混了 `ustc.edu.cn/ros2/ubuntu` 这条不再存在的源**，导致 `python3-rosdep-modules 0.26.0` 下载 404。删掉该行后安装通过。备份在 `ros-fish.list.bak`。
+
+**`raw.githubusercontent.com` 不通**（curl 超时），所以 PRD §11.3 里"从 github 拉 ros.asc"那条命令在本网络环境不可用，改用 packages.ros.org + keyserver。
 
 ### 10.2 硬约束 C1：ROS1 与算法环境的 Python 不兼容
 

@@ -1287,27 +1287,22 @@ And 与阶段一权重在同一评估集上对比，报告提升幅度
 | 实时追踪链路 | ✅ 虚拟摄像头验证通过（§8.33） |
 | 三张表 + 偏差报告 | ⏳ 单独任务，不阻塞阶段二（Q22 决策） |
 
-### 阶段二（v4.1，第一步：装 ROS1 Noetic）
+### 阶段二（v4.2，ROS1 已就绪，直接开始建包）
 
-**装命令（需 sudo，密码 00000000）：**
+**ROS1 安装已完成（2026-10-26 17:52）。** 验证结果：
 
-```bash
-sudo sh -c 'echo "deb http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
-sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
-sudo apt update
-sudo apt install -y ros-noetic-desktop-full
-echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
-```
+| 项 | 结果 |
+|---|---|
+| 版本 | ros-noetic-desktop-full **1.5.0**，`/opt/ros/noetic`（140 MB） |
+| `roscore` | ✅ 起得来，`rostopic list` 正常 |
+| `rospy` | ✅ 能 init_node + publish |
+| 工具链 | ✅ `catkin_make`、`catkin_create_pkg`、`rosmsg`、`rostopic` |
+| 系统 cv2 | 4.2.0（apt 版，比算法侧 5.0 旧） |
+| 3.11 环境 | ✅ 未受影响，torch 2.5.1+cu121 / CUDA 可用 |
 
-装完我需要确认三件事，才能开始生成包：
+**安装踩的两个坑已记进 SPEC §10.1**：`ros.key` 过期要重新从 keyserver 拉；系统原有 `ros-fish.list` 混了失效的 ros2 源要删掉。
 
-| # | 确认项 | 命令 |
-|---|---|---|
-| 1 | ROS1 路径与发行版 | `ls /opt/ros/; echo $ROS_DISTRO` |
-| 2 | `roscore` 能起 | `source /opt/ros/noetic/setup.bash && roscore`（另开终端 `rostopic list`） |
-| 3 | catkin 工具链可用 | `which catkin_make catkin_create_pkg` |
-
-**第二步（ROS 就绪后，我来做，7 天，不需要真机）：**
+**下一步（我来做，7 天，不需要真机）：**
 
 | 顺序 | 任务 | 工时 | 依赖 |
 |---|---|---|---|
@@ -1320,15 +1315,11 @@ echo "source /opt/ros/noetic/setup.bash" >> ~/.bashrc
 
 **这 7 天完全不依赖真机。** 真机采集（C 阶段）可以同时开工。
 
-### 需要你先回答的三个问题（v4.1 新增）
+### 已无待答问题
 
-| # | 问题 | 影响 |
-|---|---|---|
-| **Q24** | **目标机和观察机是同一型号吗？** | 不同型号则采集量与微调量加大（§11.6） |
-| **Q25** | **室外飞场有固定场地和空域许可吗？** | 没有则 L3 飞行验收做不到，只能交 L2 |
-| **Q26** | **接受 ROS1 Noetic 已 EOL 吗？** | 不接受就要换机器跑 ROS2，架构全部重来 |
+Q20–Q26 全部确认。阶段二可以连续推进，不需要再等决策。
 
-**Q26 特别说明**：Noetic 2025-05 已停止维护，apt 源理论上还能用，但不保证。如果你能接受"用 EOL 版本做完毕设"，这是最省事的路；如果学校有明确要求，现在说，我改架构。
+**唯一需要提前安排的**：室外实拍采集（§11.6）要两个人同时操作，一个飞目标机、一个拿观察机。软件侧不能替代，需要你自己协调人手和时间。
 
 ## 附：本轮独立验证的脚本
 

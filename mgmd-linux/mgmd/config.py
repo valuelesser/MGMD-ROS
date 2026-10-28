@@ -12,10 +12,19 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 # 数据集根（NTFS 只读）。SPEC §4.1
-ARD_ROOT = Path(
-    "/media/gaoduan/0C1CFCAF1CFC94C4/Users/gaodu/Desktop/毕业设计"
-    "/mgmd/data/videos/视频/ARD-MAV"
-)
+# 注意：卷标会随挂载变化（0C1CFCAF1CFC94C4 -> 0C1CFCAF1CFC94C41，SPEC §10.7）。
+# 因此按候选顺序探测，取第一个存在的卷，避免盘符变动导致整条链路失效。
+_ARD_REL = "Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV"
+_ARD_VOLUMES = ("0C1CFCAF1CFC94C41", "0C1CFCAF1CFC94C4")
+_ard_env = __import__("os").environ.get("MGMD_ARD_ROOT")
+if _ard_env:
+    ARD_ROOT = Path(_ard_env)
+else:
+    ARD_ROOT = next(
+        (Path("/media/gaoduan") / v / _ARD_REL for v in _ARD_VOLUMES
+         if (Path("/media/gaoduan") / v / _ARD_REL).is_dir()),
+        Path("/media/gaoduan") / _ARD_VOLUMES[0] / _ARD_REL,
+    )
 ARD_VIDEOS = ARD_ROOT / "videos"
 ARD_ANNOTATIONS = ARD_ROOT / "Annotations"
 

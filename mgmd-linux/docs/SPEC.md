@@ -1,9 +1,9 @@
 # SPEC: MGMD × ARD-MAV 复现（实施规格与修正记录）
 
 > 本文件是**代码与文档的唯一事实源**。每轮代码修正必须同步更新本文件，并与代码同一次 commit 提交。
-> 派生自：`paper/prd_mgmd_reproduction.md`（v4.1, 2026-10-26）
+> 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）
 > 工程根：`/home/gaoduan/毕业设计/mgmd-linux/`
-> 最后更新：2026-10-22
+> 最后更新：2026-10-28
 
 ---
 
@@ -15,8 +15,18 @@
 | V2 | SPEC 与代码必须在**同一个 commit** 内提交，commit message 格式：`<area>: <做了什么> (SPEC §<节号>)` |
 | V3 | SPEC 的 `spec_version` 与 `git tag` 对应，每次功能性改动递增 |
 | V4 | 任何偏离 PRD 或论文的决定，必须写进 §6 偏差表，不得只在代码注释里留 |
+| **V5** | **提交后必须用 `git show --stat HEAD` 核对文件清单**。产物文件（视频、表格、图）必须确认出现在 stat 里，不能只凭 `git add` 无报错就算成功 |
+| **V6** | **交付物（`outputs/figures/`、`outputs/tables/`、`outputs/logs/**/_summary.json`）必须入库**。中间数据（`runs/`、`logs/` 下其余内容）不入库。新增忽略规则时必须在 §0 版本表中登记 |
 
-`spec_version: 0.2.0` | `prd_version: 4.1` | `paper: arXiv 2410.10527v1`
+`spec_version: 0.3.0` | `prd_version: 4.2` | `paper: arXiv 2410.10527v1`
+
+### 0.1 版本记录（每轮必须追加一行）
+
+| spec_version | 日期 | 对应 commit | 变更摘要 | PRD 版本 |
+|---|---|---|---|---|
+| 0.1.0 | 2026-10-22 | 起 | 阶段一接口冻结 | v3.3 |
+| 0.2.0 | 2026-10-26 | 50a8ab3 | SPEC 版本号对齐 PRD v4.1 | v4.1 |
+| **0.3.0** | **2026-10-28** | 本轮 | 新增 §10（阶段二 ROS1）、§10.7（数据卷标探测）、§10.8（多目标实测）；修 `.gitignore` 使 figures 入库；引入 V5/V6 | v4.2 |
 
 ---
 

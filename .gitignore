@@ -17,7 +17,8 @@ venv/
 # 运行产物
 mgmd-linux/outputs/runs/
 mgmd-linux/outputs/logs/
-mgmd-linux/outputs/figures/
+# figures 是交付物（演示视频），必须入库；只忽略其中的中间帧目录
+mgmd-linux/outputs/figures/_tmp/
 outputs/**/*.pt
 outputs/**/*.pth
 outputs/**/*.ckpt

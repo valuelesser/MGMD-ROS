@@ -16,7 +16,7 @@
 | V3 | SPEC 的 `spec_version` 与 `git tag` 对应，每次功能性改动递增 |
 | V4 | 任何偏离 PRD 或论文的决定，必须写进 §6 偏差表，不得只在代码注释里留 |
 | **V5** | **提交后必须用 `git show --stat HEAD` 核对文件清单**。产物文件（视频、表格、图）必须确认出现在 stat 里，不能只凭 `git add` 无报错就算成功 |
-| **V6** | **交付物（`outputs/figures/`、`outputs/tables/`、`outputs/logs/**/_summary.json`）必须入库**。中间数据（`runs/`、`logs/` 下其余内容）不入库。新增忽略规则时必须在 §0 版本表中登记 |
+| **V6** | **演示视频不进 git，用 `scripts/pack_deliverables.sh` 打包到 `deliverables/` 单独分发**（用户决策 2026-10-28）。表格与摘要 JSON（`outputs/tables/`、`outputs/logs/**/_summary.json`）必须入库。每新增一个视频必须在本节表里登记说明 |
 
 `spec_version: 0.3.0` | `prd_version: 4.2` | `paper: arXiv 2410.10527v1`
 
@@ -26,7 +26,25 @@
 |---|---|---|---|---|
 | 0.1.0 | 2026-10-22 | 起 | 阶段一接口冻结 | v3.3 |
 | 0.2.0 | 2026-10-26 | 50a8ab3 | SPEC 版本号对齐 PRD v4.1 | v4.1 |
-| **0.3.0** | **2026-10-28** | 本轮 | 新增 §10（阶段二 ROS1）、§10.7（数据卷标探测）、§10.8（多目标实测）；修 `.gitignore` 使 figures 入库；引入 V5/V6 | v4.2 |
+| 0.3.0 | 2026-10-28 | 本轮 | 新增 §10（阶段二 ROS1）、§10.7（数据卷标探测）、§10.8（多目标实测）；修 `.gitignore`；引入 V5/V6 | v4.2 |
+
+
+### 0.2 演示视频登记（V6）
+
+视频不入库，但**必须在 git 里可追溯**：每个视频登记文件名、生成命令、说明。
+
+| 视频 | 生成命令 | 说明 |
+|---|---|---|
+| `multi_phantom20.mp4` | `$PY scripts/make_multi_video.py` | 多目标诊断，帧24-55（§10.8） |
+| `multi_phantom20_gap.mp4` | `$PY scripts/make_multi_video.py --start 34 --frames 10 --fps 2 --out outputs/figures/multi_phantom20_gap.mp4` | 多目标丢失慢放（§10.8） |
+| `vcam_track.mp4` / `vcam_full.mp4` | `live_track.py --camera 10 --record` | 虚拟摄像头实时追踪（§8.33） |
+| `demo_phantom70_400.mp4` | `$PY scripts/make_demo_video.py` | 主结果演示 |
+| `phantom40_full_compressed.mp4` | `$PY scripts/make_video.py --video phantom40 ...` | 完整流水线 |
+| `phantom76_*.mp4` | `$PY scripts/make_video.py --video phantom76 ...` | MFE/LAC/LAD 各模式样例 |
+| `D1-D4_mvdt_viz.mp4` | `$PY scripts/make_video_mvdt.py` | MVDT 跨域测试（§8.26） |
+| `live_sim.mp4` | `live_track.py --source <video> --record` | 实时链路模拟 |
+
+**打包**：`bash scripts/pack_deliverables.sh` → `deliverables/mgmd_demo_videos_<日期>.tar.gz` + 同名 `_MANIFEST.md`。
 
 ---
 

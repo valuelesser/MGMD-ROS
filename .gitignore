@@ -17,12 +17,16 @@ venv/
 # 运行产物
 mgmd-linux/outputs/runs/
 mgmd-linux/outputs/logs/
-# figures 是交付物（演示视频），必须入库；只忽略其中的中间帧目录
-mgmd-linux/outputs/figures/_tmp/
+# 演示视频不入库（SPEC §0 V6 / 用户决策 2026-10-28）
+# 交付时用 scripts/pack_deliverables.sh 单独打包到 deliverables/
+mgmd-linux/outputs/figures/
 outputs/**/*.pt
 outputs/**/*.pth
 outputs/**/*.ckpt
 *.log
+
+# 交付包（含视频，单独分发，不进版本控制）
+deliverables/
 
 # 系统文件
 .DS_Store

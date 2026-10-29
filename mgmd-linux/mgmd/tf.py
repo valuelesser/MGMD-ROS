@@ -200,8 +200,14 @@ class SortTracker:
 
     def __init__(self, iou_thresh: float = 0.3, max_age: int = 3, min_hits: int = 1,
                  span: int = 3, d_mode: str = "enclosing", d_min: float = 1.0,
-                 align: bool = True):
+                 align: bool = True, init_velocity: bool = False,
+                 init_v_search: float = 1.5):
         self.iou_thresh = iou_thresh
+        # 方案 B（SPEC §10.10.6）：新轨迹用上一帧未关联候选初始化速度。
+        # 论文为 False（KalmanBox 初速度恒为 0）；开启后偏离论文，需成对报告（D-16）。
+        self.init_velocity = init_velocity
+        self.init_v_search = init_v_search   # 搜索半径 = 该倍数 × 新框对角线
+        self._prev_free: list[Box] = []      # 上一帧未被任何轨迹关联的候选
         self.max_age = max_age
         self.min_hits = min_hits
         self.span = span
@@ -215,6 +221,31 @@ class SortTracker:
         self._hits: dict[int, int] = {}
         self._miss: dict[int, int] = {}
 
+    def _init_kalman_velocity(self, kal, box: Box, history: list[Box]) -> None:
+        """用上一帧最近的未关联候选，给新轨迹一个初速度（SPEC §10.10.6 方案 B）。
+
+        论文口径下 KalmanBox 初速度恒为 0，新轨迹首次 predict() 框停在原地，
+        位移超过 0.538×框宽即关联失败（§10.10.3）。此处用最近邻候选补偿。
+
+        只改新轨迹的初始化状态，不改 SORT 的关联阈值与 IoU 度量。
+        """
+        import numpy as np
+        cx, cy = box_centre(box)
+        diag = box_diagonal(box)
+        radius = self.init_v_search * max(diag, 1.0)
+        best, best_d = None, radius
+        for pb in history:
+            px, py = box_centre(pb)
+            d = float(np.hypot(cx - px, cy - py))
+            if d < best_d:
+                best, best_d = pb, d
+        if best is None:
+            return
+        px, py = box_centre(best)
+        # 速度单位：像素/帧（SORT 状态里 vx,vy 即帧间位移）
+        kal.x[4, 0] = cx - px
+        kal.x[5, 0] = cy - py
+
     def update(self, dets: list[Box], frame: int, scores: list[float] | None = None,
                step_H: np.ndarray | None = None) -> list[Track]:
         """关联 + 更新。返回本帧输出轨迹（已过 min_hits 与 Algorithm 1）。"""
@@ -223,6 +254,8 @@ class SortTracker:
 
         scores = scores or [1.0] * len(dets)
         active = list(self.states.keys())
+        # 本帧候选快照（用于下一帧的新轨迹速度初始化）
+        prev_free_snapshot = list(self._prev_free) if self.init_velocity else None
 
         # 预测
         preds = {}
@@ -275,6 +308,8 @@ class SortTracker:
             if step_H is not None:
                 self.states[tid].step_H[frame] = step_H
             self._kal[tid] = KalmanBox(box)
+            if self.init_velocity and prev_free_snapshot:
+                self._init_kalman_velocity(self._kal[tid], box, prev_free_snapshot)
             self._age[tid] = 1
             self._hits[tid] = 1
             self._miss[tid] = 0
@@ -288,6 +323,10 @@ class SortTracker:
                 self._age.pop(tid, None)
                 self._hits.pop(tid, None)
                 self._miss.pop(tid, None)
+
+        # 本帧候选存回，供下一帧初始化速度（用全部候选，理由见 §10.10.6）
+        if self.init_velocity:
+            self._prev_free = list(dets)
 
         # 收集输出：本帧有匹配、过 min_hits、Algorithm 1 确认
         out: list[Track] = []

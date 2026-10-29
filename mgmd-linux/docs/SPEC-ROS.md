@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 0.1.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 0.2.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
 
 ### 0.1 版本记录
 
@@ -227,18 +227,318 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
 | 2026-10-29 | 0.1.0 | 建立本文件；登记阶段二基线、分支策略、实施阶段划分 | 用户要求 ROS 阶段独立 SPEC 并持续维护 | — |
+| 2026-10-29 | 0.2.0 | §9 补详细计划 S1–S5；删除 ros2_ws；`vx/vy` 单位改为像素/帧 | 用户要求先看计划再动手 | §4.1 E3 |
 
 ---
 
-## 9. 待办
+## 9. 实施计划（详细）
 
-- [ ] S1：建 `ros1_ws/src/mav_tracker/{mav_tracker_msgs, mav_tracker_nodes}`
-- [ ] 把从未提交的 `ros2_ws` 消息定义迁移到 ROS1 包（4 msg + 1 action）
-- [ ] S2：五个节点空实现，`roslaunch` 能起，`rostopic list` 有全部话题
-- [ ] S3：`detect_server.py` socket 协议 + 与 `mgmd/pipeline.py` 对接
-- [ ] S4：`tt_driver source:=file` 回放
-- [ ] S5：rosbag 对拍 E3
-- [ ] 清理 `ros2_ws/`（从未提交，确认删除）
+### 9.0 前置：ros2_ws 已清理（2026-10-29）
+
+`mgmd-linux/ros2_ws/` 是阶段一的 ROS2 遗留物，**从未提交过 git**，PRD §11 已宣告 ROS2 方案作废。
+
+**已执行**：整目录删除。
+**抢救内容**：4 个 msg + 1 个 action 定义已备份到 `/tmp/ros2_backup/`，
+待 S1 迁移为 ROS1 格式后入库。**备份是临时的，S1 完成后以包内文件为准。**
+
+`[flag: /tmp 重启会清空。若 S1 在此之前未开始，消息定义已在 §9.1.3 完整列出，不会丢失。]`
+
+---
+
+### 9.1 S1 — 工作空间与消息包
+
+**目标**：`catkin_make` 通过，`rosmsg show mav_tracker_msgs/DetectionArray` 有输出。
+
+**工时**：0.5 天
+
+#### 9.1.1 目录结构
+
+```
+mgmd-linux/ros1_ws/src/mav_tracker/
+├── mav_tracker_msgs/
+│   ├── CMakeLists.txt
+│   ├── package.xml
+│   ├── msg/{Detection.msg, DetectionArray.msg, Track.msg, TrackArray.msg}
+│   └── action/TrackTarget.action
+└── mav_tracker_nodes/
+    ├── CMakeLists.txt
+    ├── package.xml
+    ├── launch/detect.launch
+    ├── scripts/{tt_driver.py, mav_node.py, tracker_node.py,
+    │            viz_node.py, mission_node.py}
+    └── config/topics.yaml
+```
+
+#### 9.1.2 关键差异：ROS2 → ROS1
+
+| 项 | ROS2 | ROS1 | 影响 |
+|---|---|---|---|
+| 构建 | `ament_cmake` / `colcon` | `catkin` / `catkin_make` | `CMakeLists.txt` 全重写 |
+| 包声明 | `package.xml` format 3 | **format 2** | `<buildtool_depend>catkin</buildtool_depend>` |
+| 消息生成 | `rosidl_default_generators` | `add_message_files()` + `generate_messages()` | |
+| action | `.action` 单文件 | `.action` 用 `---` 分隔，需 `add_action_files()` | ⚠️ 注意段顺序 |
+| Python 入口 | `setup.py` entry_points | `catkin_install_python()` | |
+
+**action 段顺序**：ROS2 版 `TrackTarget.action` 的三段是 goal / feedback / result，
+ROS1 要求 **goal / result / feedback**。必须交换后两段，否则 action 定义静默错位。
+
+#### 9.1.3 消息定义（迁移后的最终版本）
+
+**DetectionArray.msg**（帧级检测包）
+```
+std_msgs/Header header
+uint32 image_width
+uint32 image_height
+Detection[] detections
+uint32 n_candidates       # MFE 原始候选数（诊断背景噪声）
+float32 mfe_ms
+float32 lac_ms
+float32 lad_ms
+```
+
+**Detection.msg**（单检测）
+```
+std_msgs/Header header
+float32 x1
+float32 y1
+float32 x2
+float32 y2
+float32 cx
+float32 cy
+float32 confidence        # [0,1]
+string source             # mfe / lac / lad
+int32 track_id            # -1 未关联
+```
+
+**TrackArray.msg**
+```
+std_msgs/Header header
+Track[] tracks
+```
+
+**Track.msg**
+```
+std_msgs/Header header
+int32 track_id
+string state                    # TENTATIVE / CONFIRMED / LOST
+float32 x1
+float32 y1
+float32 x2
+float32 y2
+float32 cx
+float32 cy
+float32 vx                      # 像素/帧（ROS2 版注释误写为像素/秒，已更正）
+float32 vy
+uint32 age
+uint32 hits
+float32 confidence
+float32[] history_xy            # 扁平 [x0,y0,x1,y1,...]
+```
+
+`[fix: ROS2 版 Track.msg 注释写 vx 单位是"像素/秒"，但阶段一 KalmanBox 的 velocity 实际是像素/帧。此处更正，避免实机视觉伺服差 30 倍。]`
+
+**TrackTarget.action**（ROS1 顺序：goal → result → feedback）
+```
+int32 target_track_id
+bool rotate_to_center
+bool keep_distance
+float32 desired_box_area
+---
+bool success
+string message
+float32 total_tracking_time_s
+---
+int32 current_track_id
+float32 error_x
+float32 error_y
+float32 box_area_ratio
+string status
+```
+
+#### 9.1.4 验收
+
+| # | 检查 | 命令 |
+|---|---|---|
+| S1-a | 编译通过 | `cd ros1_ws && catkin_make` |
+| S1-b | 消息可查 | `rosmsg show mav_tracker_msgs/DetectionArray` |
+| S1-c | action 可查 | `rosmsg show mav_tracker_msgs/TrackTargetActionGoal` |
+| S1-d | Python 可导入 | `python3 -c "from mav_tracker_msgs.msg import Detection"` |
+
+---
+
+### 9.2 S2 — 五个节点骨架
+
+**目标**：`roslaunch mav_tracker_nodes detect.launch` 能起，`rostopic list` 出现全部 §5 话题。
+
+**工时**：1 天
+
+#### 9.2.1 每个节点的空实现要求
+
+| 节点 | 空实现必须做到 |
+|---|---|
+| `tt_driver` | 定时器发布假 `/camera/image_raw`（纯色图）+ `/tt/state`；订阅 `/tt/cmd_vel` 只打日志 |
+| `mav_node` | 订阅图像，发空 `DetectionArray` 到 `/mav/detections` |
+| `tracker_node` | 收空检测，发空 `TrackArray` |
+| `viz_node` | 收图像和轨迹，输出原图到 `/mav/debug_image` |
+| `mission_node` | 收轨迹，发零速度 `Twist` 到 `/tt/cmd_vel` |
+
+**关键**：骨架场景下整条链路的消息能从头流到尾，这是 E1/E2 成立的前提。
+
+#### 9.2.2 参数文件 `config/topics.yaml`
+
+把所有话题名抽成参数，换检测器只改这个文件（E1 的核心）：
+
+```yaml
+topics:
+  image_raw: /camera/image_raw
+  state: /tt/state
+  cmd_vel: /tt/cmd_vel
+  detections: /mav/detections
+  candidates: /mav/candidates
+  tracks: /mav/tracks
+  debug_image: /mav/debug_image
+```
+
+#### 9.2.3 验收
+
+| # | 检查 |
+|---|---|
+| S2-a | `roslaunch` 五个节点全起，无 crash |
+| S2-b | `rostopic list` 含 §5 全部 8 个话题 |
+| S2-c | `rostopic hz /mav/detections` ≈ 30 Hz |
+| S2-d | `rosnode info` 各节点连接关系与 §2.1 图一致 |
+
+---
+
+### 9.3 S3 — sidecar 与 socket 协议
+
+**目标**：真算法跑起来，ROS 侧拿到真实检测。
+
+**工时**：2 天（最重的离线任务）
+
+#### 9.3.1 协议设计
+
+| 项 | 值 |
+|---|---|
+| 传输 | Unix domain socket（本机，不占端口） |
+| 路径 | `/tmp/mgmd_detect.sock` |
+| 请求帧 | `[4B 头长][JSON 头][裸 RGB 字节]` |
+| 响应帧 | `[4B 头长][JSON 头]` |
+
+请求头：
+```json
+{"frame_id": 123, "w": 960, "h": 720, "d_min": 0.02, "modules": "mfe,tf,lac,lad"}
+```
+
+响应头：
+```json
+{"frame_id": 123,
+ "detections": [{"x1":100,"y1":200,"x2":124,"y2":214,"conf":0.87,"src":"lad"}],
+ "n_candidates": 137,
+ "mfe_ms": 12.3, "lac_ms": 8.1, "lad_ms": 15.2}
+```
+
+**为什么不传 JPEG**：960×720×3 = 2.07 MB/帧 × 30 Hz = 62 MB/s。
+JPEG q=95 可压到约 100 KB、解码 < 1 ms，**但引入压缩损失会破坏 E3 的 <2 px 对拍**。
+本地 socket 传裸 RGB 约 2 ms，可接受。
+
+**决定：先传裸 RGB，精度优先。** 若实测吞吐不足再换 JPEG 并重新验证 E3。
+
+#### 9.3.2 复用阶段一代码的方式
+
+**不改 `mgmd/`**（约束 V7），`detect_server.py` 只做组装：
+
+```python
+from mgmd.mfe import MFEConfig, enhance
+from mgmd.tf import SortTracker
+from mgmd.lac import LacClassifier, crop_box
+from mgmd.lad import LadDetector
+```
+
+**状态必须跨请求存活**：SORT 的 `SortTracker` 和 MFE 帧缓冲不能每帧重建。
+MFE 需要前一帧，TF 需要历史轨迹。因此 `detect_server.py` 是**有状态服务**。
+
+`[flag: 若每请求重建 tracker，ID 每帧重置，跟踪完全失效——这是 sidecar 设计的隐含要求。]`
+
+#### 9.3.3 验收
+
+| # | 检查 |
+|---|---|
+| S3-a | sidecar 独立启动，socket 可连 |
+| S3-b | 发一帧真实图，检测数与阶段一脚本同图同帧一致 |
+| S3-c | 连续 100 帧，延迟 p50 < 100 ms |
+| S3-d | **跨请求 tracker 保持**：同一目标 track_id 连续 |
+
+---
+
+### 9.4 S4 — tt_driver 回放模式
+
+**目标**：无真机也能跑完整链路。
+
+**工时**：1 天
+
+| `source` 值 | 行为 |
+|---|---|
+| `tello` | 连真机，`djitellopy` 取流 |
+| `file` | 读视频文件，按帧率定时发布 |
+| `bag` | 读 rosbag 重放（S5 用） |
+
+**验收**：`roslaunch ... source:=file video:=<path>` 驱动全链路，RViz 看到框。
+
+---
+
+### 9.5 S5 — rosbag 对拍（E3）
+
+**目标**：证明 ROS 链路与阶段一脚本输出一致。
+
+**工时**：1 天
+
+#### 9.5.1 对拍方法
+
+1. 用 S4 回放 phantom30 前 500 帧
+2. 记录 `/mav/detections` 到 rosbag
+3. 用**完全相同**的 500 帧跑 `scripts/run_testset.py`
+4. 逐帧对比框中心位置
+
+#### 9.5.2 判定
+
+| 指标 | 门限 |
+|---|---|
+| 框中心差 | **< 2 px** |
+| 检测帧数差 | **< 2%** |
+| track_id 一致性 | 无需一致（生命周期可能不同） |
+
+**不合格排查顺序**：图像是否无损 → 帧索引是否对齐 → MFE 帧缓冲是否跨请求 → LAC/LAD 是否同权重。
+
+---
+
+### 9.6 工时汇总
+
+| 阶段 | 工时 | 累计 | 需硬件 |
+|---|---:|---:|---|
+| S1 | 0.5 天 | 0.5 | ❌ |
+| S2 | 1 天 | 1.5 | ❌ |
+| S3 | 2 天 | 3.5 | ❌ |
+| S4 | 1 天 | 4.5 | ❌ |
+| S5 | 1 天 | 5.5 | ❌ |
+| **S1–S5 小计** | **5.5 天** | | **全部离线** |
+| S6 | 3 天 | 8.5 | ✅ |
+| S7 | 3 天 | 11.5 | ✅ |
+| S8 | 8 天 | 19.5 | ✅ |
+
+PRD §11.7 的 32 天含多目标扩展；本表为单目标主线。
+
+---
+
+### 9.7 待办清单
+
+- [x] 清理 `ros2_ws/`（2026-10-29 完成，消息已备份）
+- [ ] **S1**：建 ros1_ws 双包，迁移消息，`catkin_make` 通过
+- [ ] **S2**：五节点骨架，话题全通
+- [ ] **S3**：`detect_server.py` + socket + 有状态 tracker
+- [ ] **S4**：`tt_driver source:=file`
+- [ ] **S5**：rosbag 对拍 E3
+- [ ] S6–S8：需硬件
 
 ---
 

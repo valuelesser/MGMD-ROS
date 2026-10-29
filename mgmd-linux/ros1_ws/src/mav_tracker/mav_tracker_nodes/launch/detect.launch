@@ -1,0 +1,10 @@
+<launch>
+  <!-- S1 骨架：五节点全起，话题通但无真实数据 -->
+  <arg name="rate" default="30"/>
+
+  <node pkg="mav_tracker_nodes" type="tt_driver.py"    name="tt_driver"    output="screen"/>
+  <node pkg="mav_tracker_nodes" type="mav_node.py"     name="mav_node"     output="screen"/>
+  <node pkg="mav_tracker_nodes" type="tracker_node.py" name="tracker_node" output="screen"/>
+  <node pkg="mav_tracker_nodes" type="viz_node.py"     name="viz_node"     output="screen"/>
+  <node pkg="mav_tracker_nodes" type="mission_node.py" name="mission_node" output="screen"/>
+</launch>

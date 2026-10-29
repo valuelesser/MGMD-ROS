@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 0.3.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 0.4.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
 
 ### 0.1 版本记录
 
@@ -128,8 +128,8 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 阶段 | 内容 | 需硬件 | 状态 |
 |---|---|---|---|
-| **S1** | ros1_ws 双包骨架（msgs + nodes） | ❌ | ⬜ 未开始 |
-| **S2** | 五个节点骨架（空实现，话题通） | ❌ | ⬜ |
+| **S1** | ros1_ws 双包骨架（msgs + nodes） | ❌ | ✅ **完成** |
+| **S2** | 五个节点骨架（空实现，话题通） | ❌ | ✅ **完成**（随 S1 一并验证） |
 | **S3** | `detect_server.py` + socket 协议 | ❌ | ⬜ |
 | **S4** | `tt_driver source:=file` 回放模式 | ❌ | ⬜ |
 | **S5** | rosbag 三方对拍（P1/P2 一致性） | ❌ | ⬜ |
@@ -187,7 +187,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | `/mav/detections` | `mav_tracker_msgs/DetectionArray` | 30 Hz | mav_node → tracker_node |
 | `/mav/tracks` | `mav_tracker_msgs/TrackArray` | 30 Hz | tracker_node → viz_node/mission_node |
 | `/mav/debug_image` | `sensor_msgs/Image` | 15 Hz | viz_node → 外部 |
-| `/mav/track_target` | action | on-demand | 外部 → mission_node |
+| `/mav/track_target` | `std_msgs/Int32` | on-change | 外部 → mission_node（目标 ID，-1=停止）；**原 PRD 为 action，已改，见 RD-04** |
 
 **`/tt/state` 用 Float32MultiArray 是故意的技术债**（字段顺序靠文档约定），
 等 Tello 固件字段稳定后升级专用 msg。记入 §7 技术债。
@@ -216,6 +216,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | **RD-01** | MFE+TF 是否留在 ROS 侧 | 未规定 | **全部放 sidecar** | `step_H` 与候选顺序是内部依赖，跨解释器要暴露成协议 | ROS 侧不能单独跑 MFE 消融 |
 | **RD-02** | `/tt/state` 消息类型 | 未规定 | `Float32MultiArray` | Tello 字段随固件变 | 故意的技术债 |
 | **RD-03** | 多目标跟踪的 `max_age` | 论文 3 | `[待定]` | 论文的 3 是为快速丢假正例，多目标长跟踪需要更长；但阶段一证明调大无收益（§10.10） | 待实机验证 |
+| **RD-04** | **`/mav/track_target` 用 action 还是 topic** | PRD §11.2/§11.8 US-017 用 action | **改用 `std_msgs/Int32` topic** | actionlib 面向**可抢占的一次性任务**（官方定义）；视觉跟踪是**无终点的持续流式通路**，30 Hz 连续控制不适合走 feedback | 删除 `TrackTarget.action`；话题表同步更新；US-017 的 "cancel 中止" 改为发 `-1` |
 
 ### 技术债（已知取舍）
 
@@ -233,6 +234,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-10-29 | 0.1.0 | 建立本文件；登记阶段二基线、分支策略、实施阶段划分 | 用户要求 ROS 阶段独立 SPEC 并持续维护 | — |
 | 2026-10-29 | 0.2.0 | §9 补详细计划 S1–S5；删除 ros2_ws；`vx/vy` 单位改为像素/帧 | 用户要求先看计划再动手 | §4.1 E3 |
 | 2026-10-29 | 0.3.0 | §11 仿真方案 2.5b（Gazebo相机+抖动注入）；工时+0.5天 | 用户只关注能否在无人机上跑，不关心控制 | §4.2 功能指标 |
+| 2026-10-29 | 0.4.0 | 建 ros1_ws 双包；4 msg 编译通过；五节点 30Hz 跑通；**删除 action 改 topic** | S1 实施；用户指出 action 不适合流式任务 | S1-a~h 全通过 |
 
 ---
 
@@ -704,3 +706,56 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 
 **依赖**：S1（ros1_ws 可编译）、S4（`tt_driver` 已有 `source` 参数框架）。
 **可提前到 S4 之后立即做，不必等 S5。**
+
+---
+
+## 12. S1 完成记录（2026-10-29）
+
+### 12.1 交付物
+
+```
+mgmd-linux/ros1_ws/src/mav_tracker/
+├── mav_tracker_msgs/          # 4 个 msg，无 action
+│   ├── CMakeLists.txt
+│   ├── package.xml            # catkin / format 2
+│   └── msg/{Detection,DetectionArray,Track,TrackArray}.msg
+└── mav_tracker_nodes/         # 五节点骨架
+    ├── CMakeLists.txt
+    ├── package.xml
+    ├── config/topics.yaml
+    ├── launch/detect.launch
+    └── scripts/{tt_driver,mav_node,tracker_node,viz_node,mission_node}.py
+```
+
+### 12.2 验收结果（全部通过）
+
+| # | 检查项 | 结果 |
+|---|---|---|
+| **S1-a** | `catkin_make` 通过 | ✅ 0 error，生成 py/cpp/eus/lisp 全部后端 |
+| **S1-b** | `rosmsg show DetectionArray` | ✅ 字段完整 |
+| **S1-c** | ~~action 可查~~ | **❌ 已取消**（见 §7 RD-04） |
+| **S1-d** | `from mav_tracker_msgs.msg import ...` | ✅ 4 个消息全部可导入可实例化 |
+| **S1-e** | 五节点 `rosnode list` | ✅ 5 个全在 |
+| **S1-f** | 话题完整 | ✅ 7 个话题全部出现 |
+| **S1-g** | 频率 | ✅ camera 30.094 Hz / state 29.969 / detections 29.910 / tracks 29.941 |
+| **S1-h** | 连接关系 | ✅ tt_driver → /mav_node on /camera/image_raw |
+
+### 12.3 实际踩坑记录
+
+| # | 问题 | 解法 |
+|---|---|---|
+| 1 | `pkill -f "roscore..."` 匹配到自己的命令行导致 shell 被杀 | **改用 PID 文件**（与阶段一 SPEC 的教训一致，再次验证） |
+| 2 | 后台任务用 `nohup` 才能跨工具调用存活 | `nohup ... & echo $! > pidfile` |
+| 3 | `rostopic hz` 需要 `timeout` 包裹否则挂起 | `timeout 7 rostopic hz ... \| grep "average rate"` |
+
+### 12.4 与 PRD 的差异
+
+**action 已删除**（PRD §11.2 第 911 行原写 `/mav/track_target` 为 action）。
+理由见 §7 RD-04：actionlib 面向**可抢占的一次性任务**，视觉跟踪是**持续流式**的数据通路，
+应改用 topic。此改动**提前消除了 ROS1 迁移中 action 段顺序的风险**（ROS2 是 goal/feedback/result，
+ROS1 要 goal/result/feedback，写错会静默错位）。
+
+### 12.5 下一步
+
+S2 的验收项（S2-a~d）已在 S1 中**提前全部验证通过**（五节点起、8 话题、30 Hz、连接正确）。
+因此 **S2 实质已完成**，可合并处理。下一步进入 **S3：sidecar socket 协议**。

@@ -35,3 +35,9 @@ Thumbs.db
 # TRT engine 与 ONNX（体积大，且 engine 绑定 GPU 架构/TRT 版本，需本机重建）
 mgmd-linux/outputs/*.engine
 mgmd-linux/outputs/*.onnx
+
+# ROS1 catkin 编译产物
+mgmd-linux/ros1_ws/build/
+mgmd-linux/ros1_ws/devel/
+mgmd-linux/ros1_ws/install/
+mgmd-linux/ros1_ws/.catkin_workspace

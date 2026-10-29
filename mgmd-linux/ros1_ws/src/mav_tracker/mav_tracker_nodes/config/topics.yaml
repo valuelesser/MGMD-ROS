@@ -1,0 +1,10 @@
+# 话题名集中配置（E1 的核心：换检测器只改这里）
+topics:
+  image_raw:    /camera/image_raw
+  state:        /tt/state
+  cmd_vel:      /tt/cmd_vel
+  detections:   /mav/detections
+  candidates:   /mav/candidates
+  tracks:       /mav/tracks
+  debug_image:  /mav/debug_image
+  track_target: /mav/track_target

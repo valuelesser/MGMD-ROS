@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>mav_tracker_msgs</name>
+  <version>0.1.0</version>
+  <description>MGMD 阶段二消息定义（ROS1 Noetic）</description>
+
+  <maintainer email="gaoduan@example.com">gaoduan</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <build_depend>message_generation</build_depend>
+  <build_depend>std_msgs</build_depend>
+
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+</package>

@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 0.4.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 0.5.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
 
 ### 0.1 版本记录
 
@@ -217,6 +217,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | **RD-02** | `/tt/state` 消息类型 | 未规定 | `Float32MultiArray` | Tello 字段随固件变 | 故意的技术债 |
 | **RD-03** | 多目标跟踪的 `max_age` | 论文 3 | `[待定]` | 论文的 3 是为快速丢假正例，多目标长跟踪需要更长；但阶段一证明调大无收益（§10.10） | 待实机验证 |
 | **RD-04** | **`/mav/track_target` 用 action 还是 topic** | PRD §11.2/§11.8 US-017 用 action | **改用 `std_msgs/Int32` topic** | actionlib 面向**可抢占的一次性任务**（官方定义）；视觉跟踪是**无终点的持续流式通路**，30 Hz 连续控制不适合走 feedback | 删除 `TrackTarget.action`；话题表同步更新；US-017 的 "cancel 中止" 改为发 `-1` |
+| **RD-05** | **架构：sidecar vs 单进程 ONNX** | PRD §11.0.2 采用方案 A（sidecar） | **改单进程 3.8 + ONNX Runtime** | 可移植性要求；sidecar 需两套 Python 环境，嵌入式不可行 | 性能持平（LAD）+ LAC 快 2.3×；S3 大简化；**不再是双解释器** |
 
 ### 技术债（已知取舍）
 
@@ -235,6 +236,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-10-29 | 0.2.0 | §9 补详细计划 S1–S5；删除 ros2_ws；`vx/vy` 单位改为像素/帧 | 用户要求先看计划再动手 | §4.1 E3 |
 | 2026-10-29 | 0.3.0 | §11 仿真方案 2.5b（Gazebo相机+抖动注入）；工时+0.5天 | 用户只关注能否在无人机上跑，不关心控制 | §4.2 功能指标 |
 | 2026-10-29 | 0.4.0 | 建 ros1_ws 双包；4 msg 编译通过；五节点 30Hz 跑通；**删除 action 改 topic** | S1 实施；用户指出 action 不适合流式任务 | S1-a~h 全通过 |
+| 2026-10-29 | 0.5.0 | **架构变更：sidecar → ONNX 单进程**；建 .venv38；LAC/LAD ONNX 导出并验证；性能持平 | 用户要求可移植性 | S3 从 2 天降为 0.5 天 |
 
 ---
 
@@ -759,3 +761,84 @@ ROS1 要 goal/result/feedback，写错会静默错位）。
 
 S2 的验收项（S2-a~d）已在 S1 中**提前全部验证通过**（五节点起、8 话题、30 Hz、连接正确）。
 因此 **S2 实质已完成**，可合并处理。下一步进入 **S3：sidecar socket 协议**。
+
+---
+
+## 13. ONNX 改造方案（替代 sidecar，2026-10-29）
+
+### 13.1 决定：放弃 sidecar，改用 ONNX Runtime
+
+**原方案 A（sidecar）**：ROS 侧 3.8 + 算法侧 3.11，走本地 socket。
+**新方案（ONNX）**：全部跑在 **Python 3.8 单进程**，LAC/LAD 用 ONNX Runtime 推理。
+
+**用户要求**：可移植性。sidecar 需要两个 Python 环境，在嵌入式上不可行；ONNX 只需一个。
+而且要问的问题只是"能不能在无人机上跑"，**单进程是最直接的答案**。
+
+### 13.2 可行性验证（已完成）
+
+| 模型 | 导出 | 数值一致性（CPU，39 真实样本） |
+|---|---|---|
+| **LAC** | `lac.onnx` 242 KB（动态 batch） | 最大概率差 **5.36e-07**，0/39 超 1e-4 ✅ |
+| **LAD** | `yolov5s_GLAD-crop.onnx` 28.2 MB | 框差 **0.00 px**，conf 完全一致 ✅ |
+
+**LAD 的关键事实**：ONNX 输出 `(1,6300,6)` 原始预测（cxcywh + obj + cls），
+**不含 NMS**。NMS 与 `scale_coords` 仍在 Python 侧，复用 yolov5 utils。
+因此 **ONNX 只替换 `model(x)` 这一步**，改造面极小。
+
+### 13.3 环境事实
+
+| 项 | 值 |
+|---|---|
+| Python | **3.8.10**（与 ROS1 同版本） |
+| venv | `.venv38/`（项目内） |
+| torch | **2.4.0+cu121**（最后支持 3.8 的版本，仅用其 NMS 工具） |
+| onnxruntime-gpu | **1.19.2**（需 CUDA 12） |
+| cv2 | 5.0.0 |
+| numpy | 1.24.4（<2，兼容性更好） |
+| 环境脚本 | **`scripts/env_setup_ros38.sh`** |
+
+**必须 source 环境脚本**：onnxruntime-gpu 需要 `nvidia/*/lib` 在 `LD_LIBRARY_PATH`，
+pip 安装不会自动加。不设则 CUDA provider 静默回退 CPU。
+
+### 13.4 性能测试（预热 10 次 + 30 次计时，39 个真实样本）
+
+| 模块 | torch (3.11, cu121) | ONNX (3.8, ort 1.19.2 CUDA) | 对比 |
+|---|---:|---:|---|
+| LAC p50 | 2.01 ms | **0.87 ms** | **快 2.3×** |
+| LAD 总计 p50 | 161.5 ms | 165.4 ms | 慢 2.4% |
+| LAD 每框 | 4.14 ms | 4.24 ms | 慢 2.4% |
+
+**结论：ONNX 性能与 torch 持平（LAD），LAC 反而更快。没有性能代价。**
+
+LAD 的 165 ms 主要是 Python 侧的 NMS + `scale_coords`（3900 帧 × 40 框），
+不是推理本身。若要提速，应优化后处理而非换后端。
+
+### 13.5 踩坑记录（三个真实 bug）
+
+| # | Bug | 症状 | 修正 |
+|---|---|---|---|
+| 1 | `batch[:,:,::-1]` 是**负步长视图**，直接 `.transpose()` + `.astype()` 读错数据 | LAC 概率差 **0.928**（误判为 ONNX 有问题） | 加 `.copy()` + `np.ascontiguousarray()` |
+| 2 | `mgmd/tf.py` 用 `Box = tuple[...]`，**Python 3.8 不支持** | `TypeError: type object is not subscriptable` | 改 `typing.Tuple`（第 25–26 行） |
+| 3 | onnxruntime 1.17 需 `libcublasLt.so.11`(CUDA11)，环境是 CUDA12 | CUDA provider 加载失败，**静默回退 CPU**，性能差 4× | 升级 1.19.2 + `LD_LIBRARY_PATH` |
+| 4 | YOLOv5 `export.py` 缺 `onnxsim` 时 NMS 未烘焙 | 误以为 ONNX 已含 NMS | **ONNX 本来就不含 NMS**，Python 侧做 |
+
+**踩坑 1 的教训（第三次同类错误）**：把工具 bug 误判为被测对象的问题。
+判据应是"同环境内对比"，而非"跨环境对比"。
+
+### 13.6 对 S3 的影响
+
+| 原 S3 内容 | 现方案 |
+|---|---|
+| `detect_server.py` + socket 协议 | **不需要** |
+| 有状态 tracker 跨请求保持 | **不需要**（单进程，状态天然保持） |
+| `mav_node` 接 socket 客户端 | **不需要** |
+| 进程间序列化 | **不需要** |
+
+**S3 从 2 天降为约 0.5 天**：只需把 `mav_node` 改成直接 import `mgmd` 调算法。
+
+### 13.7 待办
+
+- [ ] 把 `lac.onnx` / `yolov5s_GLAD-crop.onnx` 纳入版本管理或加导出脚本
+- [ ] 写 `mgmd_onnx/` 包装层：ONNX 版的 `LacClassifier` / `LadDetector`（接口与 torch 版一致）
+- [ ] 全链路 F1 验证：ONNX 路径跑 15 视频，F1 必须 = 0.6752
+- [ ] `mav_node` 集成

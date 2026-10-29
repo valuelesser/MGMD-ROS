@@ -41,3 +41,6 @@ mgmd-linux/ros1_ws/build/
 mgmd-linux/ros1_ws/devel/
 mgmd-linux/ros1_ws/install/
 mgmd-linux/ros1_ws/.catkin_workspace
+
+# Python 3.8 venv（ONNX 环境，体积大不入库）
+mgmd-linux/.venv38/

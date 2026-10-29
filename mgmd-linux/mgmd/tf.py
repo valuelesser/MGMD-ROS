@@ -19,10 +19,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Tuple
 
 import numpy as np
 
-Box = tuple[float, float, float, float]
+Box = Tuple[float, float, float, float]   # 3.8 兼容（不能用 tuple[...]）
 
 
 # --------------------------------------------------------------------------- #

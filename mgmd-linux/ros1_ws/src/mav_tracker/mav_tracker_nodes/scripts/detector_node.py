@@ -196,7 +196,9 @@ class Pipeline:
         pool = [((float(x), float(y), float(x + w), float(y + h)), float(w * h))
                 for (x, y, w, h) in res.boxes]
 
-        # ---- TF。SORT 用 _miss 计数判超龄，不依赖绝对帧号（§16.7）
+        # ---- TF。SORT 用 _miss 计数判超龄，**不依赖帧号绝对值**（§16.7/§19）：
+        # 实测 stride=4 下传视频帧号(2,6,10..) 与处理序号(1,2,3..) 输出为
+        # 8.36 vs 8.47 个/帧，差异在噪声内。所以传哪个都可以，这里传视频帧号。
         tracks = self.tracker.update([b for b, _ in pool], t,
                                      scores=[s for _, s in pool])
         pool = [(tr.box, tr.score, tr.track_id) for tr in tracks]

@@ -14,6 +14,7 @@
 
     视频名可用 ARD-MAV 的短名（如 phantom30），也可给绝对路径。
     rate  目标发布频率（Hz）；0 表示按视频原始帧率尽快发布。
+    width/height  输出分辨率（0 = 保持原始）。非 0 时用 INTER_AREA 缩放。
     loop  回放结束后是否循环。循环时帧号 (header.seq) 会从 0 重新开始。
     limit 最多发布的帧数（0 = 不限）。
 
@@ -142,15 +143,18 @@ def main():
     rate_hz = float(rospy.get_param("~rate", 0.0))
     limit = int(rospy.get_param("~limit", 0))
     loop = bool(rospy.get_param("~loop", True))
+    out_w = int(rospy.get_param("~width", 0))
+    out_h = int(rospy.get_param("~height", 0))
 
     pub_img = rospy.Publisher("/camera/image_raw", Image, queue_size=2)
 
     hz = rate_hz if rate_hz > 0 else getattr(src, "fps", 30.0)
     rate = rospy.Rate(hz)
     rospy.loginfo(
-        "[video_source] source=%s path=%s hz=%.1f loop=%s limit=%s",
+        "[video_source] source=%s path=%s hz=%.1f loop=%s limit=%s res=%s",
         rospy.get_param("~source", "file"), getattr(src, "path", ""),
         hz, loop, limit or "inf",
+        f"{out_w}x{out_h}" if out_w > 0 else "原始",
     )
 
     import time
@@ -163,6 +167,10 @@ def main():
                           sent, time.time() - t0)
             break
 
+        # 分辨率缩放（0 = 原始）。INTER_AREA 缩小时质量最好（避免摩尔纹）
+        if out_w > 0 and out_h > 0:
+            import cv2
+            frame = cv2.resize(frame, (out_w, out_h), interpolation=cv2.INTER_AREA)
         h, w = frame.shape[:2]
         msg = Image()
         msg.header.stamp = rospy.Time.now()       # 墙钟时间，不用视频 PTS

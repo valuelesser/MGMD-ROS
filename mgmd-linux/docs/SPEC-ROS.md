@@ -2048,6 +2048,34 @@ venv 5.0.0 与系统 4.2.0 是两套独立安装，节点进程只加载一个�
 **规则**：判断对齐是否生效，**只能**看 `compose_H(f_old, f_new) is not None`。
 `tests/test_tf.py::test_align_missing_reason_is_overwritten` 锁定此行为。
 
+### 22.3.1 phantom05 上的 F1/PR/AP 实测（2026-10-30）
+
+用户要求「测一下 F1、R、P」。**只跑了 phantom05**（其余两个视频未跑完即停止，
+用户决定不再继续）。同一命令、同一 GPU、同一配置，仅 step_H 有无不同：
+
+```bash
+.venv/bin/python scripts/run_testset.py --video phantom05 \
+    --modules mfe,tf,lac,lad --mfe-preset recommended --d-min 0.02 \
+    --out-suffix with_stepH --force
+```
+
+| 指标 | 基线 `final_d002`（无 step_H） | 新 `with_stepH` | Δ |
+|---|---:|---:|---:|
+| P | 0.8918 | 0.8908 | **−0.0011** |
+| R | 0.5231 | 0.5220 | **−0.0011** |
+| F1 | 0.6594 | 0.6582 | **−0.0012** |
+| AP | 0.5324 | 0.5323 | **−0.0001** |
+| TP / FP / FN | 940 / 114 / 857 | 938 / 115 / 859 | −2 / +1 / +2 |
+| 检测总数 | 1054 | 1053 | −1 |
+| 耗时 | 6.4 min | 6.9 min | +0.5 min |
+
+**结论**：三个指标的变化都在 **−0.0012 以内**，远小于 0.6% 判定翻转率对应的
+理论上界，完全在噪声量级。与 §22.2 的预测一致。
+
+**注意**：单个视频的结论不能外推到整个测试集。特别是 phantom05 的
+`compose_H` 成功率虽为 100%，但该视频目标运动幅度可能较小，
+对齐收益有限。**完整影响仍需全测试集验证（未做）。**
+
 ### 22.4 阶段二定位
 
 阶段二（ROS）同样没有传 `step_H`（`detector_node.py` 的 `tracker.update`），

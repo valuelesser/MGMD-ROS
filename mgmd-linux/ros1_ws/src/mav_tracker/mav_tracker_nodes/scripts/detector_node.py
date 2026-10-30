@@ -141,6 +141,8 @@ class Pipeline:
         self.header_of = {}
         self.n_processed = 0
         self.n_waiting = 0         # 因缓冲不足而等待的次数
+        self.last_done = -1        # 最近一次处理的视频帧号（防止重复处理）
+        self.n_dropped_evict = 0   # 因缓冲淘汰而未处理的帧数
         rospy.loginfo(
             "[detector_node] LAC provider=%s  LAD provider=%s  buffer=%d  k=%d",
             self.lac.session.get_providers()[0], self.lad.session.get_providers()[0],
@@ -161,11 +163,16 @@ class Pipeline:
             self.header_of.pop(old, None)
 
     def ready_frame_id(self):
-        """返回缓冲中最早的可处理帧号（要求 t-k 与 t+k 都存在），否则 None。"""
+        """返回缓冲中**下一个可处理**的帧号（要求 t-k 与 t+k 都在）。
+
+        关键：必须跳过已经处理过的帧，否则会重复处理同一帧。
+        按帧号升序找第一个 > last_done 且前驱后继都在的帧。
+        """
         if len(self.frames) < 2 * self.k + 1:
             return None
-        ids = list(self.frames.keys())
-        for t in ids:
+        for t in list(self.frames.keys()):
+            if t <= self.last_done:
+                continue
             if (t - self.k) in self.frames and (t + self.k) in self.frames:
                 return t
         return None
@@ -224,6 +231,7 @@ class Pipeline:
         t_lad = (time.perf_counter() - t0) * 1000.0
 
         self.n_processed += 1
+        self.last_done = t
         return dict(frame=t, header=header, boxes=out_boxes, confs=out_conf,
                     sources=out_src, track_ids=out_tid, n_cand=n_cand,
                     shape=cur.shape[:2],
@@ -233,6 +241,8 @@ class Pipeline:
         """处理完 t 后，淘汰 t-k 及更早的帧（再也不会用到）。"""
         cutoff = t - self.k
         for key in [k for k in self.frames if k <= cutoff]:
+            if key > self.last_done:
+                self.n_dropped_evict += 1     # 这帧还没处理就被淘汰了
             del self.frames[key]
             self.header_of.pop(key, None)
 
@@ -280,7 +290,13 @@ def main():
     slot = LatestFrameSlot()
     stop = threading.Event()
 
+    _n_img = {"n": 0}
+
     def on_image(msg: Image):
+        _n_img["n"] += 1
+        if _n_img["n"] % 100 == 1:
+            rospy.loginfo("[detector_node] 收到第 %d 张图 seq=%d %dx%d",
+                          _n_img["n"], msg.header.seq, msg.width, msg.height)
         try:
             arr = imgmsg_to_bgr(msg)
         except ValueError as exc:
@@ -325,15 +341,23 @@ def main():
 
                 n += 1
                 hz_win.append(time.time())
+                if n <= 5:
+                    rospy.loginfo(
+                        "[detector_node] 分段明细#%d: MFE %.1f LAC %.1f LAD %.1f "
+                        "候选 %d 检测 %d",
+                        n, r["t_mfe"], r["t_lac"], r["t_lad"],
+                        r["n_cand"], len(r["boxes"]))
                 if n % 50 == 0:
                     hz = 0.0
                     if len(hz_win) >= 2:
                         hz = (len(hz_win) - 1) / max(1e-6, hz_win[-1] - hz_win[0])
                     rospy.loginfo(
-                        "[detector_node] 已处理 %d 帧  瞬时 %.2f Hz  收到 %d 丢弃 %d  "
-                        "缓冲等待 %d  frame=%d  候选 %d  检测 %d  MFE %.1f ms",
-                        n, hz, slot.recv, slot.dropped, pipe.n_waiting,
-                        r["frame"], r["n_cand"], len(r["boxes"]), r["t_mfe"])
+                        "[detector_node] 已处理 %d 帧  瞬时 %.2f Hz  收到 %d "
+                        "入口丢 %d  缓冲淘汰 %d  等待 %d  frame=%d  候选 %d  "
+                        "检测 %d  MFE %.1f ms",
+                        n, hz, slot.recv, slot.dropped, pipe.n_dropped_evict,
+                        pipe.n_waiting, r["frame"], r["n_cand"],
+                        len(r["boxes"]), r["t_mfe"])
         rospy.loginfo("[detector_node] 工作线程退出，共处理 %d 帧", n)
 
     th = threading.Thread(target=worker, name="det_worker", daemon=True)

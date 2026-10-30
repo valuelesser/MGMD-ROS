@@ -18,6 +18,7 @@
 参数：
     ~out          输出视频路径；空字符串则不写文件
     ~fps          输出视频帧率，默认 30
+    ~encoder      nvenc|cpu   默认 nvenc（不可用时自动回落 cpu，见 §18）
     ~show_tid     是否显示 track_id，默认 true
     ~show_src     是否显示来源模块（lad/lac），默认 false
     ~draw_history 是否画轨迹历史，默认 true
@@ -37,6 +38,14 @@ import rospy
 from sensor_msgs.msg import Image
 
 from mav_tracker_msgs.msg import DetectionArray
+
+try:
+    from nvenc_writer import NvencWriter
+except ImportError:                       # 脚本目录不在 sys.path 时
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parent))
+    from nvenc_writer import NvencWriter
 
 # 每个 track_id 用固定颜色，便于肉眼追踪
 _COLORS = [
@@ -102,6 +111,7 @@ def main():
     history_len = int(gp("~history_len", 30))
     publish = bool(gp("~publish", True))
 
+    encoder_mode = gp("~encoder", "nvenc")
     writer = None
     lock_frame = {"w": None, "h": None}
     latest = {"dets": [], "seq": -1, "n_cand": 0, "mfe": 0.0, "lac": 0.0, "lad": 0.0}
@@ -125,15 +135,14 @@ def main():
         nonlocal writer
         if writer is not None or not out_path:
             return
-        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(out_path, fourcc, fps, (w, h))
-        if not writer.isOpened():
-            rospy.logerr("[visualize_node] 无法创建视频文件: %s", out_path)
+        force_cpu = (encoder_mode == "cpu")
+        try:
+            writer = NvencWriter(out_path, w, h, fps=fps, force_cpu=force_cpu)
+            rospy.loginfo("[visualize_node] 写视频 %s  %dx%d @%.0ffps  encoder=%s",
+                          out_path, w, h, fps, writer.backend)
+        except Exception as exc:                       # noqa: BLE001
+            rospy.logerr("[visualize_node] 无法创建视频文件: %s (%s)", out_path, exc)
             writer = None
-        else:
-            rospy.loginfo("[visualize_node] 写视频 %s  %dx%d @%.0ffps",
-                          out_path, w, h, fps)
 
     def on_image(msg: Image):
         nonlocal n_written, n_images
@@ -185,7 +194,7 @@ def main():
             return
         _released["done"] = True
         if writer is not None:
-            writer.release()
+            writer.close()
             rospy.loginfo("[visualize_node] 视频已保存: %s（%d 帧）",
                           out_path, n_written)
 

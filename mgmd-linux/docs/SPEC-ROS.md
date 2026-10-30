@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 1.1.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 1.2.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
 
 ### 0.1 版本记录
 
@@ -63,7 +63,7 @@ git checkout result -- .                                        # 需要回滚�
 在 DJI RoboMaster TT 上，用 ROS1 Noetic 实现**单目小目标检测与跟踪**的模块化软件框架。
 
 **是**：
-- 五个 ROS 节点 + 一个 sidecar 进程
+- **单进程**：五个 ROS 节点，算法在 `mav_node` 内直接调用（无跨解释器）
 - 话题契约驱动的可替换架构（E1/E2/E3）
 - 用阶段一冻结的检测算法（不改算法本身）
 - 室外场地实机验证
@@ -80,23 +80,27 @@ git checkout result -- .                                        # 需要回滚�
 ### 2.1 进程边界
 
 ```
-ROS1 主图 (Python 3.8)          sidecar (Python 3.11)
-┌────────────────────┐          ┌────────────────────┐
-│ tt_driver          │          │                    │
-│ mav_node  ◄────socket──────►  │  detect_server.py  │
-│ tracker_node       │          │  MFE→TF→LAC→LAD    │
-│ viz_node           │          └────────────────────┘
-│ mission_node       │
-└────────────────────┘
+ROS1 主图（Python 3.8，**单一解释器**）
+┌──────────────────────────────────────────────┐
+│ tt_driver     → /camera/image_raw            │
+│ mav_node      内部直调:                        │
+│                 MFE → FastSortTracker        │
+│                 → LacOnnx → LadOnnx          │
+│               → /mav/candidates,/mav/detections│
+│ tracker_node  → /mav/tracks                  │
+│ viz_node      → /mav/debug_image             │
+│ mission_node  → /tt/cmd_vel,/mav/track_target│
+└──────────────────────────────────────────────┘
 ```
 
-**socket 协议只有两样**：帧进去，检测出来。其余全不暴露。
+**没有任何跨进程通信。** 原 sidecar + Unix socket 方案已在 §13 推翻（RD-05），
+算法以 `mgmd_onnx` 形式在 `mav_node` 进程内直接调用。
 
 ### 2.2 五个既定决策（PRD §11.0.1，不再讨论）
 
 | 编号 | 决策 |
 |---|---|
-| Q-A | **方案 A：sidecar** |
+| Q-A | ~~方案 A：sidecar~~ → **单进程 ONNX**（§13，RD-05） |
 | Q20 | 实验室多架，≥2 |
 | Q21 | 真机可用 |
 | Q22 | 阶段一三表单独出结果 |
@@ -214,7 +218,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 编号 | 项 | PRD/论文 | 本工程 | 理由 | 影响 |
 |---|---|---|---|---|---|
-| **RD-01** | MFE+TF 是否留在 ROS 侧 | 未规定 | **全部放 sidecar** | `step_H` 与候选顺序是内部依赖，跨解释器要暴露成协议 | ROS 侧不能单独跑 MFE 消融 |
+| **RD-01** | MFE+TF 是否留在 ROS 侧 | 未规定 | ~~全部放 sidecar~~ → **全部在 mav_node 进程内**（§13 后无跨进程边界） | 原本担心 `step_H`/候选顺序要暴露成协议；单进程后该问题不存在 | 无协议开销，ROS 侧可单独跑 MFE 消融 |
 | **RD-02** | `/tt/state` 消息类型 | 未规定 | `Float32MultiArray` | Tello 字段随固件变 | 故意的技术债 |
 | **RD-03** | 多目标跟踪的 `max_age` | 论文 3 | `[待定]` | 论文的 3 是为快速丢假正例，多目标长跟踪需要更长；但阶段一证明调大无收益（§10.10） | 待实机验证 |
 | **RD-04** | **`/mav/track_target` 用 action 还是 topic** | PRD §11.2/§11.8 US-017 用 action | **改用 `std_msgs/Int32` topic** | actionlib 面向**可抢占的一次性任务**（官方定义）；视觉跟踪是**无终点的持续流式通路**，30 Hz 连续控制不适合走 feedback | 删除 `TrackTarget.action`；话题表同步更新；US-017 的 "cancel 中止" 改为发 `-1` |
@@ -226,7 +230,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 编号 | 内容 | 偿还条件 |
 |---|---|---|
 | TD-01 | `/tt/state` 用数组 | Tello 字段稳定 |
-| TD-02 | sidecar 协议无版本号 | 出现第二版协议时 |
+| ~~TD-02~~ | ~~sidecar 协议无版本号~~ | **已消除**（无 socket 协议，§13） |
 
 ---
 
@@ -245,6 +249,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-10-30 | 0.9.0 | 实测 MFE-UMat：medianBlur 快2x 但 calcOpticalFlowPyrLK 崩溃；端到端仅快 3%，**否定该方案** | 用户要求试 UMat | §14.5 加速表更新，删除 UMat |
 | 2026-10-30 | 1.0.0 | 用户接受当前帧率；阶段表重构为 S3/S3.5/S4/S5；补 §15 计划 | 用户询问下一步 | S3.5 为首要，前置补 export/setup 脚本 |
 | 2026-10-30 | 1.1.0 | 补 export_onnx/setup_env38/verify_onnx；tt_driver 文件回放 30.1Hz 通过；720p 实测 14Hz，**指标下调至 12Hz** | S3.5 实施；实测推翻了 §14.7 的外推值 | S3.5-a~e 全通过；RD-07 |
+| 2026-10-30 | 1.2.0 | **用户指出 SPEC 仍残留 socket/sidecar 描述**；清理 15 处失效内容，重写 §9.3 为 ONNX 单进程 | 文档一致性检查 | 工时由 6.0 降为 3.2 天（离线部分） |
 
 ---
 
@@ -427,80 +432,81 @@ topics:
 
 ---
 
-### 9.3 S3 — sidecar 与 socket 协议
+### 9.3 S3 — ONNX 单进程集成（原 sidecar 方案已废弃）
 
-**目标**：真算法跑起来，ROS 侧拿到真实检测。
+> **本节于 SPEC-ROS 1.2.0 重写。** 原内容为 sidecar + Unix socket 协议，
+> 已被 §13（RD-05）推翻。保留本节编号以维持历史引用有效。
 
-**工时**：2 天（最重的离线任务）
+**目标**：`mav_node` 进程内直接调用算法，输出真实检测。
 
-#### 9.3.1 协议设计
+**工时**：0.4 天（原 sidecar 方案估 2 天）
 
-| 项 | 值 |
+#### 9.3.1 架构
+
+```
+/camera/image_raw
+      ↓
+  mav_node（单进程，Python 3.8）
+      ├─ mgmd.mfe.enhance            ← 阶段一代码，未改
+      ├─ mgmd_onnx.tf_fast.FastSortTracker
+      ├─ mgmd_onnx.LacOnnx
+      └─ mgmd_onnx.LadOnnx
+      ↓
+/mav/candidates, /mav/detections
+```
+
+**没有 socket、没有协议序列化、没有第二解释器。**
+状态（SORT 轨迹、MFE 帧缓冲）天然存活在进程内。
+
+#### 9.3.2 丢帧策略（关键设计）
+
+相机 30 Hz，算法 14 Hz（720p），**必须主动丢帧**：
+
+| 项 | 策略 |
 |---|---|
-| 传输 | Unix domain socket（本机，不占端口） |
-| 路径 | `/tmp/mgmd_detect.sock` |
-| 请求帧 | `[4B 头长][JSON 头][裸 RGB 字节]` |
-| 响应帧 | `[4B 头长][JSON 头]` |
+| 订阅队列 | `queue_size=1` |
+| 缓冲 | 只保留**最新一帧**，处理完立刻取下一帧 |
+| 效果 | 延迟不随运行时长增长；丢的是中间帧而非尾帧 |
 
-请求头：
-```json
-{"frame_id": 123, "w": 960, "h": 720, "d_min": 0.02, "modules": "mfe,tf,lac,lad"}
-```
+`[flag: 若用 queue_size>1 且不丢帧，队列会随时间单调增长，延迟无限变大。]`
 
-响应头：
-```json
-{"frame_id": 123,
- "detections": [{"x1":100,"y1":200,"x2":124,"y2":214,"conf":0.87,"src":"lad"}],
- "n_candidates": 137,
- "mfe_ms": 12.3, "lac_ms": 8.1, "lad_ms": 15.2}
-```
+#### 9.3.3 复用阶段一代码的方式
 
-**为什么不传 JPEG**：960×720×3 = 2.07 MB/帧 × 30 Hz = 62 MB/s。
-JPEG q=95 可压到约 100 KB、解码 < 1 ms，**但引入压缩损失会破坏 E3 的 <2 px 对拍**。
-本地 socket 传裸 RGB 约 2 ms，可接受。
-
-**决定：先传裸 RGB，精度优先。** 若实测吞吐不足再换 JPEG 并重新验证 E3。
-
-#### 9.3.2 复用阶段一代码的方式
-
-**不改 `mgmd/`**（约束 V7），`detect_server.py` 只做组装：
+**不改 `mgmd/`**（约束 V7）：
 
 ```python
-from mgmd.mfe import MFEConfig, enhance
-from mgmd.tf import SortTracker
-from mgmd.lac import LacClassifier, crop_box
-from mgmd.lad import LadDetector
+from mgmd.mfe import MFEConfig, enhance          # 原样复用
+from mgmd.tf import SortTracker                    # 原样复用（基线）
+from mgmd_onnx.tf_fast import FastSortTracker      # 向量化版，逐帧等价（§14.7）
+from mgmd_onnx import LacOnnx, LadOnnx             # ONNX 推理
 ```
 
-**状态必须跨请求存活**：SORT 的 `SortTracker` 和 MFE 帧缓冲不能每帧重建。
-MFE 需要前一帧，TF 需要历史轨迹。因此 `detect_server.py` 是**有状态服务**。
+#### 9.3.4 验收
 
-`[flag: 若每请求重建 tracker，ID 每帧重置，跟踪完全失效——这是 sidecar 设计的隐含要求。]`
-
-#### 9.3.3 验收
-
-| # | 检查 |
-|---|---|
-| S3-a | sidecar 独立启动，socket 可连 |
-| S3-b | 发一帧真实图，检测数与阶段一脚本同图同帧一致 |
-| S3-c | 连续 100 帧，延迟 p50 < 100 ms |
-| S3-d | **跨请求 tracker 保持**：同一目标 track_id 连续 |
+| # | 检查 | 状态 |
+|---|---|---|
+| S3-a | ~~sidecar 独立启动，socket 可连~~ → **`mav_node` 进程内跑通全链路** | ⬜ |
+| S3-b | 同图同帧检测数与阶段一脚本一致 | ✅ 算法侧已验证（§13.8） |
+| S3-c | 端到端延迟 p50 | ✅ 1080p 112 ms / 720p 70 ms（§16.4） |
+| S3-d | **tracker 状态连续**（同一目标 track_id 不重置） | ⬜ 待 S4 验证 |
+| S3-e | **无 GPU 时自动回落 CPU** | ⬜ 待 S4 验证 |
 
 ---
 
-### 9.4 S4 — tt_driver 回放模式
+### 9.4 S3.5 — tt_driver 回放模式（✅ 已完成，2026-10-30）
 
 **目标**：无真机也能跑完整链路。
 
-**工时**：1 天
+**工时**：实际 0.5 天（原估 1 天）
 
-| `source` 值 | 行为 |
-|---|---|
-| `tello` | 连真机，`djitellopy` 取流 |
-| `file` | 读视频文件，按帧率定时发布 |
-| `bag` | 读 rosbag 重放（S5 用） |
+| `source` 值 | 状态 | 行为 |
+|---|---|---|
+| `stub` | ✅ | 全黑假帧 |
+| **`file`** | ✅ | 读视频文件，按 `rate` 定时发布 |
+| `tello` | ⬜ S6 | 连真机取流 |
 
-**验收**：`roslaunch ... source:=file video:=<path>` 驱动全链路，RViz 看到框。
+**验收结果**：见 §16.3（30.119 Hz，1920×1080 真实图像）。
+`roslaunch mav_tracker_nodes playback.launch video:=phantom30`
 
 ---
 
@@ -525,7 +531,7 @@ MFE 需要前一帧，TF 需要历史轨迹。因此 `detect_server.py` 是**有
 | 检测帧数差 | **< 2%** |
 | track_id 一致性 | 无需一致（生命周期可能不同） |
 
-**不合格排查顺序**：图像是否无损 → 帧索引是否对齐 → MFE 帧缓冲是否跨请求 → LAC/LAD 是否同权重。
+**不合格排查顺序**：图像是否无损 → 帧索引是否对齐 → MFE 帧缓冲是否正确 → LAC/LAD 是否同权重。
 
 ---
 
@@ -533,16 +539,19 @@ MFE 需要前一帧，TF 需要历史轨迹。因此 `detect_server.py` 是**有
 
 | 阶段 | 工时 | 累计 | 需硬件 |
 |---|---:|---:|---|
-| S1 | 0.5 天 | 0.5 | ❌ |
-| S2 | 1 天 | 1.5 | ❌ |
-| S3 | 2 天 | 3.5 | ❌ |
-| S4 | 1 天 | 4.5 | ❌ |
-| S5 | 1 天 | 5.5 | ❌ |
-| **S5.5 仿真** | **0.5 天** | **6.0** | **❌** |
-| **S1–S5.5 小计** | **6.0 天** | | **全部离线** |
-| S6 | 3 天 | 9.0 | ✅ |
-| S7 | 3 天 | 11.5 | ✅ |
-| S8 | 8 天 | 19.5 | ✅ |
+| S1+S2 | 0.5 天 | 0.5 | ❌ | ✅ 完成 |
+| S3（算法侧） | 1 天 | 1.5 | ❌ | ✅ 完成（§13.8/§14.7） |
+| S3.5（回放+720p） | 0.5 天 | 2.0 | ❌ | ✅ 完成（§16） |
+| **S4（mav_node 接入）** | **0.4 天** | **2.4** | ❌ | ⬜ **下一步** |
+| S5（rosbag 对拍） | 0.3 天 | 2.7 | ❌ | ⬜ |
+| S5.5 仿真 | 0.5 天 | 3.2 | ❌ | ⬜ |
+| **S1–S5.5 小计** | **3.2 天** | | **全部离线** | |
+| S6 | 3 天 | 6.2 | ✅ | ⬜ |
+| S7 | 3 天 | 9.2 | ✅ | ⬜ |
+| S8 | 8 天 | 17.2 | ✅ | ⬜ |
+
+**较初始估算减少 2.8 天**：S3 从 2 天降到 1 天（ONNX 免掉 socket 层），
+S3.5 从 1 天降到 0.5 天（文件回放比预想简单），S4/S5 相应压缩。
 
 PRD §11.7 的 32 天含多目标扩展；本表为单目标主线。
 
@@ -551,9 +560,11 @@ PRD §11.7 的 32 天含多目标扩展；本表为单目标主线。
 ### 9.7 待办清单
 
 - [x] 清理 `ros2_ws/`（2026-10-29 完成，消息已备份）
-- [ ] **S1**：建 ros1_ws 双包，迁移消息，`catkin_make` 通过
-- [ ] **S2**：五节点骨架，话题全通
-- [ ] **S3**：`detect_server.py` + socket + 有状态 tracker
+- [x] **S1**：建 ros1_ws 双包，迁移消息，`catkin_make` 通过（2026-10-29）
+- [x] **S2**：五节点骨架，话题全通（2026-10-29）
+- [x] **S3**：ONNX 单进程集成（算法侧完成，§13.8/§14.7）
+- [x] **S3.5**：tt_driver file 回放 + 720p 实测（§16）
+- [ ] **S4**：`mav_node` 接 `mgmd_onnx`（丢帧策略、CPU 回落）
 - [ ] **S4**：`tt_driver source:=file`
 - [ ] **S5**：rosbag 对拍 E3
 - [ ] **S5.5**：Gazebo 相机 + 抖动注入仿真（§11，需 S4 完成）
@@ -631,7 +642,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
    tt_driver (source:=gazebo)
         │  ← 人为注入：帧抖动 0–50ms、丢帧 2%
         ▼
-   mav_node ──socket──► detect_server (3.11)
+   mav_node ──(进程内直调)──► mgmd_onnx (3.8)
         │
         ▼
    /mav/detections ──► tracker_node ──► /mav/tracks
@@ -689,7 +700,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 | **S5.5-e** | 显存峰值 | **< 4 GB**（不能 OOM） |
 | **S5.5-f** | 目标从画面中心缓慢横移，能被检测并跟踪 | ID 连续 ≥ 50 帧 |
 
-**S5.5-e 是"能不能在无人机上跑"的直接答案**：若 4 GB 显存下 Gazebo + sidecar 能同时跑，
+**S5.5-e 是"能不能在无人机上跑"的直接答案**：若 4 GB 显存下 Gazebo + 检测算法能同时跑，
 且帧率 ≥ 10 FPS，则**计算资源不是瓶颈**，真机部署的剩余风险只剩通信与供电。
 
 ### 11.8 能回答与不能回答的问题
@@ -768,7 +779,7 @@ ROS1 要 goal/result/feedback，写错会静默错位）。
 ### 12.5 下一步
 
 S2 的验收项（S2-a~d）已在 S1 中**提前全部验证通过**（五节点起、8 话题、30 Hz、连接正确）。
-因此 **S2 实质已完成**，可合并处理。下一步进入 **S3：sidecar socket 协议**。
+因此 **S2 实质已完成**，可合并处理。下一步进入 **S3**（后于 1.2.0 改为 ONNX 单进程，见 §13）。
 
 ---
 

@@ -1937,3 +1937,68 @@ LAD 观察：p50 0.00 / p95 44.81 / mean 14.82 ms，占 14%。
    已踩两次（§20.4 附近）。一律用 PID 文件。
 5. **`git add -A` 会误收仓库根目录的 `.cache/`（曾含 2 GB 文件）**，
    必须显式列出改动文件。
+
+### 21.9 待办想法：GPU 加速 LK 光流（用户提出，暂不实施）
+
+用户 2026-10-30 指出：「LK 金字塔光流可以用 GPU 加速，且效果不错」。
+
+**修正此前的错误结论**：§21.2 表格中「`calcOpticalFlowPyrLK` → `无 torch 算子` → 无法移植」
+的推理是**错的**。torch 没有 LK 算子，**不等于 GPU 上没有 LK 实现**。
+实际存在的成熟实现：
+
+- OpenCV `cv2.cuda.SparsePyrLKOpticalFlow`（`opencv_contrib` 的 `cudaoptflow` 模块）
+- NVIDIA Optical Flow SDK / VPI
+
+**不是「不能做」，是本机这套环境里没有。**
+
+**本机现状**（`cv2.cuda` 全部为 False，`getCudaEnabledDeviceCount()==0`）：
+
+| 检查项 | 结果 |
+|---|---|
+| venv `cv2` 5.0.0（节点实际使用） | CPU-only wheel |
+| 系统 `cv2` 4.2.0（`cv_bridge` 使用） | 无 CUDA |
+| `cv2.cuda.SparsePyrLKOpticalFlow` / `Farneback` / `NvidiaOpticalFlow_*` | 均 False |
+| VPI / Optical Flow SDK | 未安装 |
+
+**关于「ROS cv2 4.2 冲突」的更正**：此说法不成立，已核实——
+venv 5.0.0 与系统 4.2.0 是两套独立安装，节点进程只加载一个（实测节点内
+`cv2.__version__ = 5.0.0`），ABI 不冲突。真实前置条件是**需从源码编译带
+`cudaoptflow` 的 OpenCV**，这是新增构建步骤，不是解决冲突。
+
+#### 收益上限取决于点数（实测，960×720，ARMAV phantom30）
+
+| 网格点数 | `calcOpticalFlowPyrLK` 耗时 |
+|---:|---:|
+| 70 | 0.992 ms |
+| 260 | 1.596 ms |
+| **600（当前 30×20）** | **2.040 ms** |
+| 2400 | 5.347 ms |
+| 9600 | 20.823 ms |
+
+单次 `align_to_reference` 构成（600 点）：
+
+| 环节 | 耗时 | GPU 可加速性 |
+|---|---:|---|
+| `calcOpticalFlowPyrLK` | 2.277 | 可，但仅 600 点 |
+| `findHomography`(RANSAC) | 0.433 | 迭代算法，收益小 |
+| `warpPerspective` | 0.521 | **实测 GPU 慢 4×**（1.958 vs 0.461） |
+| valid_region 等 | ~1.6 | 可 |
+| **全程** | **4.830** | |
+
+传输成本：单帧灰度 0.66 MB，PCIe ~6 GB/s ≈ 0.12 ms/次。
+每次 align 需传 2 张，两次 align 共 4 次 ≈ **0.46 ms**。
+
+**判断**：600 点规模下 LK 本身仅 2 ms，GPU 并行度填不满 4096 核，
+扣除传输与启动开销后**乐观也只有 1–1.5 ms 收益**（MFE 共 16.65 ms）。
+
+#### 有价值但未验证的组合方案
+
+> **GPU 实施 LK ＋ 把网格从 600 提到 3000–6000 点**
+
+点数提升会改善对齐精度（对小目标是正收益），同时让 GPU 真正发挥优势。
+但**必须先验证「提高点数是否真能改善小目标检测」**——这一步纯 CPU 可做，
+不影响其他环节。用户 2026-10-30 决定暂缓，先接受当前结果。
+
+**恢复此方向的前置实验**（约 0.5 天，纯 CPU）：
+在 `d_min`、阈值不变的前提下，扫 `grid_cols×grid_rows` ∈ {30×20, 45×30, 60×40}，
+对比候选框数量、面积分布与真值召回。**有正收益再投入编译 CUDA OpenCV。**

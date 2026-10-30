@@ -1,8 +1,12 @@
 <launch>
-  <!-- S1 骨架：五节点全起，话题通但无真实数据 -->
-  <arg name="rate" default="30"/>
+  <!-- S1 骨架：五节点全起，话题通但无真实数据。
+       source:=stub 全黑假帧；source:=file 需配合 playback.launch 使用 -->
+  <arg name="rate"   default="30"/>
+  <arg name="source" default="stub"/>
 
-  <node pkg="mav_tracker_nodes" type="tt_driver.py"    name="tt_driver"    output="screen"/>
+  <node pkg="mav_tracker_nodes" type="tt_driver.py" name="tt_driver" output="screen">
+    <param name="source" value="$(arg source)"/>
+  </node>
   <node pkg="mav_tracker_nodes" type="mav_node.py"     name="mav_node"     output="screen"/>
   <node pkg="mav_tracker_nodes" type="tracker_node.py" name="tracker_node" output="screen"/>
   <node pkg="mav_tracker_nodes" type="viz_node.py"     name="viz_node"     output="screen"/>

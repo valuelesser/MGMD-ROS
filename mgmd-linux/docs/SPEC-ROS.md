@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 0.8.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 0.9.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
 
 ### 0.1 版本记录
 
@@ -241,6 +241,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-10-29 | 0.6.0 | `mgmd_onnx` 包装层；全链路对拍 1496 帧完全一致；排查出 P 差 0.037 是参数不一致（非 ONNX 问题） | S3 门槛验证 | F1 0.8328 两侧相同 |
 | 2026-10-30 | 0.7.0 | 实时性指标从 30 Hz 修订为 >=8 Hz（检测侧）；实测定位瓶颈 MFE 117ms + TF 61ms | 用户选 C（放宽指标）；30 Hz 物理不可达 | 新增 S3-b/c；记录 TF 向量化可 119x |
 | 2026-10-30 | 0.8.0 | 实现 FastSortTracker（只向量化 IoU 矩阵）；1496 帧逐帧差 0；端到端 8.5 Hz | S3-b/c 验收 | 1080p 达标，720p 待 S4 实测 |
+| 2026-10-30 | 0.9.0 | 实测 MFE-UMat：medianBlur 快2x 但 calcOpticalFlowPyrLK 崩溃；端到端仅快 3%，**否定该方案** | 用户要求试 UMat | §14.5 加速表更新，删除 UMat |
 
 ---
 
@@ -971,7 +972,7 @@ phantom30，1920×1080，ONNX 路径，预热 30 帧后统计 270 帧（CPU 侧�
 | 方案 | 预期收益 | 代价 |
 |---|---|---|
 | TF 向量化 IoU | TF 60.6 → 0.5 ms | **低**，数值无损 |
-| MFE 用 `cv2.UMat`（OpenCL） | 可能 2-3× | 依赖 GPU/OpenCL 驱动 |
+| ~~MFE 用 `cv2.UMat`（OpenCL）~~ | ~~可能 2-3×~~ → **实测仅 3%** | **已否定，见 §14.8** |
 | MFE 降采样检测再映射回原图 | 4× | **改变算法语义**，影响复现 |
 | 隔帧检测（每 2 帧跑一次 MFE） | 2× | 改变时序语义 |
 | TensorRT（LAD 已有 engine） | LAD 23.8 → ~8 ms | 仅 LAD，占比小，收益低 |
@@ -1036,3 +1037,91 @@ phantom30，1920×1080，ONNX 路径，预热 30 帧后统计 270 帧（CPU 侧�
 | 720p 检测频率 | ≥ 15 Hz | 未实测（估算 ~14–20 Hz） | 待 S4 实测 |
 
 **720p 为估算值**，需 S4 用 TT 真实分辨率验证，不得声称已达成。
+
+### 14.8 MFE 用 cv2.UMat 的评估结论（2026-10-30，不采用）
+
+**背景**：§14.5 曾把"MFE 用 `cv2.UMat`(OpenCL)"列为候选加速手段，预期 2–3×。
+**结论：实测无收益（3%），不采用。**
+
+#### 环境
+
+| 项 | 值 |
+|---|---|
+| cv2 | 5.0.0，`OpenCL: YES` |
+| OpenCL 设备 | **NVIDIA GeForce RTX 3050 Laptop GPU** |
+| `cv2.ocl.haveOpenCL()` | True |
+
+#### 数值正确性（先验，全部通过）
+
+| 算子 | CPU vs UMat |
+|---|---|
+| `medianBlur` k=3 | **完全相同**（最大差 0） |
+| `morphologyEx` | 完全相同 |
+| `absdiff` | 完全相同 |
+| `bitwise_and` | 完全相同 |
+| MFE 端到端（53 帧 / 8245 候选） | **候选完全一致，0 帧不同** |
+
+**所以不是"精度问题"，是"没有速度"。**
+
+#### 单算子性能（1080p，50 次平均，预热 10）
+
+| 算子 | CPU | UMat | 比值 |
+|---|---:|---:|---:|
+| `medianBlur` k=3 | 0.55 ms | **0.27 ms** | **2.0× 快** |
+| `morphologyEx` MORPH_OPEN | 0.35 ms | 0.71 ms | 0.5× 慢 |
+| `absdiff` | 0.09 ms | 0.15 ms | 0.6× 慢 |
+| `cvtColor` GRAY2BGR | 0.06 ms | 0.37 ms | **0.2× 慢** |
+| `connectedComponentsWithStats` | 2.17 ms | 4.72 ms | 0.5× 慢 |
+| **`calcOpticalFlowPyrLK`** | 6.3 ms | **❌ 崩溃** | — |
+
+`calcOpticalFlowPyrLK` 报 `lkpyramid.cpp:1051 error: (-215:Assertion ...)`，
+**OpenCV 5.0 的 LK 光流 UMat 路径不可用**。
+
+#### 整条后处理链（960×720，GPU 常驻不往返）
+
+| 方式 | 耗时 |
+|---|---:|
+| CPU 全程 | **0.48 ms** |
+| UMat 常驻 GPU | 0.57 ms |
+| UMat 每步往返（错误用法） | 2.39 ms |
+
+**即使正确使用（不往返），整链也只有 0.48 ms，UMat 反而更慢。**
+
+#### 为什么没有收益
+
+MFE 的耗时结构（cProfile，73 帧）：
+
+| 操作 | 占比 |
+|---|---:|
+| `calcOpticalFlowPyrLK` | **25%** ← UMat 崩溃 |
+| `medianBlur` | 20% ← UMat 快 2× |
+| `connectedComponentsWithStats` | 13% ← UMat 慢 2× |
+| `warpPerspective` | 8% |
+| `morphologyEx` | 4.5% ← UMat 慢 2× |
+
+1. **唯一受益的算子（medianBlur）占比 20%，快 2× 即省 10%**；
+2. **占比最大（25%）的 `calcOpticalFlowPyrLK` UMat 不支持**；
+3. **MFE 端到端实测仅 49.7 → 48.1 ms（3%）**，落在测量噪声内；
+4. 端到端 117 ms 中省 1.6 ms，**占比 1.4%**，毫无意义。
+
+#### 决策
+
+**不采用 UMat。** 理由：
+- 收益 3% 不抵风险：换机器若 OpenCL 不可用会静默回退（或崩溃），
+  引入一个**与环境强耦合的依赖**却换不来性能；
+- 会造成"代码里用了 GPU 加速"的错觉，实际主力算子根本没加速。
+
+**§14.5 加速路径表更新**：删除 MFE-UMat 一项，标注"已实测否定"。
+
+#### 真正可行的加速方向（重新排序）
+
+| 方案 | 实测/预期收益 | 风险 |
+|---|---|---|
+| ~~MFE 用 cv2.UMat~~ | **3%（实测）** | 环境耦合，**已否定** |
+| MFE 降采样检测再映射 | ~4× | 改变算法语义 |
+| 隔帧跑 MFE | 2× | 改变时序语义 |
+| 优化 `calcOpticalFlowPyrLK` 参数（`maxLevel`/`winSize`/点数） | 未知 | 需重测 F1 |
+| LK 换成稀疏角点采样 | 未知 | 改变对齐精度 |
+
+**下一步若仍要提速 MFE，应从 `calcOpticalFlowPyrLK` 入手**（25%），
+而不是在 UMat 上继续尝试。

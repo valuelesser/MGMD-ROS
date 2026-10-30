@@ -44,3 +44,12 @@ mgmd-linux/ros1_ws/.catkin_workspace
 
 # Python 3.8 venv（ONNX 环境，体积大不入库）
 mgmd-linux/.venv38/
+
+# 工具缓存（2026-10-30：git add -A 曾误收 2GB 的 .cache 内容）
+.cache/
+.uv/
+.onnxruntime/
+
+# 测量明细（本地产物，由 scripts/measure_stages.sh 生成）
+mgmd-linux/outputs/timing/
+*.csv.tmp

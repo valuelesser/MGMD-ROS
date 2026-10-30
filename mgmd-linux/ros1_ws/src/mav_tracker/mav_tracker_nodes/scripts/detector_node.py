@@ -80,13 +80,15 @@ def imgmsg_to_bgr(msg: Image) -> np.ndarray:
 
 
 def build_detection_array(header, w, h, boxes, confs, sources,
-                          n_cand, t_mfe, t_lac, t_lad, track_ids=None) -> DetectionArray:
+                          n_cand, t_mfe, t_tf, t_lac, t_lad,
+                          track_ids=None) -> DetectionArray:
     out = DetectionArray()
     out.header = header
     out.image_width = w
     out.image_height = h
     out.n_candidates = n_cand
     out.mfe_ms = float(t_mfe)
+    out.tf_ms = float(t_tf)
     out.lac_ms = float(t_lac)
     out.lad_ms = float(t_lad)
     for i, (b, c) in enumerate(zip(boxes, confs)):
@@ -199,8 +201,10 @@ class Pipeline:
         # ---- TF。SORT 用 _miss 计数判超龄，**不依赖帧号绝对值**（§16.7/§19）：
         # 实测 stride=4 下传视频帧号(2,6,10..) 与处理序号(1,2,3..) 输出为
         # 8.36 vs 8.47 个/帧，差异在噪声内。所以传哪个都可以，这里传视频帧号。
+        t0 = time.perf_counter()
         tracks = self.tracker.update([b for b, _ in pool], t,
                                      scores=[s for _, s in pool])
+        t_tf = (time.perf_counter() - t0) * 1000.0
         pool = [(tr.box, tr.score, tr.track_id) for tr in tracks]
 
         # ---- LAC
@@ -237,7 +241,7 @@ class Pipeline:
         return dict(frame=t, header=header, boxes=out_boxes, confs=out_conf,
                     sources=out_src, track_ids=out_tid, n_cand=n_cand,
                     shape=cur.shape[:2],
-                    t_mfe=t_mfe, t_lac=t_lac, t_lad=t_lad)
+                    t_mfe=t_mfe, t_tf=t_tf, t_lac=t_lac, t_lad=t_lad)
 
     def evict_below(self, t: int) -> None:
         """处理完 t 后，淘汰 t-k 及更早的帧（再也不会用到）。"""
@@ -338,7 +342,8 @@ def main():
                 h, w = r["shape"]
                 msg = build_detection_array(
                     r["header"], w, h, r["boxes"], r["confs"], r["sources"],
-                    r["n_cand"], r["t_mfe"], r["t_lac"], r["t_lad"], r["track_ids"])
+                    r["n_cand"], r["t_mfe"], r["t_tf"], r["t_lac"],
+                    r["t_lad"], r["track_ids"])
                 pub_det.publish(msg)
 
                 n += 1

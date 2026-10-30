@@ -12,5 +12,6 @@ uint32 n_candidates
 
 # 本帧处理耗时（毫秒，分段）
 float32 mfe_ms
+float32 tf_ms
 float32 lac_ms
 float32 lad_ms

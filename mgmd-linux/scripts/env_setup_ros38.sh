@@ -12,7 +12,7 @@
 ROOT=/home/gaoduan/毕业设计/mgmd-linux
 export PY38="$ROOT/.venv38/bin/python"
 
-_NVLIBS=$(find "$ROOT/.venv38/lib/python3.8/site-packages/nvidia" -maxdepth 2 -type d -name lib 2>/dev/null | tr '\n' ':')
+_NVLIBS=$(find "$ROOT/.venv38/lib/python3.8/site-packages/nvidia" -maxdepth 3 -type d -name lib 2>/dev/null | tr '\n' ':')
 export LD_LIBRARY_PATH="${_NVLIBS}${LD_LIBRARY_PATH:-}"
 
 # 让 mgmd / mgmd_onnx 可导入（不覆盖已有 PYTHONPATH）

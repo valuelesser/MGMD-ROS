@@ -1,0 +1,43 @@
+<launch>
+  <!-- 视频目标跟踪主 launch（三节点方案，SPEC-ROS §17.2）
+       用法：
+         roslaunch mav_tracker_nodes track.launch video:=phantom30
+         roslaunch mav_tracker_nodes track.launch video:=phantom30 rate:=30 limit:=600
+         roslaunch mav_tracker_nodes track.launch video:=/abs/path.mp4 out_video:=/tmp/a.mp4
+  -->
+
+  <arg name="video"     default="phantom30"/>
+  <arg name="rate"      default="30"/>
+  <arg name="loop"      default="true"/>
+  <arg name="limit"     default="0"/>
+
+  <arg name="device"    default="cuda"/>
+  <arg name="d_min"     default="0.02"/>
+  <arg name="buffer"    default="6"/>
+
+  <arg name="out_video" default="$(find mav_tracker_nodes)/../../outputs/ros_viz/track.mp4"/>
+  <arg name="visualize" default="true"/>
+
+  <!-- 1) 视频源 -->
+  <node pkg="mav_tracker_nodes" type="video_source.py" name="video_source" output="screen">
+    <param name="source" value="file"/>
+    <param name="path"   value="$(arg video)"/>
+    <param name="rate"   value="$(arg rate)"/>
+    <param name="loop"   value="$(arg loop)"/>
+    <param name="limit"  value="$(arg limit)"/>
+  </node>
+
+  <!-- 2) 检测（MFE → TF → LAC → LAD） -->
+  <node pkg="mav_tracker_nodes" type="detector_node.py" name="detector_node" output="screen">
+    <param name="device"      value="$(arg device)"/>
+    <param name="d_min"       value="$(arg d_min)"/>
+    <param name="buffer_size" value="$(arg buffer)"/>
+  </node>
+
+  <!-- 3) 可视化：写带框视频 -->
+  <node if="$(arg visualize)" pkg="mav_tracker_nodes" type="visualize_node.py"
+        name="visualize_node" output="screen">
+    <param name="out" value="$(arg out_video)"/>
+    <param name="fps" value="$(arg rate)"/>
+  </node>
+</launch>

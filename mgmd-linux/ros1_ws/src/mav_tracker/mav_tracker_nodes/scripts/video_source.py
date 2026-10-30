@@ -1,28 +1,31 @@
 #!/usr/bin/env python3
-"""tt_driver — 视频源与飞控指令桥（SPEC-ROS §9 / S3.5）。
+"""video_source — 视频源节点（SPEC-ROS §17.2 / S3.5）。
+
+只负责"把视频帧发出去"，**不管飞控**（本项目只做视频上的目标跟踪）。
 
 三种 source 模式：
-    source:=stub    全黑假帧（S1 骨架，用于纯话题连通性测试）
-    source:=file    回放本地视频（S3.5 新增，用于无硬件联调）
-    source:=tello   真机 Tello/TT SDK 取流（S6 实现，当前未实现）
+    source:=stub    全黑假帧（话题连通性测试）
+    source:=file    回放本地视频（主要用法）
+    source:=camera  本地摄像头（cv2.VideoCapture(索引)）
 
 参数：
     source:=file path:=<视频名或路径> [rate:=30] [loop:=true] [limit:=0]
+    source:=camera device:=0
 
-    视频名可用 ARD-MAV 短名（如 phantom30），也可给绝对路径。
+    视频名可用 ARD-MAV 的短名（如 phantom30），也可给绝对路径。
     rate  目标发布频率（Hz）；0 表示按视频原始帧率尽快发布。
-    loop  回放结束后是否循环。
-    limit 最多回放的帧数（0 = 不限），用于快速验证。
+    loop  回放结束后是否循环。循环时帧号 (header.seq) 会从 0 重新开始。
+    limit 最多发布的帧数（0 = 不限）。
 
-发布时间戳：header.stamp 用**墙钟时间**（与真实相机一致），
-不使用视频原始 PTS —— 消费者（mav_node）按时间戳算延迟，需要墙钟语义。
+**帧号定义（§17.4）**：`header.seq` = 视频内的帧序号（0 起，逐帧 +1）。
+下游 detector_node 用它作为 MFE 的帧号，所以必须与视频严格对应。
+
+**时间戳**：`header.stamp` 用墙钟时间（与真实相机一致），便于算端到端延迟。
 """
 from pathlib import Path
 
 import rospy
-from geometry_msgs.msg import Twist
 from sensor_msgs.msg import Image
-from std_msgs.msg import Float32MultiArray
 
 import numpy as np
 
@@ -42,8 +45,8 @@ def _resolve_video(name: str) -> Path:
         if cand.is_file():
             return cand
     except Exception as exc:      # noqa: BLE001
-        rospy.logwarn(f"[tt_driver] 无法导入 mgmd.config: {exc}")
-    raise SystemExit(f"[tt_driver] 找不到视频: {name}")
+        rospy.logwarn(f"[video_source] 无法导入 mgmd.config: {exc}")
+    raise SystemExit(f"[video_source] 找不到视频: {name}")
 
 
 class FileSource:
@@ -59,7 +62,7 @@ class FileSource:
         import cv2
         self.cap = cv2.VideoCapture(str(self.path))
         if not self.cap.isOpened():
-            raise SystemExit(f"[tt_driver] 打不开视频: {self.path}")
+            raise SystemExit(f"[video_source] 打不开视频: {self.path}")
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
         self.n_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.seq = 0
@@ -98,14 +101,23 @@ class StubSource:
         pass
 
 
-class TelloSource:
-    """真机取流（S6 实现）。"""
+class CameraSource:
+    """本地摄像头。"""
 
-    def __init__(self):
-        raise SystemExit(
-            "[tt_driver] source:=tello 尚未实现（S6 实机联调阶段）。\n"
-            "  当前可用: source:=stub | source:=file path:=phantom30"
-        )
+    def __init__(self, index: int):
+        import cv2
+        self.path = f"camera:{index}"
+        self.cap = cv2.VideoCapture(index)
+        if not self.cap.isOpened():
+            raise SystemExit(f"[video_source] 打不开摄像头 {index}")
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
+
+    def read(self):
+        ok, frame = self.cap.read()
+        return (frame, None) if ok else (None, "eof")
+
+    def release(self):
+        self.cap.release()
 
 
 def make_source(rospy_module) -> object:
@@ -116,30 +128,29 @@ def make_source(rospy_module) -> object:
     if source == "file":
         path = gp("~path", "")
         if not path:
-            raise SystemExit("[tt_driver] source:=file 需要 path:=<视频名或路径>")
+            raise SystemExit("[video_source] source:=file 需要 path:=<视频名或路径>")
         return FileSource(_resolve_video(path), bool(gp("~loop", True)))
-    if source == "tello":
-        return TelloSource()
-    raise SystemExit(f"[tt_driver] 未知 source: {source}")
+    if source == "camera":
+        return CameraSource(int(gp("~device", 0)))
+    raise SystemExit(f"[video_source] 未知 source: {source}")
 
 
 def main():
-    rospy.init_node("tt_driver")
+    rospy.init_node("video_source")
     src = make_source(rospy)
 
     rate_hz = float(rospy.get_param("~rate", 0.0))
     limit = int(rospy.get_param("~limit", 0))
+    loop = bool(rospy.get_param("~loop", True))
 
     pub_img = rospy.Publisher("/camera/image_raw", Image, queue_size=2)
-    pub_state = rospy.Publisher("/tt/state", Float32MultiArray, queue_size=2)
-    rospy.Subscriber("/tt/cmd_vel", Twist, lambda m: None)
 
     hz = rate_hz if rate_hz > 0 else getattr(src, "fps", 30.0)
     rate = rospy.Rate(hz)
     rospy.loginfo(
-        "[tt_driver] source=%s path=%s hz=%.1f loop=%s limit=%s",
-        rospy.get_param("~source", "stub"), getattr(src, "path", ""),
-        hz, rospy.get_param("~loop", True), limit or "inf",
+        "[video_source] source=%s path=%s hz=%.1f loop=%s limit=%s",
+        rospy.get_param("~source", "file"), getattr(src, "path", ""),
+        hz, loop, limit or "inf",
     )
 
     import time
@@ -148,7 +159,7 @@ def main():
     while not rospy.is_shutdown():
         frame, err = src.read()
         if err == "eof":
-            rospy.loginfo("[tt_driver] 回放结束，共 %d 帧，耗时 %.1fs",
+            rospy.loginfo("[video_source] 回放结束，共 %d 帧，耗时 %.1fs",
                           sent, time.time() - t0)
             break
 
@@ -156,6 +167,7 @@ def main():
         msg = Image()
         msg.header.stamp = rospy.Time.now()       # 墙钟时间，不用视频 PTS
         msg.header.frame_id = "camera"
+        # **帧号 = 视频内帧序号（0 起）**，detector_node 用它做 MFE 帧号（§17.4）
         msg.header.seq = sent
         msg.height, msg.width = h, w
         msg.encoding = "bgr8"
@@ -163,16 +175,15 @@ def main():
         msg.step = w * 3
         msg.data = frame.tobytes()
         pub_img.publish(msg)
-        pub_state.publish(Float32MultiArray(data=[0.0] * 10))
 
         sent += 1
         if limit and sent >= limit:
-            rospy.loginfo("[tt_driver] 到达 limit=%d，停止", limit)
+            rospy.loginfo("[video_source] 到达 limit=%d，停止", limit)
             break
         rate.sleep()
 
     src.release()
-    rospy.loginfo("[tt_driver] 退出，共发布 %d 帧", sent)
+    rospy.loginfo("[video_source] 退出，共发布 %d 帧", sent)
 
 
 if __name__ == "__main__":

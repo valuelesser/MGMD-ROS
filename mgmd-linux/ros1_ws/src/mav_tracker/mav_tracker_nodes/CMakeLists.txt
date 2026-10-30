@@ -12,11 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package()
 
 catkin_install_python(PROGRAMS
-  scripts/tt_driver.py
-  scripts/mav_node.py
-  scripts/tracker_node.py
-  scripts/viz_node.py
-  scripts/mission_node.py
+  scripts/video_source.py
+  scripts/detector_node.py
+  scripts/visualize_node.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

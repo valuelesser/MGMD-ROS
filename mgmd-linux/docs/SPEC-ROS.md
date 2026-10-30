@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 1.2.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 1.3.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
 
 ### 0.1 版本记录
 
@@ -250,6 +250,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-10-30 | 1.0.0 | 用户接受当前帧率；阶段表重构为 S3/S3.5/S4/S5；补 §15 计划 | 用户询问下一步 | S3.5 为首要，前置补 export/setup 脚本 |
 | 2026-10-30 | 1.1.0 | 补 export_onnx/setup_env38/verify_onnx；tt_driver 文件回放 30.1Hz 通过；720p 实测 14Hz，**指标下调至 12Hz** | S3.5 实施；实测推翻了 §14.7 的外推值 | S3.5-a~e 全通过；RD-07 |
 | 2026-10-30 | 1.2.0 | **用户指出 SPEC 仍残留 socket/sidecar 描述**；清理 15 处失效内容，重写 §9.3 为 ONNX 单进程 | 文档一致性检查 | 工时由 6.0 降为 3.2 天（离线部分） |
+| 2026-10-30 | 1.3.0 | 用户明确不控飞控；节点重构为三节点；帧号改为视频帧号；修复 mp4 损坏与 CUDA 路径两个 bug | 用户要求方案 A + 改名 + 带框视频 + 缓冲6帧 | S4-a~f 通过，S4-g 频率未达离线水平（§17.8） |
 
 ---
 
@@ -1325,3 +1326,155 @@ MFE 的耗时结构（cProfile，73 帧）：
 要么显式 `torch.cuda.synchronize()` 后再开始计时，要么接受"分项之和 < 端到端"是常态。
 
 本次采用后者：**端到端墙钟（70 ms）是唯一可信指标**，分项仅用于定位占比。
+
+---
+
+## 17. 节点重构：从五节点改为三节点（2026-10-30，S4）
+
+### 17.1 触发原因
+
+用户明确：**只做视频上的目标跟踪，不做无人机控制。**
+
+原五节点方案（§9.2）假设要接飞控，因此有 `mission_node`（发 `/tt/cmd_vel`）
+和 `tt_driver` 里的飞控桥（`/tt/state`）。这两部分在视频跟踪场景下是纯冗余。
+
+### 17.2 新架构：三节点
+
+```
+video_source ──► /camera/image_raw ──► detector_node ──► /mav/detections
+                                                     └─► visualize_node ──► 带框 mp4
+```
+
+| 节点 | 文件名 | 职责 |
+|---|---|---|
+| **video_source** | `video_source.py` | 视频源（file / camera / stub），发 `/camera/image_raw` |
+| **detector_node** | `detector_node.py` | MFE → TF → LAC → LAD，发 `/mav/detections` |
+| **visualize_node** | `visualize_node.py` | 画框 + HUD，写带框 mp4，发 `/mav/debug_image` |
+
+### 17.3 删除与改名对照
+
+| 原名 | 新名 | 处理 |
+|---|---|---|
+| `tt_driver.py` | **`video_source.py`** | 改名 + 删除飞控（`/tt/state`、`/tt/cmd_vel`、`tello` 模式） |
+| `mav_node.py` | **`detector_node.py`** | 改名 + 重写帧缓冲 |
+| `viz_node.py` | **`visualize_node.py`** | 改名 + 实现真实画框/写视频 |
+| `tracker_node.py` | — | **删除**（TF 已内置于 detector，重复） |
+| `mission_node.py` | — | **删除**（不控飞） |
+| `detect.launch` | **`track.launch`** | 改名 + 只起三节点 |
+| `playback.launch` | 合并进 `track.launch` | 删除 |
+
+**为什么删除 `tracker_node`**：阶段一的 TF（SORT）已经在检测流水线内部，
+`/mav/detections` 已带 `track_id`。再单独做轨迹管理是重复实现，
+且拆开要求把「MFE 帧缓冲 + 候选顺序」跨进程传递，代价大、收益为零。
+
+### 17.4 帧序号的明确定义（本次修正的核心 bug）
+
+**定义**：帧序号 = **视频内的帧序号**，取自 `Image.header.seq`（`video_source` 发出，0 起逐帧 +1）。
+
+**旧版 bug**：`mav_node` 用「收到的帧计数」`frame_seq` 当帧号传给 MFE：
+
+```python
+pipe.frame_seq += 1                    # 收到的第几帧
+pipe.frames[pipe.frame_seq] = arr
+target = pipe.frame_seq - pipe.k       # 想处理「中心帧」
+```
+
+两个后果：
+1. **帧缓冲永远凑不齐**：`step()` 要求 `t-k, t, t+k` 三个 key 都在，
+   而每次只新增 1 个 key，`target` 又是刚减去 k 的旧 key，
+   大量调用返回 `None`（实测「缓冲等待 898/1198」）；
+2. **检测无法回溯到视频帧**：`/mav/detections.header.seq` 是接收计数，
+   与视频帧号脱节，S5 的 rosbag 对拍（中心差 < 2px）**根本无法进行**。
+
+**修正**：
+
+```python
+# video_source：seq = 视频帧号（0 起）
+msg.header.seq = sent
+
+# detector_node：直接用 msg.header.seq 作为帧号
+slot.put((int(msg.header.seq), msg.header, arr))
+...
+pipe.push(frame_id, header, arr)        # 以视频帧号为 key
+```
+
+**验证**：连续收到的检测消息 `seq=326,327,328,329`，且 `track_id=26696` 连续三帧不变、
+框位从 (552,681) 平滑移到 (541,687) —— **帧号正确、跟踪连续**。
+
+### 17.5 帧缓冲 = 6 帧
+
+用户指定缓冲 6 帧。MFE 需要 `(t-k, t, t+k)`，k=1 时三帧即可，
+但取 6 帧是为了：
+- 丢帧时仍有足够的候选中心帧可比对
+- 处理慢时能一次追平多帧（`while True: ready_frame_id()`）
+
+**缓冲逻辑**（已单元验证）：
+
+| 推入 | ready | 缓冲内容 |
+|---|---|---|
+| 0 | None | [0] |
+| 1 | None | [0,1] |
+| 2 | **1** | [0,1,2] |
+| 3 | **2** | [1,2,3] |
+
+`evict_below(t)` 在处理完 t 后淘汰 `t-k` 及更早，防止内存增长。
+
+### 17.6 S4 验收结果
+
+| # | 检查 | 结果 |
+|---|---|---|
+| S4-a | 三节点 `roslaunch` 起、话题通 | ✅ |
+| S4-b | **帧号 = 视频帧号** | ✅ seq 连续 326→329 |
+| S4-c | **track_id 跨帧连续** | ✅ tid=26696 连续 3 帧 |
+| S4-d | 检测框真实（conf/坐标合理） | ✅ conf 0.82–0.91，框随目标平滑移动 |
+| S4-e | **输出带框视频** | ✅ 1920×1080@30fps，277 帧，37.7 MB |
+| S4-f | CUDA provider 生效 | ✅ `CUDAExecutionProvider`（修了 cublas 路径） |
+| S4-g | 处理频率 | ⚠️ **4.4 Hz**（离线 8.9 Hz，见 §17.8） |
+
+### 17.7 本轮修掉的两个真实 bug
+
+#### bug-1：`visualize_node` 被 kill 时视频文件损坏
+
+**现象**：`kill <pid>` 后 mp4 报 `moov atom not found`，无法播放。
+
+**原因**：`rospy.on_shutdown` 只在 `ros::shutdown()` 时触发；
+直接 SIGTERM/SIGINT 不会走到那里，`cv2.VideoWriter` 没 `release()`，
+mp4 缺少 moov atom。
+
+**修复**：额外注册 `signal.SIGINT/SIGTERM` handler，幂等调用 `_shutdown()`。
+
+#### bug-2：CUDA 库路径 `maxdepth` 不够
+
+**现象**：`libcublasLt.so.12: cannot open shared object file`，静默回落 CPU。
+
+**原因**：`env_setup_ros38.sh` 用 `find ... -maxdepth 2 -type d -name lib`，
+但实际路径深度是 3（`nvidia/cublas/lib`）。
+
+**修复**：改为 `-maxdepth 3`。修后 `providers` 含 `CUDAExecutionProvider`。
+
+### 17.8 仍存在的问题：ROS 内比离线慢一倍
+
+| 指标 | 离线（单进程脚本） | ROS（detector_node） |
+|---|---:|---:|
+| MFE | 78 ms | 104–206 ms |
+| 端到端 | 111.8 ms | ~230 ms |
+| 频率 | 8.9 Hz | 4.4 Hz |
+| 丢弃率 | — | 57%（1230/2130） |
+
+**候选数一致**（83–181，离线约 130），说明 MFE 算法行为正常，**是速度问题**。
+
+**尚定位的原因（按可能性）**：
+1. **`visualize_node` 抢 CPU**：它要解 mp4、画框、编码 mp4，全在同一台机器上；
+2. **ROS 默认多 spinner** + rosout 日志开销；
+3. **`buff_size` 过大**（2×1080p×3）导致拷贝开销。
+
+**下一步应先做隔离测试**：关掉 `visualize_node` 单独测 detector，
+确认画框是否拖慢了检测。**不猜测、不盲目改代码。**
+
+### 17.9 参数残留问题（ROS1 特性，已踩两次）
+
+`rosrun pkg node.py _limit:=400` 会把 `/node/limit` 写进参数服务器，
+**节点退出后不清除**。下次启动若不指定 `_limit`，会继承旧值。
+
+**已两次导致误判**（第一次以为 tt_driver 逻辑有问题）。
+**规避**：重启前显式 `rosparam delete /<node>`，或统一用 `track.launch`（launch 参数不残留）。

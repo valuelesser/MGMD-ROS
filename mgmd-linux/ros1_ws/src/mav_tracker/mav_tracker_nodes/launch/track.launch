@@ -17,7 +17,8 @@
   <arg name="d_min"     default="0.02"/>
   <arg name="buffer"    default="6"/>
 
-  <arg name="out_video" default="$(find mav_tracker_nodes)/../../outputs/ros_viz/track.mp4"/>
+  <!-- 默认输出到项目根 outputs/ros_viz/（可用 out_video:= 覆盖） -->
+  <arg name="out_video" default="/home/gaoduan/毕业设计/mgmd-linux/outputs/ros_viz/track.mp4"/>
   <arg name="encoder"   default="nvenc"/>
   <arg name="visualize" default="true"/>
 

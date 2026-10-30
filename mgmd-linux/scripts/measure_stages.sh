@@ -42,7 +42,7 @@ rosnode list >/dev/null 2>&1 || {
 }
 
 nohup "$PY" "$WS/src/mav_tracker/mav_tracker_nodes/scripts/video_source.py" \
-  _source:=file _path:="$VID" _width:=960 _height:=720 _rate:=0 _loop:=false \
+  _source:=file _path:="$VID" _width:=960 _height:=720 _rate:=${RATE:-0} _loop:=false \
   > /tmp/st_src.log 2>&1 & echo $! > /tmp/st_pid_src
 sleep 3
 nohup "$PY" "$WS/src/mav_tracker/mav_tracker_nodes/scripts/detector_node.py" \

@@ -142,6 +142,8 @@ class Pipeline:
         self.frames: "OrderedDict[int, tuple]" = OrderedDict()
         self.header_of = {}
         self.n_processed = 0
+        self.overhead: dict = {}
+        self.last_pub = 0.0
         self.n_waiting = 0         # 因缓冲不足而等待的次数
         self.last_done = -1        # 最近一次处理的视频帧号（防止重复处理）
         self.n_dropped_evict = 0   # 因缓冲淘汰而未处理的帧数
@@ -303,13 +305,15 @@ def main():
         if _n_img["n"] % 100 == 1:
             rospy.loginfo("[detector_node] 收到第 %d 张图 seq=%d %dx%d",
                           _n_img["n"], msg.header.seq, msg.width, msg.height)
+        t_cb = time.perf_counter()
         try:
             arr = imgmsg_to_bgr(msg)
         except ValueError as exc:
             rospy.logwarn_throttle(5.0, "[detector_node] 图像解析失败: %s", exc)
             return
+        t_dec = time.perf_counter()
         # **帧号 = 视频帧号**（video_source 发的 header.seq），不是接收计数
-        slot.put((int(msg.header.seq), msg.header, arr))
+        slot.put((int(msg.header.seq), msg.header, arr, t_cb, t_dec))
 
     def worker():
         rospy.loginfo("[detector_node] 工作线程启动 device=%s d_min=%.3f", device, d_min)
@@ -318,9 +322,10 @@ def main():
         t_start = time.time()
         while not stop.is_set() and not rospy.is_shutdown():
             item = slot.get(timeout=0.2)
+            t_pop = time.perf_counter()
             if item is None:
                 continue
-            frame_id, header, arr = item
+            frame_id, header, arr, t_cb, t_dec = item
             pipe.push(frame_id, header, arr)
 
             # 缓冲里可能有不止一帧可处理（处理慢时会积压），一次处理到追平
@@ -329,12 +334,14 @@ def main():
                 if t is None:
                     pipe.n_waiting += 1
                     break
+                t_step0 = time.perf_counter()
                 try:
                     r = pipe.step(t)
                 except Exception as exc:                     # noqa: BLE001
                     rospy.logerr("[detector_node] 处理异常 (frame %d): %s", t, exc)
                     pipe.evict_below(t)
                     break
+                t_step1 = time.perf_counter()
                 pipe.evict_below(t)
                 if r is None:
                     break
@@ -344,7 +351,25 @@ def main():
                     r["header"], w, h, r["boxes"], r["confs"], r["sources"],
                     r["n_cand"], r["t_mfe"], r["t_tf"], r["t_lac"],
                     r["t_lad"], r["track_ids"])
+                t_build = time.perf_counter()
                 pub_det.publish(msg)
+                t_pub = time.perf_counter()
+
+                # ---- 端到端拆解（SPEC-ROS §20.7）----
+                o = pipe.overhead
+                # 回调被 rospy 调用的时刻 - 上一帧发布完成的时刻
+                # = ROS 传输 + 线程交接 + 队列等待（这是我们怀疑的大头）
+                if pipe.last_pub:
+                    gap = (t_cb - pipe.last_pub) * 1000.0
+                    if gap >= 0:
+                        o["frame_gap"] = o.get("frame_gap", 0.0) + gap
+                o["decode"] = o.get("decode", 0.0) + (t_dec - t_cb) * 1000.0
+                o["queue_to_work"] = o.get("queue_to_work", 0.0) + (t_pop - t_dec) * 1000.0
+                o["step"] = o.get("step", 0.0) + (t_step1 - t_step0) * 1000.0
+                o["build"] = o.get("build", 0.0) + (t_build - t_step1) * 1000.0
+                o["publish"] = o.get("publish", 0.0) + (t_pub - t_build) * 1000.0
+                o["n"] = o.get("n", 0) + 1
+                pipe.last_pub = t_pub
 
                 n += 1
                 hz_win.append(time.time())
@@ -358,6 +383,15 @@ def main():
                     hz = 0.0
                     if len(hz_win) >= 2:
                         hz = (len(hz_win) - 1) / max(1e-6, hz_win[-1] - hz_win[0])
+                    if pipe.overhead.get("n"):
+                        k = float(pipe.overhead["n"])
+                        parts = " ".join(
+                            f"{key} {pipe.overhead.get(key, 0.0) / k:.2f}"
+                            for key in ("frame_gap", "decode",
+                                        "queue_to_work", "step", "build",
+                                        "publish"))
+                        rospy.loginfo("[detector_node] 端到端拆解/帧: %s (ms)", parts)
+                        pipe.overhead = {}
                     rospy.loginfo(
                         "[detector_node] 已处理 %d 帧  瞬时 %.2f Hz  收到 %d "
                         "入口丢 %d  缓冲淘汰 %d  等待 %d  frame=%d  候选 %d  "

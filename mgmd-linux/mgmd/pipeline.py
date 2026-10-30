@@ -118,8 +118,18 @@ def run(video: str, mfe_cfg: MFEConfig, modules: frozenset[str],
                     pool = []
 
             if tracker is not None:
+                # step_H 对齐（SPEC §10.13）：MFE 的 prev_H 是 t-k -> t 的单应，
+                # 按 key=帧号存入轨迹状态，供 Algorithm 1 step3 把 s_{N-3}
+                # 变换到 s_N 坐标系后再算 d。
+                # 此前从未传递 → compose_H 恒返回 None → 对齐从未生效。
+                # k!=1 时单帧 prev_H 跨 k 帧，与 key=f 的"相邻步"语义不符，
+                # 故仅 k==1 时传递（k>1 保持原行为，避免错误级联）。
+                _step_H = None
+                if k == 1:
+                    _step_H = res.info.get("prev_H")
                 tracks = tracker.update([b for b, _ in pool], t,
-                                        scores=[s for _, s in pool])
+                                        scores=[s for _, s in pool],
+                                        step_H=_step_H)
                 pool = [(tr.box, tr.score) for tr in tracks]
 
             if clf is not None and pool:

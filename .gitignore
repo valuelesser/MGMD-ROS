@@ -35,3 +35,11 @@ Thumbs.db
 # TRT engine 与 ONNX（体积大，且 engine 绑定 GPU 架构/TRT 版本，需本机重建）
 mgmd-linux/outputs/*.engine
 mgmd-linux/outputs/*.onnx
+
+# 工具缓存（result 分支补：master 上已有）
+.cache/
+.uv/
+mgmd-linux/.venv38/
+mgmd-linux/ros1_ws/
+mgmd-linux/reports/
+mgmd-linux/outputs/ros_viz/

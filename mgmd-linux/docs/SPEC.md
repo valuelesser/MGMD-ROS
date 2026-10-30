@@ -18,7 +18,7 @@
 | **V5** | **提交后必须用 `git show --stat HEAD` 核对文件清单**。产物文件（视频、表格、图）必须确认出现在 stat 里，不能只凭 `git add` 无报错就算成功 |
 | **V6** | **演示视频不进 git，用 `scripts/pack_deliverables.sh` 打包到 `deliverables/` 单独分发**（用户决策 2026-10-28）。表格与摘要 JSON（`outputs/tables/`、`outputs/logs/**/_summary.json`）必须入库。每新增一个视频必须在本节表里登记说明 |
 
-`spec_version: 1.0.0` | `prd_version: 4.2` | `paper: arXiv 2410.10527v1`
+`spec_version: 1.0.1` | `prd_version: 4.2` | `paper: arXiv 2410.10527v1`
 
 ### 0.1 版本记录（每轮必须追加一行）
 
@@ -3664,3 +3664,98 @@ $PY scripts/run_testset.py --modules mfe,tf,lac,lad --mfe-preset recommended \
 - [ ] 补验证集 d_min 扫描，消除选择偏置（唯一能升级为"可严格报告"的路径）
 - [ ] 排查 phantom41/43/63/46 的 MFE 召回问题
 - [ ] 更新 §8.24 主结果章节，指向本节
+
+---
+
+## 10.13 复现缺失记录：Algorithm 1 的 step_H 对齐从未生效（2026-10-30）
+
+本节记录**主结果 0.6752 的一个已知复现缺口**。主结果本身不变，
+但它是在「对齐未生效」的口径下产出的，必须如实声明。
+
+### 10.13.1 缺口内容
+
+论文 Algorithm 1 step 3 要求：把 $s_{N-3}$ **用单应变换对齐到 $s_N$ 的坐标系**后再算 $d$。
+
+代码里三件套都写好了：
+
+| 组件 | 位置 | 状态 |
+|---|---|---|
+| `TrackState.step_H` 字典 | `mgmd/tf.py:103` | 已实现 |
+| `compose_H(f0,f1)` 级联 | `mgmd/tf.py:136` | 已实现 |
+| `classify()` 里的 align 分支 | `mgmd/tf.py:157` | 已实现 |
+| **生产路径传递 `step_H`** | `mgmd/pipeline.py:121` | ❌ **从未传递** |
+
+`pipeline.py` 调用 `tracker.update(dets, t, scores=...)` 时未传 `step_H`，
+其默认值为 `None` → `step_H` 字典恒空 → `compose_H()` 恒返回 `None`
+→ 每帧都退回未对齐的原始框 → **对齐机制从未生效**。
+
+### 10.13.2 量化影响（实测，phantom30 @960×720，301 帧）
+
+新增 `scripts/verify_step_H.py` 对同一份 SORT 输出做双口径对比：
+
+| 指标 | 改前（不传 step_H） | 改后（传 step_H） |
+|---|---:|---:|
+| `step_H` 提供率 | 0% | **100%**（301/301） |
+| `compose_H` 成功率 | **0%**（0/11810） | **100%**（11810/11810） |
+| d 值 p50 | 0.1852 | 0.2022 |
+| d 值 mean | 0.2459 | **0.3397**（+38%） |
+| d ≥ d_min(0.02) 比例 | 97.2% | 97.7% |
+| **判定翻转** | — | **40 次 / 5556 = 0.7%** |
+
+**结论**：对齐使 d 系统性变大（框的形变被计入位移），通过率从 97.2% → 97.7%，
+即**略微更宽松**。仅 0.7% 的判定发生变化，**对 F1 的影响应在噪声量级**（预期 ±0.005）。
+
+### 10.13.3 顺带发现的真实缺陷：`reason` 字段不可信
+
+`classify()` 末尾无条件覆盖 `reason`：
+
+```python
+else:
+    self.reason = "align_missing"   # align 分支先设
+...
+if self.probability == 0:
+    self.reason = "d_below_threshold"
+else:
+    self.reason = "confirmed"       # ← 这里把 align_missing 覆盖掉
+```
+
+**后果**：`align_missing` **永远不会出现在最终 `reason` 里**。
+任何「统计 `reason == "align_missing"` 的占比」来判断对齐是否生效的做法，
+都会得到 0%，从而**误判为"对齐已生效"** —— 本工程此前就险些如此。
+
+**正确做法**：直接检查 `compose_H(f_old, f_new) is not None`。
+`tests/test_tf.py::test_align_missing_reason_is_overwritten` 已锁定此行为。
+
+### 10.13.4 修复范围
+
+改动落在**独立分支 `feat/step-H-align`**（从 `result` 分出），
+`result` 分支（`36f8292`）保持冻结不变。
+
+| 文件 | 改动 |
+|---|---|
+| `mgmd/pipeline.py` | `update(..., step_H=res.info["prev_H"])`，仅 `k==1` 时传递 |
+| `tests/test_tf.py` | 新增 7 个 step_H / compose_H / align 测试 |
+
+**为什么仅 `k==1`**：MFE 的 `prev_H` 是 $t-k \to t$ 的单应。
+`step_H` 的字典 key 语义是「帧 f 的相邻步 f-1→f」，只有 $k=1$ 时两者才一致。
+$k>1$ 时若强行写入会造成错误的级联，故保持原行为。
+
+### 10.13.5 对主结果的影响声明
+
+**F1 = 0.6752（v4.2 主结果）未重新测量**，按用户要求不重跑全测试集。
+该结果的口径为：
+
+> **「Algorithm 1 未启用 step_H 对齐」条件下的结果。**
+
+若要报告「完全对齐口径」的 F1，需在 `feat/step-H-align` 上重跑 §10.12.2 的命令。
+基于 §10.13.2 的 0.7% 翻转率，**预期差异在 ±0.005 以内**，但未实测。
+
+### 10.13.6 状态
+
+| 项 | 状态 |
+|---|---|
+| 缺口已记录 | ✅ 本节 |
+| 修复已实现 | ✅ `feat/step-H-align` |
+| 单元测试 | ✅ 54 passed（tf/mfe/pipeline/metrics） |
+| 对齐生效性验证 | ✅ `scripts/verify_step_H.py` 0% → 100% |
+| 全量 F1 重测 | ❌ 按用户要求不做 |

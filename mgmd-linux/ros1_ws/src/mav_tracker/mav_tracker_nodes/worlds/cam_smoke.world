@@ -1,0 +1,35 @@
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <world name="default">
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+    <model name="box">
+      <pose>3 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1 1 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1 1 1</size></box></geometry>
+          <material><ambient>1 0 0 1</ambient><diffuse>1 0 0 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="cam">
+      <static>true</static>
+      <pose>0 0 2 0 0.3 0</pose>
+      <link name="link">
+        <sensor name="camera" type="camera">
+          <update_rate>15</update_rate>
+          <camera>
+            <horizontal_fov>1.047</horizontal_fov>
+            <image><width>960</width><height>720</height><format>R8G8B8</format></image>
+          </camera>
+          <plugin name="ros_cam" filename="libgazebo_ros_camera.so">
+            <ros><namespace>cam</namespace></ros>
+            <cameraName>test</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <frameName>cam_link</frameName>
+          </plugin>
+        </sensor>
+      </link>
+    </model>
+  </world>
+</sdf>

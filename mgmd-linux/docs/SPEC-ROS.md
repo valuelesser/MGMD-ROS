@@ -640,7 +640,115 @@ PRD §11.7 的 32 天含多目标扩展；本表为单目标主线。
 但用户关心的核心问题是"资源占用下能否跑通"，用抖动注入可近似覆盖，性价比更高。
 若后续实测发现解码是瓶颈，再升级到 2.5a。
 
-### 11.3 环境事实（已实测，2026-10-29）
+### 11.3 环境事实（2026-11-02 重新全面实测）
+
+**结论：仿真环境可用，但需三处环境变量与一个写法约定，否则静默失败。**
+
+#### 11.3.1 可用性
+
+| 项 | 实测 | 状态 |
+|---|---|---|
+| `gazebo` / `gzserver` / `gzclient` | **11.15.1** | ✅ |
+| ROS 包 | `gazebo_ros`/`gazebo_plugins`/`gazebo_ros_pkgs`/`gazebo_msgs` | ✅ |
+| 相机插件 | `libgazebo_ros_camera.so` ✅、`libCameraPlugin.so` ✅ | ✅ |
+| 显示 | `:0`，2880×1620，24 位深，Mesa DRI | ✅ |
+| 模型库 | `/usr/share/gazebo-11/models` **仅 2 个**（ground_plane、sun） | ⚠️ 需自建目标物体 |
+
+#### 11.3.2 三个必须设置的环境变量
+
+| 变量 | 值 | 不设的后果 |
+|---|---|---|
+| `GAZEBO_MODEL_PATH` | `/usr/share/gazebo-11/models:$HOME/.gazebo/models` | `model://ground_plane` 找不到，**world 静默加载失败**，无任何报错 |
+| `LD_LIBRARY_PATH` | 追加 `/usr/lib/x86_64-linux-gnu/gazebo-11/plugins` | `Failed to load plugin libgazebo_ros_camera.so: libCameraPlugin.so: cannot open shared object file` |
+| `GAZEBO_MASTER_URI` | `http://localhost:11345`（**与 ROS 的 11311 不同**） | Gazebo 与 ROS 各连各的 master |
+
+**注意**：`gazebo-11/plugins` 目录下的 `libCameraPlugin.so` **存在但不在 `ldconfig` 缓存里**
+（`ldconfig -p | grep CameraPlugin` 无结果），必须显式加 `LD_LIBRARY_PATH`。
+
+#### 11.3.3 启动方式：必须用 `rosrun gazebo_ros gzserver`
+
+直接 `gzserver xxx.world` **不会**初始化 ROS 桥接，报：
+
+```
+[FATAL] A ROS node for Gazebo has not been initialized, unable to load plugin.
+```
+
+在 world 里手写 `<plugin filename="libgazebo_ros_api_plugin.so"/>` **也不行**：
+
+```
+[Err] World[default] is attempting to load a plugin, but detected an incorrect plugin type.
+```
+
+（加 `type="system"` 同样无效。）
+
+**正确做法**：
+
+```bash
+rosrun gazebo_ros gzserver cam.world
+```
+
+该 wrapper 会自动注入 system 插件并建立桥接。
+
+#### 11.3.4 相机模型必须 `static`
+
+`<model name="cam">` 若不加 `<static>true</static>`，相机会**自由落体**。
+实测 61 秒后相机 z 坐标掉到 **-19194 m**，画面变成纯色（min=max=178）。
+
+**这是最容易踩的坑**：话题正常发布、帧率正常（15.6 Hz）、分辨率正常（960×720 rgb8），
+但画面是纯色 —— 因为相机早已飞出场景。**只看话题和频率无法发现问题。**
+
+#### 11.3.5 验证通过的完整最小 world
+
+```xml
+<?xml version="1.0" ?>
+<sdf version="1.5">
+  <world name="default">
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+    <model name="box">                     <!-- 目标物体 -->
+      <pose>3 0 0.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1 1 1</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1 1 1</size></box></geometry>
+          <material><ambient>1 0 0 1</ambient><diffuse>1 0 0 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+    <model name="cam">
+      <static>true</static>                <!-- 必须！否则自由落体 -->
+      <pose>0 0 2 0 0.3 0</pose>
+      <link name="link">
+        <sensor name="camera" type="camera">
+          <update_rate>15</update_rate>
+          <camera>
+            <horizontal_fov>1.047</horizontal_fov>
+            <image><width>960</width><height>720</height><format>R8G8B8</format></image>
+          </camera>
+          <plugin name="ros_cam" filename="libgazebo_ros_camera.so">
+            <ros><namespace>cam</namespace></ros>
+            <cameraName>test</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <frameName>cam_link</frameName>
+          </plugin>
+        </sensor>
+      </link>
+    </model>
+  </world>
+</sdf>
+```
+
+**实测结果**：`/test/image_raw` 以 **15.6 Hz** 发布，960×720 rgb8，
+画面含 **99,218 个红色像素**（方块可见），15 种颜色 —— **渲染正常**。
+
+> **注**：world 里写的 `<namespace>cam</namespace>` 在 `rosrun gazebo_ros gzserver`
+> 下被忽略，话题实际是 `/test/image_raw` 而非 `/cam/test/image_raw`。
+> 接 ROS 时要按实际话题名对接。
+
+#### 11.3.6 硬件
+
+RTX 3050 Laptop 4 GB，16 核，15 GB RAM。
+
+### 11.4 环境事实（原记录，2026-10-29，已被 11.3 取代）
 
 | 项 | 状态 |
 |---|---|
@@ -652,7 +760,7 @@ PRD §11.7 的 32 天含多目标扩展；本表为单目标主线。
 
 **无需额外安装。** 但需要自建场景模型（目标物体），见 §11.5。
 
-### 11.4 架构
+### 11.5 架构
 
 ```
 Gazebo 场景（虚拟相机 + 移动目标模型）
@@ -682,7 +790,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 
 **关键**：复用 S4 的 `video_source`，只新增 `source:=gazebo` 一个分支，**不新增组件**。
 
-### 11.5 场景设计
+### 11.6 场景设计
 
 | 要素 | 内容 |
 |---|---|
@@ -699,7 +807,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 **② 或允许在仿真场景中用较小 d_min + 关闭 LAC/LAD 只跑 MFE→TF，验证链路吞吐。**
 **建议先用②验证链路，再用①验证端到端检测。]`
 
-### 11.6 帧抖动与丢帧注入
+### 11.7 帧抖动与丢帧注入
 
 在 `video_source(source:=gazebo)` 中实现，参数可配：
 
@@ -711,7 +819,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 
 **实现要点**：用独立线程 + 时间轮，不能阻塞 ROS 回调；注入后仍要保证话题时间戳反映**真实到达时间**。
 
-### 11.7 验收项
+### 11.8 验收项
 
 | # | 检查 | 门限 |
 |---|---|---|
@@ -725,7 +833,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 **S5.5-e 是"能不能在无人机上跑"的直接答案**：若 4 GB 显存下 Gazebo + 检测算法能同时跑，
 且帧率 ≥ 10 FPS，则**计算资源不是瓶颈**，真机部署的剩余风险只剩通信与供电。
 
-### 11.8 能回答与不能回答的问题
+### 11.9 能回答与不能回答的问题
 
 | 用户关心的问题 | 能否回答 |
 |---|---|
@@ -737,7 +845,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 | 真实飞控指令延迟 | ❌ 不能（属控制范畴，本次不关心） |
 | 真实光照/逆光/雨雾鲁棒性 | ❌ 不能 |
 
-### 11.9 工时与依赖
+### 11.10 工时与依赖
 
 | 项 | 工时 |
 |---|---:|

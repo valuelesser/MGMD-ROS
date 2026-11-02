@@ -22,6 +22,10 @@
   <arg name="encoder"   default="nvenc"/>
   <arg name="visualize" default="true"/>
 
+  <!-- roslaunch 用管道接管 stdout 会触发 Python 块缓冲，导致日志不可见。
+       统一开 PYTHONUNBUFFERED，否则节点看似"没启动"（SPEC-ROS §23.3.2）。 -->
+  <env name="PYTHONUNBUFFERED" value="1"/>
+
   <!-- 1) 视频源 -->
   <node pkg="mav_tracker_nodes" type="video_source.py" name="video_source" output="screen">
     <param name="source" value="file"/>

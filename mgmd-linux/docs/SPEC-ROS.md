@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 1.8.0` | `prd_version: 4.2` | `stage1_spec: 1.0.0`（冻结）
+`spec_version: 1.9.0` | `prd_version: 4.2` | `stage1_spec: 1.0.1`（§10.13 补记）
 
 ### 0.1 版本记录
 
@@ -63,7 +63,7 @@ git checkout result -- .                                        # 需要回滚�
 在 DJI RoboMaster TT 上，用 ROS1 Noetic 实现**单目小目标检测与跟踪**的模块化软件框架。
 
 **是**：
-- **单进程**：五个 ROS 节点，算法在 `mav_node` 内直接调用（无跨解释器）
+- **单进程**：三个 ROS 节点，算法在 `detector_node` 内直接调用（无跨解释器，§17）
 - 话题契约驱动的可替换架构（E1/E2/E3）
 - 用阶段一冻结的检测算法（不改算法本身）
 - 室外场地实机验证
@@ -82,19 +82,19 @@ git checkout result -- .                                        # 需要回滚�
 ```
 ROS1 主图（Python 3.8，**单一解释器**）
 ┌──────────────────────────────────────────────┐
-│ tt_driver     → /camera/image_raw            │
-│ mav_node      内部直调:                        │
+│ video_source   → /camera/image_raw           │
+│ detector_node  内部直调:                      │
 │                 MFE → FastSortTracker        │
 │                 → LacOnnx → LadOnnx          │
-│               → /mav/candidates,/mav/detections│
-│ tracker_node  → /mav/tracks                  │
-│ viz_node      → /mav/debug_image             │
-│ mission_node  → /tt/cmd_vel,/mav/track_target│
+│               → /mav/detections              │
+│ visualize_node → 带框视频（NVENC/CPU）        │
 └──────────────────────────────────────────────┘
 ```
 
 **没有任何跨进程通信。** 原 sidecar + Unix socket 方案已在 §13 推翻（RD-05），
-算法以 `mgmd_onnx` 形式在 `mav_node` 进程内直接调用。
+算法以 `mgmd_onnx` 形式在 `detector_node` 进程内直接调用。
+
+> **注**：节点已由五节点重构为三节点（§17，2026-10-30）。上图为当前状态。
 
 ### 2.2 五个既定决策（PRD §11.0.1，不再讨论）
 
@@ -133,17 +133,25 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 阶段 | 内容 | 需硬件 | 状态 |
 |---|---|---|---|
 | **S1** | ros1_ws 双包骨架（msgs + nodes） | ❌ | ✅ **完成** |
-| **S2** | 五个节点骨架（空实现，话题通） | ❌ | ✅ **完成**（随 S1 一并验证） |
-| **S3** | ~~`detect_server.py` + socket~~ → **ONNX 单进程集成**（§13） | ❌ | 🟡 **算法侧完成**（§13.8/§14.7），ROS 节点待接 |
-| **S3.5** | **`tt_driver source:=file` 回放 + 720p 实测** | ❌ | ⬜ **下一步** |
-| **S4** | **`mav_node` 接 `mgmd_onnx`（单进程直调）** | ❌ | ⬜ |
-| **S5** | rosbag 三方对拍（E3：中心差 <2px，帧数差 <2%） | ❌ | ⬜ |
-| **S5.5** | **Gazebo 相机 + 抖动注入仿真**（§11） | ❌ | ⬜ |
-| **S6** | 实机联调 | ✅ | ⬜ |
-| **S7** | 室外飞行验收 | ✅ | ⬜ |
-| **S8** | TT 数据采集与重训 | ✅ | ⬜ |
+| **S2** | 节点骨架（空实现，话题通） | ❌ | ✅ **完成**（随 S1 一并验证） |
+| **S3** | ~~`detect_server.py` + socket~~ → **ONNX 单进程集成**（§13） | ❌ | ✅ **完成**（§13.8/§14.7） |
+| **S3.5** | **`video_source source:=file` 回放 + 720p 实测** | ❌ | ✅ **完成**（§16，原 `tt_driver`） |
+| **S4** | **`detector_node` 接 `mgmd_onnx`（单进程直调）** | ❌ | ✅ **完成**（§17，原 `mav_node`） |
+| **S4.5** | **性能归因：GPU/多线程/框架开销三路线实测** | ❌ | ✅ **完成**（§20/§21，三条全部否决） |
+| **S4.6** | **step_H 对齐补全 + 五视频验证** | ❌ | ✅ **完成**（§22） |
+| **S5** | rosbag 三方对拍（E3：中心差 <2px，帧数差 <2%） | ❌ | ⬜ **按用户指示后置** |
+| **S5.5** | **Gazebo 相机 + 抖动注入仿真**（§11） | ❌ | ⬜ **当前重点** |
+| **S6** | 实机联调 | ✅ | ⬜ **最后** |
+| **S7** | 室外飞行验收 | ✅ | ⬜ **最后** |
+| **S8** | TT 数据采集与重训 | ✅ | ⬜ **最后** |
 
-**S1–S5.5（6.0 天）完全离线可完成**，是当前可推进的部分。
+**当前推进顺序（用户 2026-11-02 指示）**：
+
+1. **用现成视频验证三个 ROS 节点能否正常运行**（进行中，§23）
+2. **仿真**（S5.5）
+3. **两机对拍（S5）→ 真机（S6/S7/S8）全部放到最后**
+
+原「S1–S5.5（6.0 天）」的估算已过时，实际离线部分已基本完成。
 
 **S5.5 仿真的定位**：用户不关心飞控，只关心"能否在无人机上跑起来"。
 因此仿真验证的是**资源占用下的链路吞吐与延迟**，不是飞行合理性。详见 §11。
@@ -156,8 +164,8 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 编号 | 指标 | 判定方法 |
 |---|---|---|
-| **E1** | 换检测器不改其他节点 | 用 YOLO 节点替换 `mav_node`，`tracker_node`/`viz_node` 零改动，launch 文件改一行 |
-| **E2** | 换平台不改算法节点 | `tt_driver` 换成通用视频源，话题映射改一处 |
+| **E1** | 换检测器不改其他节点 | 用 YOLO 节点替换 `detector_node`，`video_source`/`visualize_node` 零改动，launch 文件改一行 |
+| **E2** | 换平台不改算法节点 | `video_source` 的 `~source` 参数切换 stub/file/camera，话题映射改一处 |
 | **E3** | 离线可复现 | rosbag 重放，输出与阶段一脚本对拍，**框中心差 < 2 px，检测帧数差 < 2%** |
 
 ### 4.2 功能指标
@@ -183,19 +191,26 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 ## 5. 话题契约（E1/E2 的实际载体）
 
-| 话题 | 类型 | 频率 | 方向 |
-|---|---|---|---|
-| `/camera/image_raw` | `sensor_msgs/Image` | 30 Hz | driver → mav_node/viz_node |
-| `/tt/state` | `std_msgs/Float32MultiArray` | 10 Hz | driver → mission_node |
-| `/tt/cmd_vel` | `geometry_msgs/Twist` | 30 Hz | mission_node → driver |
-| `/mav/candidates` | `mav_tracker_msgs/DetectionArray` | 30 Hz | mav_node → viz_node |
-| `/mav/detections` | `mav_tracker_msgs/DetectionArray` | 30 Hz | mav_node → tracker_node |
-| `/mav/tracks` | `mav_tracker_msgs/TrackArray` | 30 Hz | tracker_node → viz_node/mission_node |
-| `/mav/debug_image` | `sensor_msgs/Image` | 15 Hz | viz_node → 外部 |
-| `/mav/track_target` | `std_msgs/Int32` | on-change | 外部 → mission_node（目标 ID，-1=停止）；**原 PRD 为 action，已改，见 RD-04** |
+**当前实际使用的话题（三节点重构后，§17）**：
 
-**`/tt/state` 用 Float32MultiArray 是故意的技术债**（字段顺序靠文档约定），
-等 Tello 固件字段稳定后升级专用 msg。记入 §7 技术债。
+| 话题 | 类型 | 频率 | 方向 | 代码位置 |
+|---|---|---|---|---|
+| `/camera/image_raw` | `sensor_msgs/Image` | 视频原始帧率 | `video_source` → `detector_node`/`visualize_node` | `video_source.py:149` |
+| `/mav/detections` | `mav_tracker_msgs/DetectionArray` | 处理帧率 | `detector_node` → `visualize_node`/外部 | `detector_node.py:296` |
+| `/mav/debug_image` | `sensor_msgs/Image` | 处理帧率 | `visualize_node` → 外部（可选） | `visualize_node.py:122` |
+
+**已删除的话题**（随飞控功能一并移除，用户决策「只做视频跟踪，不控飞控」）：
+
+| 话题 | 原用途 | 状态 |
+|---|---|---|
+| `/tt/state` | Tello 状态 | ❌ 已删除 |
+| `/tt/cmd_vel` | 飞控速度指令 | ❌ 已删除 |
+| `/mav/candidates` | 候选框 | ❌ 已删除（`n_candidates` 字段内嵌于 DetectionArray） |
+| `/mav/tracks` | 跟踪轨迹 | ❌ 已删除（`track_id` 内嵌于 Detection） |
+| `/mav/track_target` | 目标选择 | ❌ 已删除（RD-04） |
+
+**`visualize_node` 的输出**：主要产物是**带框视频文件**（`~out` 参数），
+`/mav/debug_image` 为可选的实时预览（`~publish` 控制，默认关闭）。
 
 ---
 
@@ -253,6 +268,10 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-10-30 | 1.3.0 | 用户明确不控飞控；节点重构为三节点；帧号改为视频帧号；修复 mp4 损坏与 CUDA 路径两个 bug | 用户要求方案 A + 改名 + 带框视频 + 缓冲6帧 | S4-a~f 通过，S4-g 频率未达离线水平（§17.8） |
 | 2026-10-30 | 1.4.0 | 实测 visualize 各环节（画框仅 0.77ms，编码 19.55ms）；NVENC 1.16x 提速但 CPU 89% vs 781%；**发现跳帧使 SORT 输出降至 32%** | 用户询问能否 GPU 编码 | 待决策 §18.8 四个方案 |
 | 2026-10-30 | 1.5.0 | 用户指示改 720p；video_source 加 width/height 缩放；实测处理 10Hz、检测恢复；**再次犯了「先改后验」，tf_seq 改动已撤销**（第八次同类） | 用户选择方案 A | 720p 可用；F1 重验待定 |
+| 2026-10-30 | 1.6.0 | §20 各阶段耗时实测：MFE 46ms 占 49.3% 为唯一瓶颈；补 `tf_ms` 字段；发现 ROS 私有参数写法坑（`_name:=` vs `--name`） | 用户要求「列出各阶段处理时间」 | 性能基线建立 |
+| 2026-10-30 | 1.7.0 | §21 三条优化路线实测否决（GPU torch 版、Python 多线程、框架开销）；§21.9 存档 GPU-LK 想法并更正「cv2 冲突」误判 | 用户提出 GPU/多线程/LK 可加速 | 性能结论固化，不再重复尝试 |
+| 2026-10-30 | 1.8.0 | §22 step_H 对齐补全同步到 master；五视频并行验证 `compose_H` 100%；phantom05 实测 F1 变化 −0.0012 | 用户要求 B 方案 + 复制到 master | §22.3.1 F1 影响量化 |
+| 2026-11-02 | 1.9.0 | §23 文档一致性大核对：修正 §1/§2 架构图、§3 阶段表状态、§4 E1/E2、§5 话题契约（按实际代码重写）、§15 标注过时；补登 1.6–1.8 版本行 | 用户要求「整理进展，核对 spec」 | 文档与代码对齐 |
 
 ---
 
@@ -285,12 +304,12 @@ mgmd-linux/ros1_ws/src/mav_tracker/
 │   ├── package.xml
 │   ├── msg/{Detection.msg, DetectionArray.msg, Track.msg, TrackArray.msg}
 │   └── action/TrackTarget.action
-└── mav_tracker_nodes/
+└── mav_s/
     ├── CMakeLists.txt
     ├── package.xml
     ├── launch/detect.launch
-    ├── scripts/{tt_driver.py, mav_node.py, tracker_node.py,
-    │            viz_node.py, mission_node.py}
+    ├── scripts/{video_source.py, detector_node.py, .py,
+    │            visualize_node.py, .py}
     └── config/topics.yaml
 ```
 
@@ -393,7 +412,7 @@ string status
 
 ### 9.2 S2 — 五个节点骨架
 
-**目标**：`roslaunch mav_tracker_nodes detect.launch` 能起，`rostopic list` 出现全部 §5 话题。
+**目标**：`roslaunch mav_s detect.launch` 能起，`rostopic list` 出现全部 §5 话题。
 
 **工时**：1 天
 
@@ -401,11 +420,11 @@ string status
 
 | 节点 | 空实现必须做到 |
 |---|---|
-| `tt_driver` | 定时器发布假 `/camera/image_raw`（纯色图）+ `/tt/state`；订阅 `/tt/cmd_vel` 只打日志 |
-| `mav_node` | 订阅图像，发空 `DetectionArray` 到 `/mav/detections` |
-| `tracker_node` | 收空检测，发空 `TrackArray` |
-| `viz_node` | 收图像和轨迹，输出原图到 `/mav/debug_image` |
-| `mission_node` | 收轨迹，发零速度 `Twist` 到 `/tt/cmd_vel` |
+| `video_source` | 定时器发布假 `/camera/image_raw`（纯色图）+ `/tt/state`；订阅 `/tt/cmd_vel` 只打日志 |
+| `detector_node` | 订阅图像，发空 `DetectionArray` 到 `/mav/detections` |
+|  | 收空检测，发空 `TrackArray` |
+| `visualize_node` | 收图像和轨迹，输出原图到 `/mav/debug_image` |
+|  | 收轨迹，发零速度 `Twist` 到 `/tt/cmd_vel` |
 
 **关键**：骨架场景下整条链路的消息能从头流到尾，这是 E1/E2 成立的前提。
 
@@ -440,7 +459,7 @@ topics:
 > **本节于 SPEC-ROS 1.2.0 重写。** 原内容为 sidecar + Unix socket 协议，
 > 已被 §13（RD-05）推翻。保留本节编号以维持历史引用有效。
 
-**目标**：`mav_node` 进程内直接调用算法，输出真实检测。
+**目标**：`detector_node` 进程内直接调用算法，输出真实检测。
 
 **工时**：0.4 天（原 sidecar 方案估 2 天）
 
@@ -449,7 +468,7 @@ topics:
 ```
 /camera/image_raw
       ↓
-  mav_node（单进程，Python 3.8）
+  detector_node（单进程，Python 3.8）
       ├─ mgmd.mfe.enhance            ← 阶段一代码，未改
       ├─ mgmd_onnx.tf_fast.FastSortTracker
       ├─ mgmd_onnx.LacOnnx
@@ -488,7 +507,7 @@ from mgmd_onnx import LacOnnx, LadOnnx             # ONNX 推理
 
 | # | 检查 | 状态 |
 |---|---|---|
-| S3-a | ~~sidecar 独立启动，socket 可连~~ → **`mav_node` 进程内跑通全链路** | ⬜ |
+| S3-a | ~~sidecar 独立启动，socket 可连~~ → **`detector_node` 进程内跑通全链路** | ⬜ |
 | S3-b | 同图同帧检测数与阶段一脚本一致 | ✅ 算法侧已验证（§13.8） |
 | S3-c | 端到端延迟 p50 | ✅ 1080p 112 ms / 720p 70 ms（§16.4） |
 | S3-d | **tracker 状态连续**（同一目标 track_id 不重置） | ⬜ 待 S4 验证 |
@@ -496,7 +515,7 @@ from mgmd_onnx import LacOnnx, LadOnnx             # ONNX 推理
 
 ---
 
-### 9.4 S3.5 — tt_driver 回放模式（✅ 已完成，2026-10-30）
+### 9.4 S3.5 — video_source 回放模式（✅ 已完成，2026-10-30）
 
 **目标**：无真机也能跑完整链路。
 
@@ -509,7 +528,7 @@ from mgmd_onnx import LacOnnx, LadOnnx             # ONNX 推理
 | `tello` | ⬜ S6 | 连真机取流 |
 
 **验收结果**：见 §16.3（30.119 Hz，1920×1080 真实图像）。
-`roslaunch mav_tracker_nodes playback.launch video:=phantom30`
+`roslaunch mav_s playback.launch video:=phantom30`
 
 ---
 
@@ -545,7 +564,7 @@ from mgmd_onnx import LacOnnx, LadOnnx             # ONNX 推理
 | S1+S2 | 0.5 天 | 0.5 | ❌ | ✅ 完成 |
 | S3（算法侧） | 1 天 | 1.5 | ❌ | ✅ 完成（§13.8/§14.7） |
 | S3.5（回放+720p） | 0.5 天 | 2.0 | ❌ | ✅ 完成（§16） |
-| **S4（mav_node 接入）** | **0.4 天** | **2.4** | ❌ | ⬜ **下一步** |
+| **S4（detector_node 接入）** | **0.4 天** | **2.4** | ❌ | ⬜ **下一步** |
 | S5（rosbag 对拍） | 0.3 天 | 2.7 | ❌ | ⬜ |
 | S5.5 仿真 | 0.5 天 | 3.2 | ❌ | ⬜ |
 | **S1–S5.5 小计** | **3.2 天** | | **全部离线** | |
@@ -566,9 +585,9 @@ PRD §11.7 的 32 天含多目标扩展；本表为单目标主线。
 - [x] **S1**：建 ros1_ws 双包，迁移消息，`catkin_make` 通过（2026-10-29）
 - [x] **S2**：五节点骨架，话题全通（2026-10-29）
 - [x] **S3**：ONNX 单进程集成（算法侧完成，§13.8/§14.7）
-- [x] **S3.5**：tt_driver file 回放 + 720p 实测（§16）
-- [ ] **S4**：`mav_node` 接 `mgmd_onnx`（丢帧策略、CPU 回落）
-- [ ] **S4**：`tt_driver source:=file`
+- [x] **S3.5**：video_source file 回放 + 720p 实测（§16）
+- [ ] **S4**：`detector_node` 接 `mgmd_onnx`（丢帧策略、CPU 回落）
+- [ ] **S4**：`video_source source:=file`
 - [ ] **S5**：rosbag 对拍 E3
 - [ ] **S5.5**：Gazebo 相机 + 抖动注入仿真（§11，需 S4 完成）
 - [ ] S6–S8：需硬件
@@ -642,17 +661,17 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
    /camera/image_raw (960×720, 30 Hz)
         │
         ▼
-   tt_driver (source:=gazebo)
+   video_source (source:=gazebo)
         │  ← 人为注入：帧抖动 0–50ms、丢帧 2%
         ▼
-   mav_node ──(进程内直调)──► mgmd_onnx (3.8)
+   detector_node ──(进程内直调)──► mgmd_onnx (3.8)
         │
         ▼
-   /mav/detections ──► tracker_node ──► /mav/tracks
+   /mav/detections ──►  ──► /mav/tracks
                                             │
                               ┌─────────────┴─────────────┐
                               ▼                           ▼
-                          viz_node                 mission_node
+                          visualize_node                 
                               │                           │
                               ▼                    /tt/cmd_vel
                         /mav/debug_image                  │
@@ -661,7 +680,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
                                               模式A:丢弃   模式B:驱动相机
 ```
 
-**关键**：复用 S4 的 `tt_driver`，只新增 `source:=gazebo` 一个分支，**不新增组件**。
+**关键**：复用 S4 的 `video_source`，只新增 `source:=gazebo` 一个分支，**不新增组件**。
 
 ### 11.5 场景设计
 
@@ -682,7 +701,7 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 
 ### 11.6 帧抖动与丢帧注入
 
-在 `tt_driver(source:=gazebo)` 中实现，参数可配：
+在 `video_source(source:=gazebo)` 中实现，参数可配：
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
@@ -724,11 +743,11 @@ Gazebo 场景（虚拟相机 + 移动目标模型）
 |---|---:|
 | 世界文件 + 相机模型 | 0.2 天 |
 | 目标运动脚本（`set_model_state` 驱动） | 0.15 天 |
-| `tt_driver source:=gazebo` + 抖动注入 | 0.15 天 |
+| `video_source source:=gazebo` + 抖动注入 | 0.15 天 |
 | 验收测试 | 0.1 天 |
 | **合计** | **0.5 天** |
 
-**依赖**：S1（ros1_ws 可编译）、S4（`tt_driver` 已有 `source` 参数框架）。
+**依赖**：S1（ros1_ws 可编译）、S4（`video_source` 已有 `source` 参数框架）。
 **可提前到 S4 之后立即做，不必等 S5。**
 
 ---
@@ -1145,7 +1164,11 @@ MFE 的耗时结构（cProfile，73 帧）：
 
 ---
 
-## 15. 当前状态与下一步计划（2026-10-30）
+## 15. 当前状态与下一步计划（2026-10-30，**已被 §23 取代**）
+
+> ⚠️ **本节已过时**：其中列出的 S3.5/S4 计划均已完成实现（见 §16/§17/§3）。
+> 章节内保留的 `tt_driver`/`mav_node` 为当时的旧名，现分别更名为
+> `video_source`/`detector_node`。**当前状态请看 §23。**
 
 ### 15.1 到哪里了
 
@@ -2087,3 +2110,87 @@ tracks = self.tracker.update(..., step_H=res.info.get("prev_H"))
 
 **未做**（用户决定先记录）。若补，需注意 ROS 侧的跳帧可能使 `compose_H` 链路断裂，
 届时成功率会低于离线测得的 100%。
+
+---
+
+## 23 进展整理与文档核对（2026-11-02）
+
+用户要求「整理当前进展，核对 SPEC 文档」。本节为**唯一权威的当前状态**，
+取代 §15 的过时计划。
+
+### 23.1 执行顺序（用户 2026-11-02 指示）
+
+1. **用现成视频验证三个 ROS 节点能否正常运行** ← 当前
+2. **仿真**（S5.5）
+3. 两机对拍（S5）、真机相关（S6/S7/S8）—— **全部放到最后**
+
+### 23.2 已完成的阶段
+
+| 阶段 | 内容 | 交付物 |
+|---|---|---|
+| S1/S2 | ros1_ws 双包骨架、节点骨架 | `ros1_ws/` |
+| S3 | ONNX 单进程集成 | `mgmd_onnx/` |
+| S3.5 | 文件回放 + 720p | §16 |
+| S4 | 三节点重构（`video_source`/`detector_node`/`visualize_node`） | §17 |
+| — | NVENC 编码、SORT 跳帧分析 | §18 |
+| — | 720p 实测：10 Hz，检测 1–2/帧 | §19 |
+| — | **性能归因**：MFE 46ms 占 49.3%，为唯一瓶颈 | §20 |
+| — | **三条优化路线实测否决**（GPU/多线程/框架开销） | §21 |
+| — | **step_H 对齐补全** + 五视频验证（`compose_H` 0%→100%） | §22 |
+
+### 23.3 节点运行验证（本次实测）
+
+用 `roslaunch mav_tracker_nodes track.launch` 测试三个节点：
+
+| 节点 | 启动 | 话题 | 结论 |
+|---|---|---|---|
+| `video_source` | ✅ | `/camera/image_raw` 正常发布 | **正常**。参数全部生效（路径/hz/分辨率），150 帧与 300 帧两种 limit 都能正常退出 |
+| `visualize_node` | ✅ | 订阅图像与检测，写 mp4 | **正常**。产出 2.6 MB 视频文件 |
+| `detector_node` | ⚠️ | 已注册到 master | **异常**：单独运行时完全正常（CUDA、FastSortTracker 就绪），但**在 launch 下无任何日志输出**，未处理帧 |
+
+**`detector_node` 单独运行正常**（实测输出）：
+
+```
+[detector_node] MFE preset=recommended k=1 mode=3frame_or
+[detector_node] tracker = FastSortTracker（向量化，§14.7）
+[detector_node] LAC provider=CUDAExecutionProvider  LAD provider=CUDAExecutionProvider
+[detector_node] 工作线程启动 device=cuda d_min=0.020
+[detector_node] 就绪，等待 /camera/image_raw
+```
+
+**launch 下无一行日志**，但 `rosnode list` 能看到 `/detector_node`。
+说明节点进程存在但初始化未完成或输出被吞。
+
+**待排查方向**（尚未定位）：
+
+1. launch 的 `output="screen"` 是否真的把 stdout 接到终端
+2. 节点初始化耗时（CUDA 加载 ~2s）与 `video_source` 发帧速度的竞态
+3. `env_setup_ros38.sh` 在 launch 环境下是否生效（`LD_LIBRARY_PATH` 为进程级环境变量，roslaunch 可能不继承）
+4. 是否被 `roslaunch` 的 respawn/fork 行为影响
+
+**注意**：此问题**不影响算法正确性**（离线 pipeline 已验证），
+只影响 `roslaunch track.launch` 这一条启动路径。
+
+### 23.4 文档核对结果（本次修正）
+
+核对发现并修正以下不一致：
+
+| # | 问题 | 修正 |
+|---|---|---|
+| 1 | §1 称「五个 ROS 节点」 | → 三个（§17 已重构） |
+| 2 | §2.1 架构图仍画五个节点 + 飞控话题 | 按实际三节点重画 |
+| 3 | §3 阶段表 S3.5/S4 标「⬜ 下一步」，实际已完成 | 全部更新为 ✅，新增 S4.5/S4.6 |
+| 4 | §3 执行顺序未反映用户 2026-11-02 指示 | 补充三段式顺序 |
+| 5 | §4 E1/E2 用旧节点名 | → `detector_node`/`video_source` |
+| 6 | §5 话题表含 5 个已删除话题（`/tt/state`、`/tt/cmd_vel` 等） | 按实际代码重写，列出已删除项 |
+| 7 | §15 计划已过时但仍作当前状态 | 标注「已被 §23 取代」 |
+| 8 | §8 修正记录缺 1.6.0 / 1.7.0 / 1.8.0 | 补登 4 条（含本节 1.9.0） |
+| 9 | **`docs/SPEC.md` 缺 §10.13**（代码已改但阶段一文档未同步，违反 V2） | 已补，含 phantom05 实测 |
+
+**未修改**（属历史记录，保留原名正确）：§7 偏差表、§8 修正记录、
+§12 S1 记录、§16 S3.5 记录、§17 重构记录、§19 720p 记录。
+
+### 23.5 下一步
+
+按 §23.1 的顺序：**继续排查 `detector_node` 在 launch 下无日志的问题**（§23.3），
+之后进入仿真（S5.5，§11）。

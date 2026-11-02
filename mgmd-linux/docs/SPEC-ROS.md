@@ -2193,6 +2193,72 @@ Python 的 stdout 默认是**块缓冲**（4 KB 或 8 KB 才 flush）。
 - **LAC 偶发慢**：`LAC 132.4 ms`（首帧）与 `LAC 99.9 ms`，属 CUDA 首次调用抖动，
   与 §20.2 测到的 LAD max 2914 ms 同类。
 
+#### 23.3.4 实时展示方案（**用户决定：以后展示都用这个**）
+
+**标准做法**：`rqt_image_view` 订阅 `/mav/debug_image`。
+
+```bash
+# 终端 1：roscore
+source /opt/ros/noetic/setup.bash && source ros1_ws/devel/setup.bash
+roscore
+
+# 终端 2：显示窗口
+export DISPLAY=:0
+rosrun rqt_image_view rqt_image_view
+# 左上角下拉框选 /mav/debug_image
+
+# 终端 3：跑流水线
+export PYTHONUNBUFFERED=1 DISPLAY=:0
+roslaunch mav_tracker_nodes track.launch video:=phantom30 \
+    width:=960 height:=720 rate:=25 limit:=0 loop:=true \
+    out_video:=$PWD/outputs/ros_viz/live_demo.mp4 encoder:=nvenc
+```
+
+**为什么选它**：ROS 官方工具，`rqt_image_view` 直接订阅话题，零中转、零改造。
+
+**已排除的方案**：
+
+| 方案 | 结论 |
+|---|---|
+| venv 里 `cv2.imshow` | ❌ venv 的 OpenCV 5.0 是 **headless 构建**，`namedWindow` 报 "The function is not implemented" |
+| venv → 系统 python 管道传图 | ⚠️ 可行但复杂，无必要 |
+| 系统 python + cv2 4.2 | ✅ 可行（rospy+PyQt5 都在），但不如 rqt 简洁 |
+| `ffplay` 回放 mp4 | ✅ 只能看录好的，非实时 |
+
+**关窗注意**：`rqt_image_view` 用 `xdotool` 查窗口时，
+标题是 `rqt_image_view__ImageView - rqt`，不是简单的 "Image View"。
+
+#### 23.3.5 实测数据汇总（2026-11-02）
+
+三次运行的稳态数据：
+
+| 运行 | 帧数 | 频率 | 候选/帧 | 检测/帧 | MFE |
+|---|---:|---:|---:|---:|---:|
+| 短测（rate=10, limit=200） | 150 | 10.0 Hz | 29–88 | 1 | 25–41 ms |
+| 展示（rate=25, limit=900） | 400 | 12.6–16.8 Hz | 25–48 | 1 | 23–25 ms |
+| **长跑（rate=25, limit=0，23 分钟）** | **25200** | **15.1–17.8 Hz** | **24–98** | **1** | **38–44 ms** |
+
+**入口丢帧**：长跑 `收到 34270 / 已处理 25200 / 丢 3099`（9%），
+与 §19 的跳帧分析一致（源 29.97 fps vs 处理 ~16 Hz）。
+
+**长跑无累积退化**：第 25000 帧时频率仍有 15.07 Hz、MFE 43.8 ms，
+与第 300 帧基本持平，未见内存或句柄泄漏。
+
+#### 23.3.6 视频文件关闭必须用 SIGTERM，不能 SIGKILL
+
+实测：`kill -9` 打断 NVENC 写入会导致 **mp4 损坏**（`moov atom not found`，
+无法打开）。`kill -TERM` 则正确触发 signal handler：
+
+```
+[visualize_node] 收到信号 15，释放视频写入器
+```
+
+文件随即完整可读（400 帧 @25fps）。**`SIGKILL` 无法被捕获，是关闭方式的错，
+不是 `visualize_node` 的问题。**
+
+> ⚠️ 另注意：`limit:=0` + `loop:=true` 会**无限跑**，
+> 23 分钟即产出 710 MB。演示时建议设 `limit` 或及时关闭。
+
 ### 23.4 节点运行验证（初次记录，已被 23.3 取代）
 
 用 `roslaunch mav_tracker_nodes track.launch` 测试三个节点：

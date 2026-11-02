@@ -15,6 +15,7 @@ catkin_install_python(PROGRAMS
   scripts/video_source.py
   scripts/detector_node.py
   scripts/visualize_node.py
+  scripts/target_mover.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

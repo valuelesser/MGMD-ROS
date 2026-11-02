@@ -1,0 +1,100 @@
+<?xml version="1.0" ?>
+<!-- 仿真场景 outdoor.world（SPEC-ROS §11.6）
+     用途：验证三节点流水线在 Gazebo 数据源下的链路吞吐与延迟。
+
+     关键设计：
+       - 相机 static（§11.3.4，否则自由落体）
+       - 相机发布到 /camera/image_raw（与 detector_node 硬编码订阅一致）
+       - 960x720 @ 30 Hz，水平 FOV 82.6°（Tello 规格）
+       - 目标立方体边长 0.3 m，按轨迹移动
+       - 目标在画面中约 10-40 px（小目标区间）
+
+     启动：
+       rosrun gazebo_ros gzserver worlds/outdoor.world
+-->
+<sdf version="1.5">
+  <world name="default">
+
+    <include><uri>model://ground_plane</uri></include>
+    <include><uri>model://sun</uri></include>
+
+    <physics type="ode">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+
+    <!-- 场景装饰：几个静态障碍物，提供背景纹理（避免纯色背景） -->
+    <model name="wall_back">
+      <static>true</static>
+      <pose>14 0 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 20 3</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 20 3</size></box></geometry>
+          <material><ambient>0.55 0.55 0.60 1</ambient><diffuse>0.55 0.55 0.60 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <model name="wall_left">
+      <static>true</static>
+      <pose>6 -8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>14 0.2 3</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>14 0.2 3</size></box></geometry>
+          <material><ambient>0.50 0.55 0.50 1</ambient><diffuse>0.50 0.55 0.50 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 目标：边长 0.3 m 的立方体。
+         颜色取高对比度，便于 MFE 差分检出；
+         但是纯色几何体，LAC/LAD 大概率判负（§11.6 已预判此风险）。 -->
+    <model name="target">
+      <pose>5 0 1.6 0 0 0</pose>
+      <link name="link">
+        <!-- 关闭重力：目标由 target_mover 节点用 set_model_state 驱动 -->
+        <gravity>false</gravity>
+        <kinematic>true</kinematic>
+        <mass>0.2</mass>
+        <inertial>
+          <mass>0.2</mass>
+          <inertia><ixx>0.003</ixx><iyy>0.003</iyy><izz>0.003</izz>
+                   <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+        </inertial>
+        <collision name="c"><geometry><box><size>0.3 0.3 0.3</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.3 0.3 0.3</size></box></geometry>
+          <material><ambient>1.0 1.0 1.0 1</ambient><diffuse>1.0 1.0 1.0 1</diffuse>
+          <emissive>0.6 0.6 0.6 1</emissive></material>
+        </visual>
+        <velocity_decay><linear>0</linear><angular>0</angular></velocity_decay>
+      </link>
+    </model>
+
+    <!-- 相机：static，发布到 /camera/image_raw（detector_node 硬编码订阅） -->
+    <model name="tracker_cam">
+      <static>true</static>
+      <pose>0 0 1.5 0 0.02 0</pose>
+      <link name="link">
+        <sensor name="camera" type="camera">
+          <update_rate>30</update_rate>
+          <camera>
+            <horizontal_fov>1.441</horizontal_fov>   <!-- 82.6° Tello 规格 -->
+            <image><width>960</width><height>720</height><format>R8G8B8</format></image>
+            <clip><near>0.05</near><far>100</far></clip>
+          </camera>
+          <plugin name="ros_cam" filename="libgazebo_ros_camera.so">
+            <ros>
+              <namespace>/</namespace>
+            </ros>
+            <cameraName>camera</cameraName>
+            <imageTopicName>image_raw</imageTopicName>
+            <cameraInfoTopicName>camera_info</cameraInfoTopicName>
+            <frameName>camera_link</frameName>
+            <hackBaseline>0.07</hackBaseline>
+          </plugin>
+        </sensor>
+      </link>
+    </model>
+
+  </world>
+</sdf>

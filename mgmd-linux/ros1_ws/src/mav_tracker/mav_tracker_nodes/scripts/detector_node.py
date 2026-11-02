@@ -280,9 +280,25 @@ def main():
         valid = [n[6:] for n in dir(cfg) if n.startswith("apply_")]
         raise SystemExit(f"[detector_node] 未知 mfe_preset={mfe_preset}，可选 {valid}")
     fn()
+
+    # ==== 仿真场景覆盖参数（SPEC-ROS §11.11）====
+    # Gazebo 渲染的目标与背景灰度差仅 3-5，默认阈值 5 + 自适应会把
+    # 目标吞掉（实测只有 45% 的帧有候选）。仿真场景允许调低。
+    # 实机/离线保持默认，不受影响（参数为 0/负时不覆盖）。
+    mfe_threshold = int(gp("~mfe_threshold", 0))
+    if mfe_threshold > 0:
+        cfg.threshold = mfe_threshold
+        rospy.logwarn("[detector_node] 覆盖 MFE threshold=%d（仿真场景）",
+                      mfe_threshold)
+    mfe_adaptive = int(gp("~mfe_adaptive", -1))
+    if mfe_adaptive >= 0:
+        cfg.adaptive_thresh = bool(mfe_adaptive)
+        rospy.logwarn("[detector_node] 覆盖 MFE adaptive_thresh=%s（仿真场景）",
+                      cfg.adaptive_thresh)
+
     cfg.validate()
-    rospy.loginfo("[detector_node] MFE preset=%s k=%d mode=%s",
-                  mfe_preset, cfg.k, cfg.mode)
+    rospy.loginfo("[detector_node] MFE preset=%s k=%d mode=%s thr=%d adaptive=%s",
+                  mfe_preset, cfg.k, cfg.mode, cfg.threshold, cfg.adaptive_thresh)
 
     if device == "auto":
         try:

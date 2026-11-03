@@ -10,16 +10,15 @@
 #   4. 相机没 static → 自由落体，画面纯色
 #   5. 无 world 文件 → 无从验证
 set +u
+source "$(dirname "${BASH_SOURCE[0]}")/ros_env.sh"
+ros_env_init
 
-ROOT=/home/gaoduan/毕业设计/mgmd-linux
-WORLD=$ROOT/ros1_ws/src/mav_tracker/mav_tracker_nodes/worlds/cam_smoke.world
+WORLD=$WS/src/mav_tracker/mav_tracker_nodes/worlds/cam_smoke.world
 RUNDIR=/tmp/gz_check
 mkdir -p "$RUNDIR"
 PASS=0; FAIL=0
 ok()   { echo "  ✅ $1"; PASS=$((PASS+1)); }
 bad()  { echo "  ❌ $1"; FAIL=$((FAIL+1)); }
-
-source /opt/ros/noetic/setup.bash
 
 echo "=== 1. 可执行与版本 ==="
 gazebo --version 2>&1 | head -1 | grep -q "11\." && ok "gazebo 11.x" || bad "gazebo 版本异常"
@@ -29,7 +28,6 @@ gazebo --version 2>&1 | head -1 | grep -q "11\." && ok "gazebo 11.x" || bad "gaz
   && ok "libCameraPlugin.so" || bad "libCameraPlugin.so 缺失"
 
 echo "=== 2. 环境变量（§11.3.2）==="
-export GAZEBO_MODEL_PATH=${GAZEBO_MODEL_PATH:-/usr/share/gazebo-11/models:$HOME/.gazebo/models}
 echo "  GAZEBO_MODEL_PATH=$GAZEBO_MODEL_PATH"
 # GAZEBO_MODEL_PATH 是冒号分隔的多路径，需逐个查（不能直接 ls 整个变量）
 found_gp=0
@@ -38,9 +36,6 @@ for _d in "${_paths[@]}"; do
   [ -d "$_d/ground_plane" ] && found_gp=1 && break
 done
 [ "$found_gp" -eq 1 ] && ok "ground_plane 可见" || bad "ground_plane 不可见"
-export LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu/gazebo-11/plugins:$LD_LIBRARY_PATH
-echo "  LD_LIBRARY_PATH 已含 gazebo-11/plugins"
-export GAZEBO_MASTER_URI=${GAZEBO_MASTER_URI:-http://localhost:11345}
 echo "  GAZEBO_MASTER_URI=$GAZEBO_MASTER_URI"
 
 echo "=== 3. world 文件（§11.3.4）==="
@@ -53,8 +48,7 @@ else
 fi
 
 echo "=== 4. 启动实测（§11.3.3）==="
-for pat in gzserver rosmaster rosout; do pgrep -x "$pat" >/dev/null 2>&1 && kill -9 $(pgrep -x "$pat") 2>/dev/null; done
-sleep 1
+kill_ros_procs; sleep 1
 nohup roscore > "$RUNDIR/core.log" 2>&1 & echo $! > "$RUNDIR/core.pid"
 sleep 6
 rosrun gazebo_ros gzserver "$WORLD" > "$RUNDIR/gz.log" 2>&1 & echo $! > "$RUNDIR/gz.pid"
@@ -88,8 +82,7 @@ print(f"  {'✅' if red>1000 else '❌'} 红色方块可见（{red} 像素）")
 PYEOF
 
 echo "=== 清理 ==="
-kill -9 $(cat "$RUNDIR/gz.pid") 2>/dev/null
-for pat in gzserver rosmaster rosout; do pgrep -x "$pat" >/dev/null 2>&1 && kill -9 $(pgrep -x "$pat") 2>/dev/null; done
+kill_pidfile "$RUNDIR"; kill_ros_procs
 echo
 echo "=================================="
 echo "  通过 $PASS 项，失败 $FAIL 项"

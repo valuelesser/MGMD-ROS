@@ -281,20 +281,30 @@ def main():
         raise SystemExit(f"[detector_node] 未知 mfe_preset={mfe_preset}，可选 {valid}")
     fn()
 
-    # ==== 仿真场景覆盖参数（SPEC-ROS §11.11）====
-    # Gazebo 渲染的目标与背景灰度差仅 3-5，默认阈值 5 + 自适应会把
-    # 目标吞掉（实测只有 45% 的帧有候选）。仿真场景允许调低。
-    # 实机/离线保持默认，不受影响（参数为 0/负时不覆盖）。
-    mfe_threshold = int(gp("~mfe_threshold", 0))
-    if mfe_threshold > 0:
-        cfg.threshold = mfe_threshold
-        rospy.logwarn("[detector_node] 覆盖 MFE threshold=%d（仿真场景）",
-                      mfe_threshold)
-    mfe_adaptive = int(gp("~mfe_adaptive", -1))
-    if mfe_adaptive >= 0:
-        cfg.adaptive_thresh = bool(mfe_adaptive)
-        rospy.logwarn("[detector_node] 覆盖 MFE adaptive_thresh=%s（仿真场景）",
-                      cfg.adaptive_thresh)
+    # ==== MFE 参数覆盖（SPEC-ROS §11.11.4）====
+    # 默认全部不覆盖（0/空串），实机与离线行为完全不变。
+    # 仅在仿真等特殊场景下按需调整 —— Gazebo 目标的差分信号弱，
+    # 默认 medianBlur(5) 会把细窄差分带滤没（实测候选帧占比 19%→53%）。
+    # (参数名, cfg 字段, 哨兵值, 类型)
+    # 哨兵 -1 = 不覆盖；>=0 才覆盖（这样 adaptive=0 能关掉自适应）
+    for pname, field, cast in (
+        ("~mfe_threshold",   "threshold",       int),
+        ("~mfe_adaptive",    "adaptive_thresh", int),
+        ("~mfe_median_blur", "median_blur",     int),
+        ("~mfe_mode",        "mode",            str),
+    ):
+        raw = gp(pname, -1 if cast is int else "")
+        if cast is str:
+            if not raw:
+                continue
+            setattr(cfg, field, raw)
+        else:
+            if int(raw) < 0:
+                continue
+            setattr(cfg, field,
+                    bool(int(raw)) if field == "adaptive_thresh" else int(raw))
+        rospy.logwarn("[detector_node] 覆盖 MFE %s=%r", field,
+                      getattr(cfg, field))
 
     cfg.validate()
     rospy.loginfo("[detector_node] MFE preset=%s k=%d mode=%s thr=%d adaptive=%s",

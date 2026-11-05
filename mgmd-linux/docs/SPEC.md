@@ -2,8 +2,10 @@
 
 > 本文件是**代码与文档的唯一事实源**。每轮代码修正必须同步更新本文件，并与代码同一次 commit 提交。
 > 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）
-> 工程根：`/home/gaoduan/毕业设计/mgmd-linux/`
-> 最后更新：2026-10-28
+> 当前运行环境：Windows 宿主机上的 WSL2 `Ubuntu-20.04`（Ubuntu 20.04.6 LTS）
+> WSL 工程根：`/home/gaodu/毕业设计/mgmd-linux/`
+> 最后更新：2026-11-05（仅同步环境说明，阶段一算法与指标保持冻结）
+> 本文后续实验章节保留原生 Ubuntu 的历史路径与测量值；当前 WSL 运行方式以 §2 和 `SPEC-ROS.md` §2.3 为准。
 
 ---
 
@@ -18,12 +20,13 @@
 | **V5** | **提交后必须用 `git show --stat HEAD` 核对文件清单**。产物文件（视频、表格、图）必须确认出现在 stat 里，不能只凭 `git add` 无报错就算成功 |
 | **V6** | **演示视频不进 git，用 `scripts/pack_deliverables.sh` 打包到 `deliverables/` 单独分发**（用户决策 2026-10-28）。表格与摘要 JSON（`outputs/tables/`、`outputs/logs/**/_summary.json`）必须入库。每新增一个视频必须在本节表里登记说明 |
 
-`spec_version: 1.0.0` | `prd_version: 4.2` | `paper: arXiv 2410.10527v1`
+`spec_version: 1.0.2` | `prd_version: 4.2` | `paper: arXiv 2410.10527v1`
 
 ### 0.1 版本记录（每轮必须追加一行）
 
 | spec_version | 日期 | 对应 commit | 变更摘要 | PRD 版本 |
 |---|---|---|---|---|
+| **1.0.2** | **2026-11-05** | 本次提交（环境文档修订） | **§2 改为当前 WSL2 Ubuntu 20.04 环境；同步工程、数据、权重路径和 ROS 推理运行方式；不改变阶段一算法与评测结果；后续维护与提交约定见根目录 AGENTS.md** | v4.2（未修改） |
 | 0.1.0 | 2026-10-22 | 起 | 阶段一接口冻结 | v3.3 |
 | 0.2.0 | 2026-10-26 | 50a8ab3 | SPEC 版本号对齐 PRD v4.1 | v4.1 |
 | 0.3.0 | 2026-10-28 | 本轮 | 新增 §10（阶段二 ROS1）、§10.7（数据卷标探测）、§10.8（多目标实测）；修 `.gitignore`；引入 V5/V6 | v4.2 |
@@ -64,6 +67,7 @@
 
 | 视频 | 生成命令 | 说明 |
 |---|---|---|
+| `outputs/rerun_20261105_155551/phantom30.mp4` | 从 Windows 调用 `wsl -d Ubuntu-20.04 -- bash '/mnt/c/Users/gaodu/Desktop/opencode/mgmd_project_20261104/毕业设计/mgmd-linux/.dsh-run/29_rerun_verify.sh'` | WSL 环境重跑，960×720、1195 帧、59.75 秒；视频不入库，运行记录见 `docs/WSL20.04-重跑记录-2026-11-05.md`（仓库根相对路径） |
 | `multi_phantom20.mp4` | `$PY scripts/make_multi_video.py` | 多目标诊断，帧24-55（§10.8） |
 | `multi_phantom20_gap.mp4` | `$PY scripts/make_multi_video.py --start 34 --frames 10 --fps 2 --out outputs/figures/multi_phantom20_gap.mp4` | 多目标丢失慢放（§10.8） |
 | `vcam_track.mp4` / `vcam_full.mp4` | `live_track.py --camera 10 --record` | 虚拟摄像头实时追踪（§8.33） |
@@ -85,69 +89,48 @@
 
 ---
 
-## 2. 环境（实测，带约束）
+## 2. 环境（当前基线：WSL2 Ubuntu 20.04，2026-11-05 实测）
 
-| 项 | 事实 | 影响 |
+当前运行基线已从原生 Ubuntu 迁移到 Windows 宿主机上的 WSL2。2026-11-04 完成部署，2026-11-05 使用现成环境重跑通过。原生环境的驱动阻塞、sudo 限制、`.bootstrap` 启动方式和 `/media/...` 挂载路径不再作为当前运行前提。
+
+| 项 | 当前事实 | 约束 |
 |---|---|---|
-| OS | Ubuntu 20.04 / 内核 5.15 | — |
-| Python | 系统 3.8.10（无 pip/numpy/cv2，已装到 `.bootstrap/site`） | ⚠️ 3.8 装不了新版 torch |
-| GPU | RTX 3050 Laptop 4 GB，**驱动未生效**（`nvidia-smi` 连不上驱动） | 🔴 LAC/LAD 训练阻塞 |
-| sudo | **不可用**（sudo 无 setuid） | 🔴 无法装驱动/系统包 |
-| 可写区 | 仅 `/home/gaoduan/毕业设计/`；`/home/gaoduan/` 与 NTFS 均只读 | 所有产物必须落在此目录 |
-| 数据 | `/media/.../ARD-MAV/`（60 视频 / 107,497 XML，只读） | 只读读取，不复制 |
-| 权重 | `/home/gaoduan/tracking/data_raw/mgmd_weights/`（sha256 已核） | ✅ 可用 |
+| OS | WSL2 发行版 `Ubuntu-20.04`，Ubuntu 20.04.6 LTS | 通过 Windows `wsl -d Ubuntu-20.04` 进入 |
+| WSL 用户 / 工程 | `gaodu`；`/home/gaodu/毕业设计/mgmd-linux` | 环境与构建目录位于 WSL Linux 文件系统 |
+| Windows 源码 | `C:\Users\gaodu\Desktop\opencode\mgmd_project_20261104\毕业设计\mgmd-linux` | WSL 对应 `/mnt/c/Users/gaodu/Desktop/opencode/mgmd_project_20261104/毕业设计/mgmd-linux` |
+| GPU | RTX 3050 Laptop，4096 MiB；WSL 内 `nvidia-smi` 可用 | 当前 LAC/LAD GPU 推理已验证 |
+| ROS / Python | ROS1 Noetic；系统 Python 3.8.10 + 项目 `.venv38` | 当前 ROS 推理使用 3.8 + ONNX，不依赖阶段一 3.11 训练环境 |
+| 推理与显示 | ONNX Runtime CUDA；WSLg + 系统 PyQt5；CPU 视频编码 | 完整依赖版本、环境变量与启动命令见 [SPEC-ROS §2.3](SPEC-ROS.md#23-当前环境wsl2-ubuntu-2004) |
 
-### 2.1 环境后置项（阻塞项，需用户操作）
+### 2.1 路径与数据访问
 
-| # | 事项 | 阻塞什么 |
+| 资产 | 当前 WSL 路径 | 说明 |
 |---|---|---|
-| E1 | 安装 NVIDIA 驱动（需 root，sudo 当前不可用） | LAC/LAD 训练、GPU 推理 |
-| E2 | Python ≥3.10（用于 torch） | 同上；CPU-only 阶段不受影响 |
+| ARD-MAV 根目录 | `/mnt/c/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV` | 通过 `MGMD_ARD_ROOT` 指定，运行时只读使用数据，不修改文件 |
+| ONNX 权重 | `/home/gaodu/tracking/data_raw/mgmd_weights/{lac.onnx,yolov5s_GLAD-crop.onnx}` | LAC、LAD 均已验证 CUDA provider |
+| YOLOv5 源码 | `/home/gaodu/毕业设计/mgmd-linux/third_party/yolov5-v6.0` | 通过 `MGMD_YOLOV5_DIR` 指定 |
+| 输出 | `/home/gaodu/毕业设计/mgmd-linux/outputs/` | 运行产物先写 WSL；需要时复制回 Windows 项目 |
+| 旧用户路径兼容 | `/home/gaoduan -> /home/gaodu` | 兼容代码里仍存在的旧绝对路径；历史实验记录不批量替换 |
 
-**当前策略：先做纯 CPU 可完成的部分（数据层、评测器、MFE、TF），GPU 相关模块后置。**
+### 2.2 当前推理依赖与运行方式
 
-### 2.2 实测环境明细（2026-10-22）
+`.venv38`：Python 3.8.10、`onnxruntime-gpu==1.19.2`、`torch==2.4.0+cpu`、`torchvision==0.19.0+cpu`、`numpy==1.24.4`、`opencv-python-headless==5.0.0.93`。GPU 前向由 ONNX Runtime 执行，CPU torch 用于 YOLOv5 后处理；`torch.cuda.is_available()` 不作为这套环境的 GPU 验收标准。
 
-| 组件 | 状态 | 位置 |
-|---|---|---|
-| python3 | 3.8.10 | `/usr/bin/python3`（无 pip/numpy） |
-| pip | 25.0.1 | `.bootstrap/pipmod`（`get-pip.py` 3.8 版，`--target` 安装） |
-| numpy | 1.24.4 | `.bootstrap/site` |
-| opencv-python-headless | 4.11.0 | `.bootstrap/site` |
-| scipy | 1.10.1 | `.bootstrap/site`（提供 `linear_sum_assignment`） |
-| pytest | 已装 | `.bootstrap/site` |
-| torch | ✅ 2.5.1+cu121 | `.venv/lib/python3.11/site-packages` |
-| torchvision | ✅ 0.20.1+cu121 | 同上 |
-| **CUDA 可用性** | ❌ `torch.cuda.is_available()=False` | **沙箱看不到 `/dev/nvidia*`**（驱动本身正常，见下） |
+在 Windows PowerShell 中重跑已部署的 ROS 流水线：
 
-**运行方式**（所有脚本必须带此 PYTHONPATH）：
-```bash
-export PYTHONPATH=/home/gaoduan/毕业设计/.bootstrap/pipmod:/home/gaoduan/毕业设计/.bootstrap/site:/home/gaoduan/毕业设计/mgmd-linux
-python3 -m pytest tests/ -q
-python3 scripts/verify_data.py
+```powershell
+wsl -d Ubuntu-20.04 -- bash '/mnt/c/Users/gaodu/Desktop/opencode/mgmd_project_20261104/毕业设计/mgmd-linux/.dsh-run/29_rerun_verify.sh'
 ```
 
-### 2.3 GPU 状态说明（重要）
+脚本使用现成 WSL 环境，回放 `phantom30` 1200 帧，显示 Qt 窗口，为每次运行创建独立输出目录并自动收尾。已有 ROS master 时退出，避免打断现有任务。
 
-**驱动已正确安装**，证据：
-```
-/proc/driver/nvidia/gpus/0000:01:00.0/information
-  Model: NVIDIA GeForce RTX 3050 Laptop GPU
-  GPU Firmware: 580.178.04
-```
-内核模块 `nvidia` / `nvidia_uvm` / `nvidia_drm` 全部加载，版本与用户态库一致。
+### 2.3 验证范围与历史环境边界
 
-**但当前 agent 沙箱的 `/dev` 被隔离**，只有 `null`/`random`/`tty` 等节点，没有 `/dev/nvidia0`，
-因此 `nvidia-smi` 与 `torch.cuda.is_available()` 均失败。
+2026-11-05 实测：输入 960×720 / 20 Hz，检测话题采样约 19–20 Hz；源发布 1200 帧、检测线程处理 1022 帧、视频写入 1195 帧（59.75 秒）。视频完整解码通过，退出后无本轮 ROS/Qt 进程残留。
 
-| 结论 | 说明 |
-|---|---|
-| 驱动配置正确 | 用户自己终端里 `nvidia-smi` 正常 |
-| agent 侧无法用 GPU | 沙箱隔离导致，非配置问题 |
-| 受影响任务 | LAD 训练/推理（T09）、5 基线（T10）需 GPU |
-| 不受影响任务 | 数据层、评测器、MFE、TF、**LAC 推理（32×32 小网，CPU 够）** |
+这次验证针对 ROS 文件回放和 ONNX 推理。阶段一的 `.venv`（Python 3.11 + CUDA torch）及其离线评测、训练、基线结果属于历史环境，未在本次 WSL 重跑中重新验收；本文后续历史命令不能直接套用 `.venv38`。阶段一算法、数据划分与指标保持原口径。
 
-**策略：CPU 优先做完全部可做项；GPU 任务标注为"待用户执行"并提供可直接复制的命令。**
+详细证据：[WSL 重跑记录](../../docs/WSL20.04-重跑记录-2026-11-05.md)、[首次部署记录](../../docs/mgmd-ROS-WSL20.04-执行记录.md)。
 
 ---
 
@@ -179,7 +162,7 @@ mgmd-linux/
 
 | 项 | 值 |
 |---|---|
-| 根 | `/media/gaoduan/0C1CFCAF1CFC94C4/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV/` |
+| 根（当前 WSL） | `/mnt/c/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV/`；通过 `MGMD_ARD_ROOT` 指定 |
 | 视频 | `videos/phantomNN.mp4`，**60 个** |
 | 标注 | `Annotations/phantomNN/phantomNN_NNNN.xml`，**107,497 个**，Pascal VOC |
 | 帧号 | **1 基**，跨度内无缺失 |
@@ -268,6 +251,7 @@ frame,visible,n_obj,x1,y1,x2,y2
 
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
+| 2026-11-05 | 1.0.2 | §2 同步 WSL2 Ubuntu 20.04 环境、路径、推理依赖与重跑入口；§4.1 更新数据根路径 | 用户要求以当前 WSL 环境更新 SPEC，PRD 不变 | 仅环境说明；阶段一算法、划分、指标不变 |
 | 2026-10-22 | 0.1.0 | 建立 SPEC，确定工程结构、数据契约、评测口径、偏差表 | 启动实施，PRD 转 SPEC | — |
 | 2026-10-22 | 0.1.0 | T01-T03 落地：config / annotations / split / metrics + verify_data.py | 骨架与关键路径（评测器）先做 | T01✅ T02✅ T03✅ |
 | 2026-10-22 | 0.2.0 | T04 落地：mfe.py + io_video.py + run_mfe.py + 15 项测试 | MFE 四项额外约束做成开关（默认关） | T04 首版✅（§8.1） |

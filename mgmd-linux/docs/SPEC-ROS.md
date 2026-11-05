@@ -2,8 +2,10 @@
 
 > 本文件是**阶段二的唯一事实源**，与阶段一的 `docs/SPEC.md` 并列、互不覆盖。
 > 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）§11
-> 工程根：`/home/gaoduan/毕业设计/mgmd-linux/`
-> 最后更新：2026-10-29
+> 当前运行环境：Windows 宿主机上的 WSL2 `Ubuntu-20.04`（Ubuntu 20.04.6 LTS）
+> WSL 工程根：`/home/gaodu/毕业设计/mgmd-linux/`
+> 最后更新：2026-11-05（环境文档修订，PRD 保持 v4.2）
+> 当前环境与启动方式以 §2.3 为准；后续章节的原生 Ubuntu 环境、性能数据与路径保留为历史记录。
 
 ---
 
@@ -18,14 +20,15 @@
 | **V5** | **提交后必须用 `git show --stat HEAD` 核对文件清单**，产物必须出现在 stat 里 |
 | **V6** | **演示视频与 rosbag 不进 git**，用 `scripts/pack_deliverables.sh` 打包到 `deliverables/`；表格与摘要 JSON 必须入库 |
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
-| **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
+| **V8** | 阶段一算法与指标保持冻结；`docs/SPEC.md` 1.0.2 仅按用户要求同步 WSL 环境说明，结果基线仍为 1.0.1（§10.13） |
 
-`spec_version: 2.0.1` | `prd_version: 4.2` | `stage1_spec: 1.0.1`（§10.13 补记）
+`spec_version: 2.0.2` | `prd_version: 4.2` | `stage1_spec: 1.0.2`（仅环境修订，结果基线仍为 1.0.1）
 
 ### 0.1 版本记录
 
 | spec_version | 日期 | commit | 变更摘要 |
 |---|---|---|---|
+| **2.0.2** | **2026-11-05** | 本次提交（环境维护） | **§2.3 更新为当前 WSL2 Ubuntu 20.04 环境、依赖、路径、运行方式和显示/编码限制；保留重跑脚本及运行记录；根目录 AGENTS.md 记录后续按 SPEC 维护与提交的授权；PRD 与业务代码不变** |
 | **0.1.0** | **2026-10-29** | 本轮 | 建立本文件；继承 PRD §11 全部决策；登记阶段二基线 |
 
 ### 0.2 与阶段一的关系（继承事实，不重复论证）
@@ -109,20 +112,95 @@ ROS1 主图（Python 3.8，**单一解释器**）
 | Q25 | 有场地许可 |
 | Q26 | 接受 Noetic EOL |
 
-### 2.3 环境事实（已实测，2026-10-26）
+### 2.3 当前环境：WSL2 Ubuntu 20.04
 
-| 项 | 值 | 验证 |
+2026-11-04 已完成本机 WSL 部署，2026-11-05 在同一环境重跑通过。当前基线是 Windows + WSL2，不再以原生 Ubuntu 的驱动安装、sudo 限制或 `/media/...` 数据挂载为前提。本节是当前运行配置；历史章节中的其他环境组合不作为本机默认值。
+
+#### 2.3.1 系统与依赖（2026-11-05 核验）
+
+| 项 | 当前值 | 用途 / 验证 |
 |---|---|---|
-| ROS1 | `ros-noetic-desktop-full 1.5.0`，`/opt/ros/noetic`（140 MB） | `roscore` 启动 ✅ |
-| 源 | `http://mirrors.tuna.tsinghua.edu.cn/ros/ubuntu focal main` | ✅ |
-| 工具 | `catkin_make`、`catkin_create_pkg`、`rosmsg`、`rostopic` | ✅ |
-| `rospy` | 发布/订阅可用 | ✅ |
-| **系统 cv2** | **4.2.0**（apt 版） | ⚠️ 与算法侧 5.0.0.93 不同，**不得交叉 import** |
-| 算法 venv | 3.11.17 + torch 2.5.1+cu121，CUDA True | ✅ 未受影响 |
+| Linux 环境 | WSL2，发行版 `Ubuntu-20.04`，Ubuntu 20.04.6 LTS | Windows 通过 `wsl -d Ubuntu-20.04` 调用 |
+| 用户 | `gaodu` | 工程与环境位于 WSL Linux 文件系统 |
+| GPU | NVIDIA GeForce RTX 3050 Laptop，4096 MiB | WSL 内 `nvidia-smi` 可用，LAC/LAD CUDA 冒烟通过 |
+| ROS1 | Noetic，`/opt/ros/noetic`；`ros-noetic-roslaunch 1.17.4-1focal.20250519.232645` | roscore、roslaunch、rostopic 和三节点本次运行正常；catkin 编译通过见首次部署记录 |
+| Python | 系统 3.8.10；项目 `.venv38` 同为 3.8.10 | detector 在 Python 3.8 进程内直接调用 ONNX |
+| ONNX Runtime | `onnxruntime-gpu==1.19.2` | LAC、LAD 均启用 `CUDAExecutionProvider` |
+| torch / torchvision | `2.4.0+cpu` / `0.19.0+cpu` | YOLOv5 后处理使用；GPU 前向由 ORT 执行 |
+| numpy / 算法侧 cv2 | `1.24.4` / `opencv-python-headless==5.0.0.93` | 位于 `.venv38`，不用于 GUI 窗口 |
+| CUDA 运行库 | pip 包：CUDA runtime `12.9.79`、cuBLAS `12.9.3.13`、cuDNN `9.27.0.42` | 另有 cufft、curand、cusolver、cusparse、nvjitlink、nvrtc；库目录加入 `LD_LIBRARY_PATH` |
+| 显示 | WSLg，`DISPLAY=:0`；系统 `python3-pyqt5 5.14.1+dfsg-3build1` | 使用 `.dsh-run/21_qt_viewer.py`；标题 `MGMD-ROS Qt  frames=N` |
+| 视频编码 | ffmpeg `4.2.7`；当前显式 `encoder:=cpu` | OpenCV mp4v 输出 MPEG-4；当前组合 NVENC 失败见 §2.3.4 |
 
-**已知坑**：ROS 安装过程中踩过两个坑，记录备查。
-1. `raw.githubusercontent.com` 不可达 → 从 `packages.ros.org/ros.key` 取
-2. 官方 `ros.key` 是 2019 版已过期 → `gpg --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654` 重新导出
+当前推理环境不需要重建阶段一的 Python 3.11 + CUDA torch 环境。`torch.cuda.is_available()` 在 CPU torch 下不作为 GPU 验收；应检查 ORT session 的首选 provider 和实际冒烟结果。首次部署使用 pip CUDA/cuDNN 运行库，没有安装系统 CUDA Toolkit。
+
+#### 2.3.2 工程、数据与兼容路径
+
+| 资产 | 当前路径 |
+|---|---|
+| Windows 源码根 | `C:\Users\gaodu\Desktop\opencode\mgmd_project_20261104\毕业设计\mgmd-linux` |
+| WSL 挂载的 Windows 源码根 | `/mnt/c/Users/gaodu/Desktop/opencode/mgmd_project_20261104/毕业设计/mgmd-linux` |
+| WSL 运行工程根 `ROOT` | `/home/gaodu/毕业设计/mgmd-linux` |
+| ROS 工作空间 | `$ROOT/ros1_ws`，使用已编译的 `devel/setup.bash` |
+| 推理环境 | `$ROOT/.venv38` |
+| ARD-MAV | `/mnt/c/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV` |
+| ONNX 权重 | `/home/gaodu/tracking/data_raw/mgmd_weights/lac.onnx`、`yolov5s_GLAD-crop.onnx` |
+| YOLOv5 v6.0 | `$ROOT/third_party/yolov5-v6.0` |
+| 兼容软链 | `/home/gaoduan -> /home/gaodu`，兼容旧代码中的绝对路径 |
+| 输出 | `$ROOT/outputs/`；本次独立目录 `rerun_20261105_155551/` |
+
+数据从 `/mnt/c` 读取并保持文件不变；这不表示 Windows 分区以只读方式挂载。venv、catkin 构建和运行输出放在 WSL Linux 文件系统。Windows 源码与 WSL 运行副本是两个目录；本次运行前用 `28b_strict_diff.sh` 核对业务源码一致，排除了依赖、构建、输出、辅助脚本和 catkin 自动生成文件。后续只修改 Windows 文件不会自动同步运行副本。
+
+#### 2.3.3 环境变量与启动方式
+
+以下为 WSL 内当前运行环境（Qt 查看器使用去掉 venv site-packages 的 `PYTHONPATH`，避免加载 headless cv2）：
+
+```bash
+ROOT=/home/gaodu/毕业设计/mgmd-linux
+source /opt/ros/noetic/setup.bash
+source "$ROOT/ros1_ws/devel/setup.bash"
+ROSPATH=$PYTHONPATH
+SP="$ROOT/.venv38/lib/python3.8/site-packages"
+export PYTHONPATH="$SP:$ROOT:$ROSPATH"
+NV=$(find "$SP/nvidia" -maxdepth 3 -type d -name lib | tr '\n' ':')
+export LD_LIBRARY_PATH="${NV}${LD_LIBRARY_PATH:-}"
+export DISPLAY=:0 QT_X11_NO_MITSHM=1 PYTHONUNBUFFERED=1
+export MGMD_ARD_ROOT=/mnt/c/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV
+export MGMD_YOLOV5_DIR="$ROOT/third_party/yolov5-v6.0"
+```
+
+推荐从 Windows PowerShell 调用本次验证脚本：
+
+```powershell
+wsl -d Ubuntu-20.04 -- bash '/mnt/c/Users/gaodu/Desktop/opencode/mgmd_project_20261104/毕业设计/mgmd-linux/.dsh-run/29_rerun_verify.sh'
+```
+
+脚本复用已部署环境，启动 roscore、Qt 查看器与三个流水线节点，以 `phantom30`、960×720、20 Hz、`limit:=1200 loop:=false device:=cuda d_min:=0.02 buffer:=6 encoder:=cpu` 运行。每次创建独立 WSL 输出目录，输出路径在终端打印；结束后关闭写入器并清理进程。已有 ROS master 时退出，不打断其他运行。脚本本身位于 Windows 工程，调用的是 WSL 内已部署源码。
+
+仅检查 GPU 推理时，在 WSL 工程根执行 `bash .dsh-run/07_run_smoke.sh`。常驻演示沿用 WSL 侧 `bash .dsh-run/23_live_qt.sh phantom30 20 960 720`，但该旧脚本会复用 `live_phantom30_960x720.mp4` 路径；需要保留旧视频时先另存。常驻演示必须主动停止并收尾，不能仅靠关窗结束流水线。
+
+#### 2.3.4 当前环境限制与收尾
+
+- **编码**：首次部署中 NVENC 报 `Cannot get the preset configuration: unsupported param (12)`，本机使用 `encoder:=cpu`；历史 NVENC 性能数字不能作为当前默认配置。
+- **显示**：本机以系统 Python + PyQt5 查看 `/mav/debug_image` 为已验证方案。旧 image_view/GTK 路线曾遇到 WSLg 共享内存故障；原生 Ubuntu 的 rqt 展示命令不作为本机默认入口。若复现该显示故障，可在结束 WSL 任务后重启 WSLg；`wsl --shutdown` 会停止全部发行版，不是常规启动步骤。
+- **视频收尾**：先向 roslaunch 发送 SIGINT，或向 visualize_node 发送 SIGTERM，让写入器关闭并保存 mp4；不能直接 SIGKILL 视频写入进程。本次实际收到信号 2，成功保存 1195 帧。
+- **Qt 收尾**：rospy 的 SIGTERM 处理可能留下 Qt 事件循环；新验证脚本在等待 5 秒后仅对未退出的查看器使用 SIGKILL。视频写入器已先行正常关闭。最终仍需检查本轮进程残留。
+- **环境安装历史**：Noetic 安装时使用清华镜像，首次部署记录包含过期签名 key 与源配置的处理。本次复用环境，没有重装 ROS、驱动或依赖；不把原生 Ubuntu 的安装命令作为必要重跑步骤。
+
+#### 2.3.5 本机验证证据与边界
+
+| 验证 | 2026-11-05 结果 |
+|---|---|
+| GPU 冒烟 | `SMOKE_OK`，LAC/LAD 均启用 CUDA provider |
+| 节点与话题 | video_source、detector_node、visualize_node 和 Qt viewer 注册正常；检测话题采样平均约 18.98–19.99 Hz |
+| 窗口更新 | Qt 标题帧号 520 → 580，间隔 3 秒 |
+| 计数 | 视频源发布 1200 帧；检测线程处理 1022 帧；末次周期日志入口丢帧 102；视频写入 1195 帧 |
+| 产物 | `phantom30.mp4`：MPEG-4，960×720，1195 帧，59.75 秒，53,283,148 字节；ffprobe 与整段解码通过 |
+| 收尾 | 无本轮 ROS 节点 / Qt 查看器残留 |
+
+图像、检测和可视化是异步环节；可视化使用最近一次检测叠加，因此视频帧数不等于完成检测的帧数。当前结果证明本机文件回放、GPU 推理、显示和保存正常，不能据此认定通信丢帧率 <1%、E3 逐帧对拍、完整端到端时延、长时间稳定性或 TT 真机验收已通过。阶段一训练与离线精度未在本次重新评测。
+
+证据文件：Windows 工程 `outputs/rerun_20261105_155551/{launch.log,detection_hz.txt,nodes.txt,window.txt,video_info.txt,phantom30.mp4,preview.png}`。另见 [首次部署记录](../../docs/mgmd-ROS-WSL20.04-执行记录.md) 与 [本次重跑记录](../../docs/WSL20.04-重跑记录-2026-11-05.md)。
 
 ---
 
@@ -257,6 +335,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
+| 2026-11-05 | 2.0.2 | 当前环境从原生 Ubuntu 更新为 WSL2 Ubuntu 20.04；补齐 Python 3.8/ORT CUDA/CPU torch、路径、Qt/CPU 编码、重跑命令与收尾限制；一并保留 `.dsh-run/29_rerun_verify.sh` 与两份部署/运行记录，在根 AGENTS.md 固化维护与提交约定 | 用户要求只更新 SPEC 环境部分、PRD 不改，并要求及时按 SPEC 维护与提交 | 环境与运行说明；脚本增加 Qt 退出等待与兜底清理；记录本机回放证据，不新增精度或实机验收结论 |
 | 2026-10-29 | 0.1.0 | 建立本文件；登记阶段二基线、分支策略、实施阶段划分 | 用户要求 ROS 阶段独立 SPEC 并持续维护 | — |
 | 2026-10-29 | 0.2.0 | §9 补详细计划 S1–S5；删除 ros2_ws；`vx/vy` 单位改为像素/帧 | 用户要求先看计划再动手 | §4.1 E3 |
 | 2026-10-29 | 0.3.0 | §11 仿真方案 2.5b（Gazebo相机+抖动注入）；工时+0.5天 | 用户只关注能否在无人机上跑，不关心控制 | §4.2 功能指标 |
@@ -2397,6 +2476,8 @@ Python 的 stdout 默认是**块缓冲**（4 KB 或 8 KB 才 flush）。
   与 §20.2 测到的 LAD max 2914 ms 同类。
 
 #### 23.3.4 实时展示方案（**用户决定：以后展示都用这个**）
+
+> 本节为原生 Ubuntu 的历史展示记录。当前 WSL2 环境以 §2.3 的 PyQt5 查看器 + CPU 编码为准，不再使用下方命令作为默认入口。
 
 **标准做法**：`rqt_image_view` 订阅 `/mav/debug_image`。
 

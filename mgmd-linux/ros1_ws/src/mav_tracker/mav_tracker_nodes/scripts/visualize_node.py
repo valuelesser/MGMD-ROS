@@ -29,6 +29,7 @@
     所以用"最近一次检测"贴到当前帧上。这样视频 30 fps 全帧都有框，观感连续。
 """
 import os
+import time
 from collections import defaultdict, deque
 from pathlib import Path
 
@@ -92,10 +93,16 @@ def draw_detections(frame: np.ndarray, dets, show_tid: bool, show_src: bool,
 
     # HUD
     if info:
-        (tw, th), _ = cv2.getTextSize(info, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
-        cv2.rectangle(out, (8, 8), (8 + tw + 8, 8 + th + 10), (0, 0, 0), -1)
-        cv2.putText(out, info, (12, 8 + th + 4),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1, cv2.LINE_AA)
+        lines = info.splitlines()
+        sizes = [cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)[0]
+                 for line in lines]
+        line_h = max(th for _, th in sizes) + 7
+        cv2.rectangle(out, (8, 8),
+                      (16 + max(tw for tw, _ in sizes), 12 + line_h * len(lines)),
+                      (0, 0, 0), -1)
+        for i, line in enumerate(lines):
+            cv2.putText(out, line, (12, 8 + line_h * (i + 1)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1, cv2.LINE_AA)
     return out
 
 
@@ -115,6 +122,7 @@ def main():
     writer = None
     lock_frame = {"w": None, "h": None}
     latest = {"dets": [], "seq": -1, "n_cand": 0, "mfe": 0.0, "lac": 0.0, "lad": 0.0}
+    det_times = deque(maxlen=60)
     history = defaultdict(lambda: deque(maxlen=history_len))
     n_written = 0
     n_images = 0
@@ -122,6 +130,7 @@ def main():
     pub = rospy.Publisher("/mav/debug_image", Image, queue_size=1) if publish else None
 
     def on_det(msg: DetectionArray):
+        det_times.append(time.monotonic())
         latest["dets"] = msg.detections
         latest["seq"] = msg.header.seq
         latest["n_cand"] = msg.n_candidates
@@ -153,9 +162,15 @@ def main():
         frame = arr.reshape((msg.height, msg.width, 3))
 
         dets = latest["dets"]
+        now = time.monotonic()
+        while det_times and now - det_times[0] > 2.0:
+            det_times.popleft()
+        processing_fps = (len(det_times) - 1) / (det_times[-1] - det_times[0]) \
+            if len(det_times) >= 2 and det_times[-1] > det_times[0] else 0.0
         info = ""
         if latest["seq"] >= 0:
-            info = (f"frame {msg.header.seq}  det {len(dets)}  "
+            info = (f"Processing {processing_fps:.1f} FPS\n"
+                    f"frame {msg.header.seq}  det {len(dets)}  "
                     f"cand {latest['n_cand']}  "
                     f"MFE {latest['mfe']:.0f} LAC {latest['lac']:.1f} "
                     f"LAD {latest['lad']:.1f} ms")

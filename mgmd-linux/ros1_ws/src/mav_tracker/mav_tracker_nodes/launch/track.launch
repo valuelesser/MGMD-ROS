@@ -16,6 +16,8 @@
   <arg name="device"    default="cuda"/>
   <arg name="d_min"     default="0.02"/>
   <arg name="buffer"    default="6"/>
+  <arg name="frame_delta_predict" default="true"/>
+  <arg name="association_radius_factor" default="2.0"/>
 
   <!-- 默认输出到项目根 outputs/ros_viz/（可用 out_video:= 覆盖） -->
   <arg name="out_video" default="/home/gaoduan/毕业设计/mgmd-linux/outputs/ros_viz/track.mp4"/>
@@ -42,6 +44,8 @@
     <param name="device"      value="$(arg device)"/>
     <param name="d_min"       value="$(arg d_min)"/>
     <param name="buffer_size" value="$(arg buffer)"/>
+    <param name="frame_delta_predict" value="$(arg frame_delta_predict)"/>
+    <param name="association_radius_factor" value="$(arg association_radius_factor)"/>
   </node>
 
   <!-- 3) 可视化：写带框视频 -->

@@ -169,9 +169,8 @@ def main():
             if len(det_times) >= 2 and det_times[-1] > det_times[0] else 0.0
         info = ""
         if latest["seq"] >= 0:
-            info = (f"Processing {processing_fps:.1f} FPS\n"
-                    f"frame {msg.header.seq}  det {len(dets)}  "
-                    f"cand {latest['n_cand']}  "
+            info = (f"FPS {processing_fps:.1f}  frame {msg.header.seq}  "
+                    f"det {len(dets)}  cand {latest['n_cand']}  "
                     f"MFE {latest['mfe']:.0f} LAC {latest['lac']:.1f} "
                     f"LAD {latest['lad']:.1f} ms")
 

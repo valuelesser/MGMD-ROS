@@ -111,7 +111,9 @@ class Pipeline:
     """
 
     def __init__(self, device: str, cfg, d_min: float, lac_thresh: float,
-                 lad_conf: float, fast_tf: bool, buffer_size: int = 6):
+                 lad_conf: float, fast_tf: bool, buffer_size: int = 6,
+                 frame_delta_predict: bool = True,
+                 association_radius_factor: float = 2.0):
         from mgmd.lac import crop_box
         from mgmd_onnx import LacOnnx, LadOnnx
         from mgmd_onnx.frame_buffer import FrameWindow
@@ -126,6 +128,8 @@ class Pipeline:
         self.buffer_size = max(buffer_size, 2 * self.k + 1)
 
         self.fast_tf = fast_tf
+        self.frame_delta_predict = frame_delta_predict
+        self.association_radius_factor = association_radius_factor
         self.window = FrameWindow(self.k)
         self.tracker = self._new_tracker()
 
@@ -151,8 +155,11 @@ class Pipeline:
         if self.fast_tf:
             from mgmd_onnx.tf_fast import FastSortTracker
             tracker = FastSortTracker(iou_thresh=0.3, max_age=3, min_hits=1,
-                                      span=3, d_mode="self", d_min=self.d_min)
-            rospy.loginfo("[detector_node] tracker = FastSortTracker（向量化，§14.7）")
+                                      span=3, d_mode="self", d_min=self.d_min,
+                                      frame_delta_predict=self.frame_delta_predict,
+                                      association_radius_factor=self.association_radius_factor)
+            rospy.loginfo("[detector_node] tracker = FastSortTracker dt=%s radius=%.2f",
+                          self.frame_delta_predict, self.association_radius_factor)
         else:
             from mgmd.tf import SortTracker
             tracker = SortTracker(iou_thresh=0.3, max_age=3, min_hits=1,
@@ -266,6 +273,8 @@ def main():
     mfe_preset = gp("~mfe_preset", "recommended")
     fast_tf = bool(gp("~fast_tf", True))
     buffer_size = int(gp("~buffer_size", 6))
+    frame_delta_predict = bool(gp("~frame_delta_predict", True))
+    association_radius_factor = float(gp("~association_radius_factor", 2.0))
 
     import sys
     from pathlib import Path
@@ -317,7 +326,8 @@ def main():
         except Exception:            # noqa: BLE001
             device = "cpu"
 
-    pipe = Pipeline(device, cfg, d_min, lac_thresh, lad_conf, fast_tf, buffer_size)
+    pipe = Pipeline(device, cfg, d_min, lac_thresh, lad_conf, fast_tf, buffer_size,
+                    frame_delta_predict, association_radius_factor)
 
     pub_det = rospy.Publisher("/mav/detections", DetectionArray, queue_size=2)
 

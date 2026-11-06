@@ -1,0 +1,51 @@
+{
+  "video": "phantom63",
+  "random_seed": 20261106,
+  "selection_pool": "60 available ARD-MAV mp4 files",
+  "resolution": "1920x1080",
+  "annotated_frames": 1799,
+  "ros_source_rate_hz": 15,
+  "ros_visualize": true,
+  "ros_viewer": "rqt_image_view /mav/debug_image",
+  "ros_recording": "outputs/ros_viz/phantom63_20261106.mp4",
+  "configuration": {
+    "modules": "mfe,tf,lac,lad",
+    "mfe_preset": "recommended",
+    "d_min": 0.02,
+    "device": "cuda",
+    "iou": 0.25,
+    "ros_frame_delta_predict": true,
+    "ros_association_radius_factor": 2.0
+  },
+  "ros": {
+    "tp": 79,
+    "fp": 74,
+    "fn": 1720,
+    "precision": 0.5163398692810458,
+    "recall": 0.04391328515842134,
+    "f1": 0.08094262295081966,
+    "images_received": 1799,
+    "detection_messages": 303,
+    "aligned_messages": 303,
+    "frames_without_detection_message": 1496,
+    "nonempty_detection_frames": 122,
+    "mean_processed_frame_gap": 5.83112582781457,
+    "max_processed_frame_gap": 55
+  },
+  "offline": {
+    "tp": 472,
+    "fp": 315,
+    "fn": 1327,
+    "precision": 0.5997458703939009,
+    "recall": 0.2623679822123402,
+    "f1": 0.3650425367362723,
+    "processed_frames": 1797,
+    "full_frame_adjustment": "first and last frame each counted as FN"
+  },
+  "delta_ros_minus_offline": {
+    "precision": -0.08340600111285512,
+    "recall": -0.21845469705391884,
+    "f1": -0.28409991378545263
+  },
+  "alignment": "join ROS detections to images by header.stamp; header.seq is rewritten by rospy"
+}

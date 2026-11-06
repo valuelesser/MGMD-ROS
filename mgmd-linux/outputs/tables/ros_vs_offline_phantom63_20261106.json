@@ -15,7 +15,10 @@
     "device": "cuda",
     "iou": 0.25,
     "ros_frame_delta_predict": true,
-    "ros_association_radius_factor": 2.0
+    "ros_association_radius_factor": 2.0,
+    "ros_actual_lac_provider": "CPUExecutionProvider",
+    "ros_actual_lad_provider": "CUDAExecutionProvider",
+    "environment_note": "ROS launch omitted source scripts/env_setup_ros38.sh; LAC fell back to CPU"
   },
   "ros": {
     "tp": 79,

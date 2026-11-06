@@ -56,6 +56,7 @@ declare -A DESC=(
   ["D4_mvdt_viz.mp4"]="MVDT 跨域测试 D4"
   ["live_sim.mp4"]="实时链路模拟"
   ["phantom63_20261106.mp4"]="ROS 全程展示：随机抽取 phantom63，单行 HUD，1799 帧（SPEC-ROS §27）"
+  ["phantom70_display6_cuda_20261106.mp4"]="ROS 全程展示：phantom70，正确 CUDA 环境，单行 HUD，1349 帧（SPEC-ROS §28）"
 )
 
 n=0

@@ -11,6 +11,7 @@ set -euo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIG="$PROJECT/outputs/figures"
+ROSVIZ="$PROJECT/outputs/ros_viz"
 OUTDIR="$PROJECT/../deliverables"
 STAMP="$(date +%Y%m%d)"
 NAME="mgmd_demo_videos_${STAMP}"
@@ -30,7 +31,8 @@ MANIFEST="$OUTDIR/${NAME}_MANIFEST.md"
   echo
   echo "> 打包时间：$(date '+%Y-%m-%d %H:%M:%S')"
   echo "> 源码 commit：$(git -C "$PROJECT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-  echo "> SPEC 版本：$(grep -m1 'spec_version:' "$PROJECT/docs/SPEC.md" | tr -d '`' | sed 's/spec_version: //')"
+  echo "> 阶段一 SPEC 版本：$(grep -m1 'spec_version:' "$PROJECT/docs/SPEC.md" | tr -d '`' | sed 's/spec_version: //')"
+  echo "> SPEC-ROS 版本：$(grep -m1 'spec_version:' "$PROJECT/docs/SPEC-ROS.md" | cut -d'|' -f1 | tr -d '`' | sed 's/spec_version: //')"
   echo
   echo "自动生成，请勿手改。重新生成：\`bash scripts/pack_deliverables.sh\`"
   echo
@@ -53,6 +55,7 @@ declare -A DESC=(
   ["D3_mvdt_viz.mp4"]="MVDT 跨域测试 D3"
   ["D4_mvdt_viz.mp4"]="MVDT 跨域测试 D4"
   ["live_sim.mp4"]="实时链路模拟"
+  ["phantom63_20261106.mp4"]="ROS 全程展示：随机抽取 phantom63，单行 HUD，1799 帧（SPEC-ROS §27）"
 )
 
 n=0
@@ -65,7 +68,7 @@ while IFS= read -r f; do
   printf '| `%s` | %s | %s |\n' "$base" "$human" "$d" >> "$MANIFEST"
   n=$((n+1))
   total=$((total+sz))
-done < <(find "$FIG" -maxdepth 1 -name '*.mp4' -type f | sort)
+done < <(find "$FIG" "$ROSVIZ" -maxdepth 1 -name '*.mp4' -type f | sort)
 
 {
   echo
@@ -94,6 +97,7 @@ PKG="$OUTDIR/$NAME"
 rm -rf "$PKG"
 mkdir -p "$PKG"
 cp "$FIG"/*.mp4 "$PKG"/ 2>/dev/null || true
+cp "$ROSVIZ"/*.mp4 "$PKG"/ 2>/dev/null || true
 cp "$MANIFEST" "$PKG"/
 tar -czf "$OUTDIR/${NAME}.tar.gz" -C "$OUTDIR" "$NAME"
 rm -rf "$PKG"

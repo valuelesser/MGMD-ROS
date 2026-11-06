@@ -1,0 +1,89 @@
+{
+  "video": "phantom70",
+  "resolution": "1920x1080",
+  "ros_rate_hz": 6,
+  "iou": 0.25,
+  "ros": {
+    "iou_thresh": 0.25,
+    "match_algo": "hungarian",
+    "tp": 831,
+    "fp": 23,
+    "fn": 518,
+    "precision": 0.9730679156908665,
+    "recall": 0.6160118606375092,
+    "f1": 0.7544257830231502,
+    "ap_11point": 0.632882718454566,
+    "ap_allpoint": 0.6121963407294952,
+    "det_count_hist": {
+      "0": 511,
+      "1": 822,
+      "2": 16
+    },
+    "gt_count_hist": {
+      "1": 1349
+    },
+    "by_gt_count": {
+      "1": {
+        "frames": 1349,
+        "tp": 831,
+        "fp": 23,
+        "fn": 518,
+        "precision": 0.9730679156908665,
+        "recall": 0.6160118606375092,
+        "f1": 0.7544257830231502
+      }
+    },
+    "evaluated_frames": 1349
+  },
+  "offline": {
+    "iou_thresh": 0.25,
+    "match_algo": "hungarian",
+    "tp": 908,
+    "fp": 29,
+    "fn": 439,
+    "precision": 0.9690501600853789,
+    "recall": 0.674090571640683,
+    "f1": 0.7950963222416814,
+    "ap_11point": 0.6326319062921116,
+    "ap_allpoint": 0.6694873183849483,
+    "det_count_hist": {
+      "0": 433,
+      "1": 891,
+      "2": 23
+    },
+    "gt_count_hist": {
+      "1": 1347
+    },
+    "by_gt_count": {
+      "1": {
+        "frames": 1347,
+        "tp": 908,
+        "fp": 29,
+        "fn": 439,
+        "precision": 0.9690501600853789,
+        "recall": 0.674090571640683,
+        "f1": 0.7950963222416814
+      }
+    },
+    "full_video_fn": 441,
+    "full_video_recall": 0.6730911786508524,
+    "full_video_f1": 0.7944006999125109,
+    "evaluated_frames": 1347
+  },
+  "ros_messages": 1272,
+  "matched_messages": 1272,
+  "unmatched_messages": 0,
+  "image_messages": 1349,
+  "alignment": "ROS detections joined to images by header.stamp; ROS header.seq is publisher message count",
+  "configuration": {
+    "video": "phantom70",
+    "resolution": "1920x1080",
+    "modules": "mfe,tf,lac,lad",
+    "mfe_preset": "recommended",
+    "d_min": 0.02,
+    "device": "cuda",
+    "ros_source_rate_hz": 6,
+    "ros_visualize": false,
+    "iou": 0.25
+  }
+}

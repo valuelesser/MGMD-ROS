@@ -3,7 +3,7 @@
 > 本文件是**阶段二的唯一事实源**，与阶段一的 `docs/SPEC.md` 并列、互不覆盖。
 > 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）§11
 > 工程根：`/home/gaoduan/毕业设计/mgmd-linux/`
-> 最后更新：2026-10-29
+> 最后更新：2026-11-06
 
 ---
 
@@ -20,7 +20,7 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 
-`spec_version: 2.0.1` | `prd_version: 4.2` | `stage1_spec: 1.0.1`（§10.13 补记）
+`spec_version: 2.0.2` | `prd_version: 4.2` | `stage1_spec: 1.0.1`（§10.13 补记）
 
 ### 0.1 版本记录
 
@@ -278,6 +278,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 | 2026-11-02 | 1.9.0 | §23 文档一致性大核对：修正 §1/§2 架构图、§3 阶段表状态、§4 E1/E2、§5 话题契约（按实际代码重写）、§15 标注过时；补登 1.6–1.8 版本行 | 用户要求「整理进展，核对 spec」 | 文档与代码对齐 |
 | 2026-11-03 | 2.0.1 | 代码整理：抽 `scripts/ros_env.sh` 公共环境与进程管理（三脚本去重）；`detector_node` 的 MFE 覆盖改为表驱动并补齐 `median_blur`/`mode`；修「adaptive=0 被哨兵误判」bug；`CMakeLists` 加 worlds 到 install。新增 `docs/REVIEW-2026-11-03.md` 供审阅 | 用户要求「整理代码，我审阅」 | 三脚本全绿，54 单测通过 |
 | 2026-11-02 | 2.0.0 | §11.3 仿真环境实测（5 个静默失败陷阱）；§11.11 **仿真中止**（LAC/LAD 无法验证）；§24 方向决策（推荐 E3 对拍 + 端到端时延）；新增 `worlds/`、`target_mover.py`、`check_gazebo.sh` | 用户「放弃仿真，反正跑不了 LAC 和 LAD」 | 仿真路线关闭，资产保留 |
+| 2026-11-06 | 2.0.2 | §25 修复帧号跳变造成检测永久无输出；文件回放发布视频内帧号，循环时重置处理进度与 tracker；新增生产窗口选择测试 | 丢帧条件下需继续处理，循环回放需重新检测 | S4 帧缓冲、E3 对拍前置可靠性 |
 
 ---
 
@@ -1617,8 +1618,8 @@ target = pipe.frame_seq - pipe.k       # 想处理「中心帧」
 **修正**：
 
 ```python
-# video_source：seq = 视频帧号（0 起）
-msg.header.seq = sent
+# video_source：文件源 seq = 视频内帧号（0 起，循环时归零）；其他源用累计帧号
+msg.header.seq = src.seq - 1 if isinstance(src, FileSource) else sent
 
 # detector_node：直接用 msg.header.seq 作为帧号
 slot.put((int(msg.header.seq), msg.header, arr))
@@ -1636,7 +1637,7 @@ pipe.push(frame_id, header, arr)        # 以视频帧号为 key
 - 丢帧时仍有足够的候选中心帧可比对
 - 处理慢时能一次追平多帧（`while True: ready_frame_id()`）
 
-**缓冲逻辑**（已单元验证）：
+**缓冲逻辑**（连续输入基线；跳帧处理已由 §25 修订）：
 
 | 推入 | ready | 缓冲内容 |
 |---|---|---|
@@ -2552,3 +2553,42 @@ roslaunch mav_tracker_nodes track.launch video:=phantom30 \
 `worlds/`、`target_mover.py`、`check_gazebo.sh` 全部保留。
 恢复的前提是**准备一个真实 MAV 的渲染模型**（贴图或 glb），
 让 LAC/LAD 能正常判定。没有这个前提，仿真只能验证 MFE+TF，价值有限。
+
+---
+
+## 25 帧号跳变与循环回放修复（2026-11-06）
+
+### 25.1 故障与影响
+
+`detector_node.Pipeline.ready_frame_id()` 原先只接受精确的 `t-k`、`t+k`。
+相机 30 Hz、检测处理约 10–18 Hz 时，入口单槽位会覆盖旧帧；一旦输入帧号呈
+`0,4,8,...` 且 `k=1`，所有中心帧都缺精确邻居，节点仍运行但检测输出为 0。
+循环回放还有两个关联缺陷：`video_source` 虽重开视频，却用累计发送数写
+`header.seq`，未按约定归零；`detector_node` 即使收到低帧号，也只清空帧缓冲，
+`last_done` 与 tracker 保留第一轮状态。第二轮因此无法正常重新处理。
+这些问题直接影响 S4 和后续 E3 验收。
+
+### 25.2 修正规则
+
+- 新增 `mgmd_onnx/frame_buffer.py` 的 `FrameWindow`。先选精确的 `t±k`；缺帧时
+  在 `[k, max_gap]` 内分别选最近的前帧和后帧，不使用小于 `k` 的间隔。
+- `max_gap` 默认取最近 32 个已接收帧号正向差值的中位数与 `k` 的较大者；
+  偶发一次大间隙不会无限扩大窗口。连续输入时 `max_gap=k`，输出与原逻辑一致。
+- 中心帧仍使用原始 `header.seq`；MFE 使用实际选中的邻帧图像。处理后淘汰
+  前邻帧及更早的缓存。检测 30 次输入后仍无可处理窗口时记录 WARN。
+- 帧号回绕时同步清空帧缓存、`last_done` 和 SORT tracker，避免跨轮状态污染。
+- 文件回放的 `header.seq` 使用 `FileSource.seq-1`；`sent` 只用于 limit 与日志。
+  `FileSource` 重开视频时 `seq` 归零。stub/camera 源继续使用累计帧号。
+
+**口径影响**：有跳帧时，MFE 时间基线可能大于 `k`，与连续帧离线结果不完全同口径。
+E3 对拍应先在连续帧或明确记录实际邻帧间隔的输入下进行；后续若比较丢帧
+场景，须按视频帧号列出跳过的帧，并单独报告。此修复不修改冻结的阶段一算法。
+
+### 25.3 验证
+
+`tests/test_ros_frame_window.py` 覆盖连续输入、固定 stride=4、`k=2` 下限、
+循环回绕与偶发大间隙；2026-11-06 定向测试 59 passed，节点在 ROS Python 3.8
+环境中导入成功。另用 3 帧临时视频实测文件回放两轮帧号为
+`0,1,2,0,1,2,0`；生产 `Pipeline.push/ready_frame_id` 在 stride=4 且回绕时
+连续两轮各处理 8 帧。工作区原有未跟踪的 `tests/test_frame_buffer.py` 为独立模型测试，
+不计入本次生产代码验证或提交。

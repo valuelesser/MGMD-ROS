@@ -14,8 +14,8 @@
       - `/mav/detections.header.seq` 必须能回溯到视频的哪一帧，否则 S5 的
         rosbag 对拍（中心差 < 2px）无从谈起
 
-**帧缓冲（6 帧，§17.5）**
-    MFE 需要 (t-k, t, t+k)。帧缓冲固定 6 帧，凑满即处理最早的可处理帧。
+**帧缓冲（默认 6 帧，§25）**
+    MFE 优先使用 (t-k, t, t+k)；输入跳帧时在有界间隔内选最近邻。
     不再用"收到计数 - k"猜中心帧（那是旧版的 bug，三帧永远凑不齐）。
 
 **丢帧策略**
@@ -107,13 +107,14 @@ def build_detection_array(header, w, h, boxes, confs, sources,
 class Pipeline:
     """持有跨帧状态：MFE 帧缓冲 + SORT 轨迹。
 
-    帧缓冲以**视频帧号**为 key。凑满 `buffer_size` 帧后取最早可处理的一帧。
+    帧缓冲以**视频帧号**为 key。按 FrameWindow 选最早可处理的一帧。
     """
 
     def __init__(self, device: str, cfg, d_min: float, lac_thresh: float,
                  lad_conf: float, fast_tf: bool, buffer_size: int = 6):
         from mgmd.lac import crop_box
         from mgmd_onnx import LacOnnx, LadOnnx
+        from mgmd_onnx.frame_buffer import FrameWindow
 
         self._crop_box = crop_box
         self.cfg = cfg
@@ -124,16 +125,9 @@ class Pipeline:
         self.lad_conf = lad_conf
         self.buffer_size = max(buffer_size, 2 * self.k + 1)
 
-        if fast_tf:
-            from mgmd_onnx.tf_fast import FastSortTracker
-            self.tracker = FastSortTracker(iou_thresh=0.3, max_age=3, min_hits=1,
-                                           span=3, d_mode="self", d_min=d_min)
-            rospy.loginfo("[detector_node] tracker = FastSortTracker（向量化，§14.7）")
-        else:
-            from mgmd.tf import SortTracker
-            self.tracker = SortTracker(iou_thresh=0.3, max_age=3, min_hits=1,
-                                       span=3, d_mode="self", d_min=d_min)
-            rospy.loginfo("[detector_node] tracker = SortTracker（基线）")
+        self.fast_tf = fast_tf
+        self.window = FrameWindow(self.k)
+        self.tracker = self._new_tracker()
 
         self.lac = LacOnnx(device=device)
         self.lad = LadOnnx(conf_thresh=lad_conf, device=device)
@@ -147,19 +141,36 @@ class Pipeline:
         self.n_waiting = 0         # 因缓冲不足而等待的次数
         self.last_done = -1        # 最近一次处理的视频帧号（防止重复处理）
         self.n_dropped_evict = 0   # 因缓冲淘汰而未处理的帧数
+        self.stall_pushes = 0
         rospy.loginfo(
             "[detector_node] LAC provider=%s  LAD provider=%s  buffer=%d  k=%d",
             self.lac.session.get_providers()[0], self.lad.session.get_providers()[0],
             self.buffer_size, self.k)
 
+    def _new_tracker(self):
+        if self.fast_tf:
+            from mgmd_onnx.tf_fast import FastSortTracker
+            tracker = FastSortTracker(iou_thresh=0.3, max_age=3, min_hits=1,
+                                      span=3, d_mode="self", d_min=self.d_min)
+            rospy.loginfo("[detector_node] tracker = FastSortTracker（向量化，§14.7）")
+        else:
+            from mgmd.tf import SortTracker
+            tracker = SortTracker(iou_thresh=0.3, max_age=3, min_hits=1,
+                                  span=3, d_mode="self", d_min=self.d_min)
+            rospy.loginfo("[detector_node] tracker = SortTracker（基线）")
+        return tracker
+
     # ---------- 帧缓冲 ----------
 
     def push(self, frame_id: int, header, arr: np.ndarray) -> None:
         """存入一帧。同一帧号重复推送则覆盖（循环回放时会重复）。"""
-        if self.frames and frame_id <= next(reversed(self.frames)):
-            # 帧号回绕（循环视频）→ 清空缓冲重新开始，避免 key 冲突
+        if self.window.push(frame_id):
+            # 循环回放必须同时重置处理进度与轨迹状态。
             self.frames.clear()
             self.header_of.clear()
+            self.last_done = -1
+            self.stall_pushes = 0
+            self.tracker = self._new_tracker()
         self.frames[frame_id] = arr
         self.header_of[frame_id] = header
         while len(self.frames) > self.buffer_size:
@@ -167,33 +178,22 @@ class Pipeline:
             self.header_of.pop(old, None)
 
     def ready_frame_id(self):
-        """返回缓冲中**下一个可处理**的帧号（要求 t-k 与 t+k 都在）。
-
-        关键：必须跳过已经处理过的帧，否则会重复处理同一帧。
-        按帧号升序找第一个 > last_done 且前驱后继都在的帧。
-        """
-        if len(self.frames) < 2 * self.k + 1:
-            return None
-        for t in list(self.frames.keys()):
-            if t <= self.last_done:
-                continue
-            if (t - self.k) in self.frames and (t + self.k) in self.frames:
-                return t
-        return None
+        """返回 (中心帧, 前帧, 后帧)，允许有限的输入帧号间隙。"""
+        return self.window.ready(self.frames, self.last_done)
 
     # ---------- 单帧处理 ----------
 
-    def step(self, t: int):
+    def step(self, t: int, prev: int, next_: int):
         """处理视频帧 t。返回结果字典或 None。"""
         from mgmd.mfe import enhance
 
-        if (t - self.k) not in self.frames or (t + self.k) not in self.frames:
+        if prev not in self.frames or next_ not in self.frames:
             return None
 
         cur = self.frames[t]
         header = self.header_of[t]
         t0 = time.perf_counter()
-        res = enhance(self.frames[t - self.k], cur, self.frames[t + self.k], self.cfg, t)
+        res = enhance(self.frames[prev], cur, self.frames[next_], self.cfg, t)
         t_mfe = (time.perf_counter() - t0) * 1000.0
         n_cand = len(res.boxes)
 
@@ -245,9 +245,9 @@ class Pipeline:
                     shape=cur.shape[:2],
                     t_mfe=t_mfe, t_tf=t_tf, t_lac=t_lac, t_lad=t_lad)
 
-    def evict_below(self, t: int) -> None:
-        """处理完 t 后，淘汰 t-k 及更早的帧（再也不会用到）。"""
-        cutoff = t - self.k
+    def evict_below(self, prev: int) -> None:
+        """处理完窗口后，淘汰其前帧及更早的帧。"""
+        cutoff = prev
         for key in [k for k in self.frames if k <= cutoff]:
             if key > self.last_done:
                 self.n_dropped_evict += 1     # 这帧还没处理就被淘汰了
@@ -355,20 +355,22 @@ def main():
             pipe.push(frame_id, header, arr)
 
             # 缓冲里可能有不止一帧可处理（处理慢时会积压），一次处理到追平
+            processed_this_push = 0
             while True:
-                t = pipe.ready_frame_id()
-                if t is None:
+                window = pipe.ready_frame_id()
+                if window is None:
                     pipe.n_waiting += 1
                     break
+                t, prev, next_ = window
                 t_step0 = time.perf_counter()
                 try:
-                    r = pipe.step(t)
+                    r = pipe.step(t, prev, next_)
                 except Exception as exc:                     # noqa: BLE001
                     rospy.logerr("[detector_node] 处理异常 (frame %d): %s", t, exc)
-                    pipe.evict_below(t)
+                    pipe.evict_below(prev)
                     break
                 t_step1 = time.perf_counter()
-                pipe.evict_below(t)
+                pipe.evict_below(prev)
                 if r is None:
                     break
 
@@ -398,6 +400,7 @@ def main():
                 pipe.last_pub = t_pub
 
                 n += 1
+                processed_this_push += 1
                 hz_win.append(time.time())
                 if n <= 5:
                     rospy.loginfo(
@@ -425,6 +428,10 @@ def main():
                         n, hz, slot.recv, slot.dropped, pipe.n_dropped_evict,
                         pipe.n_waiting, r["frame"], r["n_cand"],
                         len(r["boxes"]), r["t_mfe"])
+            pipe.stall_pushes = 0 if processed_this_push else pipe.stall_pushes + 1
+            if pipe.stall_pushes == 30 or (pipe.stall_pushes > 30 and pipe.stall_pushes % 300 == 0):
+                rospy.logwarn("[detector_node] 连续 %d 帧未形成 MFE 窗口；最近帧号=%d, 间隔上限=%d",
+                              pipe.stall_pushes, frame_id, pipe.window.max_gap())
         rospy.loginfo("[detector_node] 工作线程退出，共处理 %d 帧", n)
 
     th = threading.Thread(target=worker, name="det_worker", daemon=True)

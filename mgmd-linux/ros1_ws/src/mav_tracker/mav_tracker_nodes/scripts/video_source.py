@@ -175,8 +175,9 @@ def main():
         msg = Image()
         msg.header.stamp = rospy.Time.now()       # 墙钟时间，不用视频 PTS
         msg.header.frame_id = "camera"
-        # **帧号 = 视频内帧序号（0 起）**，detector_node 用它做 MFE 帧号（§17.4）
-        msg.header.seq = sent
+        # 文件循环时 FileSource.seq 会归零；累计发送数 sent 只用于 limit/日志。
+        # 其余源没有视频内帧号，使用累计发送数。
+        msg.header.seq = src.seq - 1 if isinstance(src, FileSource) else sent
         msg.height, msg.width = h, w
         msg.encoding = "bgr8"
         msg.is_bigendian = 0

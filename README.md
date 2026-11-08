@@ -216,6 +216,6 @@ rostopic hz /mav/detections
 bash scripts/pack_deliverables.sh
 ```
 
-演示视频不进入 Git，交付包位于仓库根目录的 `deliverables/`；结果表格与摘要 JSON 入库。代码或 SPEC 更新需要提交，ROS 代码与对应 SPEC 更新放在同一提交中。
+演示视频不进入 Git，交付包位于仓库根目录的 `deliverables/`；结果表格与摘要 JSON 入库。代码或 SPEC 更新需要提交，ROS 代码与对应 SPEC 更新放在同一提交中。后续修改完成相应检查和提交后，还必须推送到 `origin` 的对应分支（当前主线 `master`），并核对远程与本地提交一致；远程仓库为 `git@github.com:valuelesser/MGMD-ROS.git`。
 
 需求背景见 [PRD](paper/prd_mgmd_reproduction.md)，阶段一详见 [SPEC](mgmd-linux/docs/SPEC.md)，ROS 的实际实现、偏差和当前状态以 [SPEC-ROS](mgmd-linux/docs/SPEC-ROS.md) 为准。

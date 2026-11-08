@@ -8,6 +8,7 @@
 #   bash scripts/pack_deliverables.sh            # 打包
 #   bash scripts/pack_deliverables.sh --list     # 只列清单，不打包
 #   bash scripts/pack_deliverables.sh --ros-testset <运行目录>
+#   bash scripts/pack_deliverables.sh --ros-run <单视频对照目录>
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -18,25 +19,33 @@ STAMP="$(date +%Y%m%d)"
 NAME="mgmd_demo_videos_${STAMP}"
 
 # 完整测试集单独归档，包含视频、时间戳映射、检测输出与日志。
-if [ "${1:-}" = "--ros-testset" ]; then
+if [ "${1:-}" = "--ros-testset" ] || [ "${1:-}" = "--ros-run" ]; then
   if [ "$#" -ne 2 ]; then
-    echo "用法：$0 --ros-testset <运行目录>" >&2
+    echo "用法：$0 --ros-testset|--ros-run <运行目录>" >&2
     exit 2
   fi
   SUITE="$(realpath "$2")"
   NAME="mgmd_${SUITE##*/}"
   mkdir -p "$OUTDIR"
   MANIFEST="$OUTDIR/${NAME}_MANIFEST.md"
-  python3 - "$SUITE" "$MANIFEST" <<'PY'
+  python3 - "$SUITE" "$MANIFEST" "$1" <<'PY'
 import json
 from pathlib import Path
 import sys
 
 root = Path(sys.argv[1])
-summary = json.loads((root / 'summary.json').read_text())
-assert summary['completed'] == summary['expected'] == 15, '测试集未全部完成'
-assert len(summary['per_video']) == 15
-lines = ['# ROS 全测试集交付清单', '',
+if sys.argv[3] == '--ros-run':
+    result = json.loads((root / 'result.json').read_text())
+    assert result['ros'] and result['offline_matching'], '对照未完成'
+    summary = dict(configuration={k: result[k] for k in ('video','rate','coverage','code_commit')},
+                   per_video=[dict(video=result['video'],
+                                   frames=result.get('video_frames',result['images']),
+                                   detection_messages=result['centers'])])
+else:
+    summary = json.loads((root / 'summary.json').read_text())
+    assert summary['completed'] == summary['expected'] == 15, '测试集未全部完成'
+    assert len(summary['per_video']) == 15
+lines = ['# ROS 评测交付清单', '',
          '运行配置：`' + json.dumps(summary['configuration'], ensure_ascii=False) + '`', '',
          '| 视频 | 输入帧 | 检测输出帧 | 录制大小 |', '|---|---:|---:|---:|']
 for row in summary['per_video']:

@@ -26,7 +26,10 @@ def main():
     ap.add_argument('--video', default='phantom70')
     ap.add_argument('--rate', type=float, default=2)
     ap.add_argument('--out', type=Path, required=True)
+    ap.add_argument('--allow-drops', action='store_true', help='Measure a high-rate control without claiming no-drop')
+    ap.add_argument('--offline-reference', type=Path, help='Reuse a completed matching offline reference directory')
     args = ap.parse_args()
+    code_commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
     if args.rate <= 0:
         ap.error('rate must be positive')
     args.out = args.out.resolve()
@@ -132,38 +135,48 @@ def main():
                  missing_centers=sorted(set(range(2, end)) - set(mapped)),
                  extra_centers=sorted(set(mapped) - set(range(2, end))))
     write_json(args.out / 'coverage.json', audit)
-    assert not any(audit.values()), 'Run has frame losses; lower source rate and repeat'
+    if not args.allow_drops:
+        assert not any(audit.values()), 'Run has frame losses; lower source rate and repeat'
     ros_metrics = summary(evaluate(mapped, gt))
-    print('ROS no-drop verified:', json.dumps(ros_metrics)[:350], flush=True)
+    print('ROS coverage checked; missing centers=%d:' % len(audit['missing_centers']),
+          json.dumps(ros_metrics)[:350], flush=True)
 
     # Independent offline iteration with exactly the ROS tracking options.
-    spec = importlib.util.spec_from_file_location('reference', Path(__file__).with_name('run_testset_onnx.py'))
-    reference = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(reference)
-    from mgmd_onnx.tf_fast import FastSortTracker
-    from mgmd_onnx import LacOnnx, LadOnnx
-    reference.SortTracker = lambda **kw: FastSortTracker(
-        **kw, frame_delta_predict=True, association_radius_factor=2.0)
-    reference._DUMP['dir'] = str(args.out / 'offline_detections')
-    cfg = reference.MFEConfig()
-    cfg.apply_recommended()
-    lac, lad = LacOnnx(device='cuda'), LadOnnx(device='cuda')
-    assert all(m.session.get_providers()[0] == 'CUDAExecutionProvider' for m in (lac, lad))
-    print('Running matching offline ONNX reference', flush=True)
-    offline = reference.run_video(args.video, cfg, lac, lad, d_mode='self', d_min=.02,
-                                  lac_thresh=.5, lad_conf=.5, iou_thresh=.3, max_age=3,
-                                  span=3, min_hits=1, limit=None)
-    raw = pickle.loads((args.out / 'offline_detections' / (args.video + '.pkl')).read_bytes())
+    if args.offline_reference:
+        previous = json.loads((args.offline_reference / 'result.json').read_text())
+        assert previous['video'] == args.video and not any(previous['coverage'].values())
+        offline = previous['offline_matching']
+        dump_root = args.offline_reference
+    else:
+        spec = importlib.util.spec_from_file_location('reference', Path(__file__).with_name('run_testset_onnx.py'))
+        reference = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(reference)
+        from mgmd_onnx.tf_fast import FastSortTracker
+        from mgmd_onnx import LacOnnx, LadOnnx
+        reference.SortTracker = lambda **kw: FastSortTracker(
+            **kw, frame_delta_predict=True, association_radius_factor=2.0)
+        reference._DUMP['dir'] = str(args.out / 'offline_detections')
+        cfg = reference.MFEConfig()
+        cfg.apply_recommended()
+        lac, lad = LacOnnx(device='cuda'), LadOnnx(device='cuda')
+        assert all(m.session.get_providers()[0] == 'CUDAExecutionProvider' for m in (lac, lad))
+        print('Running matching offline ONNX reference', flush=True)
+        offline = reference.run_video(args.video, cfg, lac, lad, d_mode='self', d_min=.02,
+                                      lac_thresh=.5, lad_conf=.5, iou_thresh=.3, max_age=3,
+                                      span=3, min_hits=1, limit=None)
+        dump_root = args.out
+    raw = pickle.loads((dump_root / 'offline_detections' / (args.video + '.pkl')).read_bytes())
     differences = []
-    for frame in range(2, end):
+    for frame in sorted(mapped):
         a = sorted([[d.x1, d.y1, d.x2, d.y2, d.conf] for d in mapped[frame]])
         b = sorted([list(d) for d in raw.get(frame, [])])
         if len(a) != len(b) or (a and not np.allclose(a, b, rtol=1e-5, atol=1e-3)):
             differences.append(frame)
-    result = dict(video=args.video, rate=args.rate, images=len(images), centers=len(mapped),
+    result = dict(video=args.video, rate=args.rate, video_frames=end, images=len(images), centers=len(mapped),
                   coverage=audit, warmup_frames=180, ros=ros_metrics, offline_matching=offline,
                   differing_frames_at_1e_3=differences,
-                  code_commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip())
+                  all_centers_processed=not any(audit.values()),
+                  offline_reference=str(dump_root), code_commit=code_commit)
     write_json(args.out / 'result.json', result)
     print('COMPLETE matching offline:', offline['precision'], offline['recall'], offline['f1'],
           'different frames:', len(differences), flush=True)

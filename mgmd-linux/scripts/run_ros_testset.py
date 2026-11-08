@@ -6,7 +6,6 @@ Outputs raw timestamp joins, per-video metrics and a resumable suite summary.
 import argparse
 import json
 import os
-import re
 from pathlib import Path
 import signal
 import subprocess

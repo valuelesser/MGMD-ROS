@@ -182,6 +182,29 @@ source scripts/env_setup.sh
 
 ## 已有结果与限制
 
+最近一次完整 ROS 测试覆盖固定 15 个测试视频、28,337 个标注帧，采用 **1080p、30 Hz 源输入、CUDA 检测、实时展示与 NVENC 录制**。全帧结果如下：
+
+| 对照 | P | R | F1 |
+|---|---:|---:|---:|
+| 论文 Table 1 报告值 | 0.8400 | 0.5900 | 0.6900 |
+| 离线历史基线，统一全帧范围 | 0.8970 | 0.5407 | 0.6747 |
+| ROS 完整实时链路 | 0.8349 | 0.1083 | 0.1917 |
+
+ROS 实际处理 5,983 帧，覆盖率 21.11%，大量未处理帧被计为漏检；当前负载下不能逐帧处理 30 Hz 输入。离线使用已有冻结结果，不是本次重跑；论文与工程的实验条件存在偏差。完整逐视频、分场景统计见 [全测试集报告](mgmd-linux/outputs/tables/ros_testset_30hz_20261108.md)。
+
+全量 ROS 评测入口如下。先在各终端加载上述 ROS/CUDA 环境，再分别运行；使用新的输出目录，并确保没有其他检测/视频源/展示节点占用同名话题。
+
+```bash
+# 终端 1
+roscore
+# 终端 2
+rosrun rqt_image_view rqt_image_view /mav/debug_image
+# 终端 3，工作目录为 mgmd-linux
+"$PY38" scripts/run_ros_testset.py --rate 30 --out outputs/logs/ros_testset_30hz_new
+```
+
+脚本支持相同配置和源码版本的已完成视频断点续跑；每视频保留真实链路丢帧，按全部 GT 计分，并核查实际 CUDA、编码日志与检测时间戳对齐。
+
 阶段一主结果为 P=0.897、R=0.541、F1=0.675、AP=0.524。它是 [SPEC §10.12](mgmd-linux/docs/SPEC.md) 记录的历史冻结口径，具体偏差和后续对齐修复见 §10.13，并非当前 ROS 版本的准确率承诺。
 
 `phantom70` 的全 1349 帧对照如下，ROS 源均为 6 Hz、1920×1080，模型实际使用 CUDA：
@@ -214,6 +237,8 @@ rostopic hz /mav/detections
 
 # 打包演示视频
 bash scripts/pack_deliverables.sh
+# 全量 ROS 测试的独立交付包（视频、检测、时间戳映射、日志）
+bash scripts/pack_deliverables.sh --ros-testset outputs/logs/ros_testset_30hz_20261108_v2
 ```
 
 演示视频不进入 Git，交付包位于仓库根目录的 `deliverables/`；结果表格与摘要 JSON 入库。代码或 SPEC 更新需要提交，ROS 代码与对应 SPEC 更新放在同一提交中。后续修改完成相应检查和提交后，还必须推送到 `origin` 的对应分支（当前主线 `master`），并核对远程与本地提交一致；远程仓库为 `git@github.com:valuelesser/MGMD-ROS.git`。

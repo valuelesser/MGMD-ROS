@@ -7,6 +7,7 @@
 # 用法：
 #   bash scripts/pack_deliverables.sh            # 打包
 #   bash scripts/pack_deliverables.sh --list     # 只列清单，不打包
+#   bash scripts/pack_deliverables.sh --ros-testset <运行目录>
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -15,6 +16,43 @@ ROSVIZ="$PROJECT/outputs/ros_viz"
 OUTDIR="$PROJECT/../deliverables"
 STAMP="$(date +%Y%m%d)"
 NAME="mgmd_demo_videos_${STAMP}"
+
+# 完整测试集单独归档，包含视频、时间戳映射、检测输出与日志。
+if [ "${1:-}" = "--ros-testset" ]; then
+  if [ "$#" -ne 2 ]; then
+    echo "用法：$0 --ros-testset <运行目录>" >&2
+    exit 2
+  fi
+  SUITE="$(realpath "$2")"
+  NAME="mgmd_${SUITE##*/}"
+  mkdir -p "$OUTDIR"
+  MANIFEST="$OUTDIR/${NAME}_MANIFEST.md"
+  python3 - "$SUITE" "$MANIFEST" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+summary = json.loads((root / 'summary.json').read_text())
+assert summary['completed'] == summary['expected'] == 15, '测试集未全部完成'
+assert len(summary['per_video']) == 15
+lines = ['# ROS 全测试集交付清单', '',
+         '运行配置：`' + json.dumps(summary['configuration'], ensure_ascii=False) + '`', '',
+         '| 视频 | 输入帧 | 检测输出帧 | 录制大小 |', '|---|---:|---:|---:|']
+for row in summary['per_video']:
+    video = root / (row['video'] + '.mp4')
+    assert video.is_file() and video.stat().st_size > 0, '缺少录制：' + str(video)
+    lines.append('| %s | %d | %d | %d bytes |' %
+                 (row['video'], row['frames'], row['detection_messages'], video.stat().st_size))
+Path(sys.argv[2]).write_text('\n'.join(lines) + '\n')
+PY
+  tar -I 'gzip -1' -cf "$OUTDIR/${NAME}.tar.gz" \
+    -C "$(dirname "$SUITE")" "$(basename "$SUITE")" \
+    -C "$OUTDIR" "$(basename "$MANIFEST")"
+  echo "测试集交付包：$OUTDIR/${NAME}.tar.gz"
+  exit 0
+fi
+
 LIST_ONLY=0
 [ "${1:-}" = "--list" ] && LIST_ONLY=1
 

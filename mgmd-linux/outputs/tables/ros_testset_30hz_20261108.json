@@ -1,0 +1,698 @@
+{
+  "configuration": {
+    "rate": 30.0,
+    "resolution": [
+      1920,
+      1080
+    ],
+    "device": "cuda",
+    "visualize": true,
+    "encoder": "nvenc",
+    "d_min": 0.02,
+    "frame_delta_predict": true,
+    "association_radius_factor": 2.0,
+    "offline": "/home/gaoduan/毕业设计/mgmd-linux/outputs/logs/testset/final_d002",
+    "code_commit": "570b801cc214199c232884d54484be1f7eecac14"
+  },
+  "run_directory": "outputs/logs/ros_testset_30hz_20261108_v2",
+  "viewer": "rqt_image_view /mav/debug_image (visible throughout formal suite)",
+  "input_videos": 15,
+  "frames": 28337,
+  "gt_objects": 28160,
+  "images_received": 28335,
+  "processed": 5983,
+  "processing_coverage": 0.21113738222112433,
+  "frames_without_detection_message": 22354,
+  "fn_on_unprocessed_frames": 22214,
+  "fn_on_processed_frames": 2897,
+  "elapsed_min": 19.378023035750083,
+  "nominal_source_playback_min": 15.742777777777778,
+  "ros": {
+    "tp": 3049,
+    "fp": 603,
+    "fn": 25111,
+    "precision": 0.8348849945235487,
+    "recall": 0.10827414772727273,
+    "f1": 0.19168867094178296
+  },
+  "offline_original": {
+    "tp": 15227,
+    "fp": 1749,
+    "fn": 12903,
+    "precision": 0.8969721960414703,
+    "recall": 0.5413082118734447,
+    "f1": 0.6751651664966966
+  },
+  "offline_full_frames": {
+    "tp": 15227,
+    "fp": 1749,
+    "fn": 12933,
+    "precision": 0.8969721960414703,
+    "recall": 0.5407315340909091,
+    "f1": 0.6747164126196384
+  },
+  "paper": {
+    "precision": 0.84,
+    "recall": 0.59,
+    "f1": 0.69
+  },
+  "module_ms_mean": [
+    60.08783107829616,
+    22.894058888213664,
+    6.075046168874522,
+    19.839852406031614
+  ],
+  "conditions": {
+    "Ordinary": {
+      "ros": {
+        "tp": 1371,
+        "fp": 201,
+        "fn": 7859,
+        "precision": 0.8721374045801527,
+        "recall": 0.1485373781148429,
+        "f1": 0.2538418811331235
+      },
+      "offline": {
+        "tp": 6550,
+        "fp": 486,
+        "fn": 2680,
+        "precision": 0.9309266628766345,
+        "recall": 0.7096424702058505,
+        "f1": 0.805360875445715
+      }
+    },
+    "Complex": {
+      "ros": {
+        "tp": 1012,
+        "fp": 176,
+        "fn": 8566,
+        "precision": 0.8518518518518519,
+        "recall": 0.10565880141992065,
+        "f1": 0.18799925691993313
+      },
+      "offline": {
+        "tp": 5507,
+        "fp": 395,
+        "fn": 4071,
+        "precision": 0.9330735343951203,
+        "recall": 0.5749634579244101,
+        "f1": 0.711498708010336
+      }
+    },
+    "Small": {
+      "ros": {
+        "tp": 666,
+        "fp": 226,
+        "fn": 8686,
+        "precision": 0.7466367713004485,
+        "recall": 0.0712147134302823,
+        "f1": 0.13002733307301836
+      },
+      "offline": {
+        "tp": 3170,
+        "fp": 868,
+        "fn": 6182,
+        "precision": 0.7850421000495295,
+        "recall": 0.3389649272882806,
+        "f1": 0.47348767737117253
+      }
+    }
+  },
+  "per_video": [
+    {
+      "video": "phantom05",
+      "frames": 1799,
+      "gt_objects": 1799,
+      "images_received": 1799,
+      "processed": 335,
+      "processing_coverage": 0.18621456364647027,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1464,
+      "fn_on_processed_frames": 190,
+      "ros": {
+        "tp": 145,
+        "fp": 56,
+        "fn": 1654,
+        "precision": 0.7213930348258707,
+        "recall": 0.08060033351862146,
+        "f1": 0.14500000000000002
+      },
+      "offline_full_frames": {
+        "tp": 940,
+        "fp": 114,
+        "fn": 859,
+        "precision": 0.8918406072106262,
+        "recall": 0.5225125069483046,
+        "f1": 0.6589554854539081
+      },
+      "recorded_frames": 1799,
+      "recording_duration_s": 59.967,
+      "recording_bytes": 108663725,
+      "elapsed_s": 74.47830031299964,
+      "module_ms_mean": [
+        57.17587840521514,
+        36.45885249465259,
+        7.433364498727293,
+        26.10899562793063
+      ]
+    },
+    {
+      "video": "phantom08",
+      "frames": 1501,
+      "gt_objects": 1425,
+      "images_received": 1499,
+      "processed": 236,
+      "processing_coverage": 0.15722851432378415,
+      "source_frames_not_captured": [
+        1500,
+        1501
+      ],
+      "fn_on_unprocessed_frames": 1201,
+      "fn_on_processed_frames": 118,
+      "ros": {
+        "tp": 106,
+        "fp": 80,
+        "fn": 1319,
+        "precision": 0.5698924731182796,
+        "recall": 0.07438596491228071,
+        "f1": 0.13159528243327126
+      },
+      "offline_full_frames": {
+        "tp": 916,
+        "fp": 128,
+        "fn": 509,
+        "precision": 0.8773946360153256,
+        "recall": 0.6428070175438596,
+        "f1": 0.7420008100445525
+      },
+      "recorded_frames": 1499,
+      "recording_duration_s": 49.967,
+      "recording_bytes": 84777080,
+      "elapsed_s": 64.36559352599943,
+      "module_ms_mean": [
+        56.76972543587119,
+        57.15294525683937,
+        12.504972163660506,
+        31.875969815716616
+      ]
+    },
+    {
+      "video": "phantom09",
+      "frames": 1799,
+      "gt_objects": 1787,
+      "images_received": 1799,
+      "processed": 376,
+      "processing_coverage": 0.20900500277932185,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1414,
+      "fn_on_processed_frames": 120,
+      "ros": {
+        "tp": 253,
+        "fp": 24,
+        "fn": 1534,
+        "precision": 0.9133574007220217,
+        "recall": 0.14157806379406826,
+        "f1": 0.24515503875968986
+      },
+      "offline_full_frames": {
+        "tp": 1292,
+        "fp": 46,
+        "fn": 495,
+        "precision": 0.9656203288490284,
+        "recall": 0.7229994404029099,
+        "f1": 0.8268800000000001
+      },
+      "recorded_frames": 1799,
+      "recording_duration_s": 59.967,
+      "recording_bytes": 94930605,
+      "elapsed_s": 74.4202578050008,
+      "module_ms_mean": [
+        61.36680977902514,
+        23.01942277652152,
+        5.170309474215522,
+        19.29906557886197
+      ]
+    },
+    {
+      "video": "phantom10",
+      "frames": 1798,
+      "gt_objects": 1798,
+      "images_received": 1798,
+      "processed": 371,
+      "processing_coverage": 0.20634037819799778,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1427,
+      "fn_on_processed_frames": 136,
+      "ros": {
+        "tp": 235,
+        "fp": 41,
+        "fn": 1563,
+        "precision": 0.8514492753623188,
+        "recall": 0.13070077864293658,
+        "f1": 0.22661523625843777
+      },
+      "offline_full_frames": {
+        "tp": 1264,
+        "fp": 159,
+        "fn": 534,
+        "precision": 0.8882642304989459,
+        "recall": 0.7030033370411568,
+        "f1": 0.7848494256442098
+      },
+      "recorded_frames": 1798,
+      "recording_duration_s": 59.934,
+      "recording_bytes": 98052716,
+      "elapsed_s": 74.38156271499975,
+      "module_ms_mean": [
+        58.92177678439816,
+        25.05808885271016,
+        5.337175245365845,
+        19.836934588536934
+      ]
+    },
+    {
+      "video": "phantom19",
+      "frames": 2158,
+      "gt_objects": 2158,
+      "images_received": 2158,
+      "processed": 479,
+      "processing_coverage": 0.22196478220574606,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1679,
+      "fn_on_processed_frames": 237,
+      "ros": {
+        "tp": 242,
+        "fp": 21,
+        "fn": 1916,
+        "precision": 0.9201520912547528,
+        "recall": 0.11214087117701575,
+        "f1": 0.19991738950846757
+      },
+      "offline_full_frames": {
+        "tp": 1170,
+        "fp": 34,
+        "fn": 988,
+        "precision": 0.9717607973421927,
+        "recall": 0.5421686746987951,
+        "f1": 0.6960142772159429
+      },
+      "recorded_frames": 2158,
+      "recording_duration_s": 71.934,
+      "recording_bytes": 135736274,
+      "elapsed_s": 86.44903559699924,
+      "module_ms_mean": [
+        57.202158368455095,
+        22.19334218509511,
+        6.841406345235675,
+        16.782753275667446
+      ]
+    },
+    {
+      "video": "phantom30",
+      "frames": 1498,
+      "gt_objects": 1498,
+      "images_received": 1498,
+      "processed": 329,
+      "processing_coverage": 0.21962616822429906,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1169,
+      "fn_on_processed_frames": 87,
+      "ros": {
+        "tp": 242,
+        "fp": 35,
+        "fn": 1256,
+        "precision": 0.8736462093862816,
+        "recall": 0.16154873164218958,
+        "f1": 0.2726760563380282
+      },
+      "offline_full_frames": {
+        "tp": 1106,
+        "fp": 53,
+        "fn": 392,
+        "precision": 0.9542709232096636,
+        "recall": 0.7383177570093458,
+        "f1": 0.8325178773052314
+      },
+      "recorded_frames": 1497,
+      "recording_duration_s": 49.9,
+      "recording_bytes": 92405876,
+      "elapsed_s": 64.37836931899983,
+      "module_ms_mean": [
+        56.73354553524122,
+        14.724547080355936,
+        5.283674376358525,
+        24.13108568521148
+      ]
+    },
+    {
+      "video": "phantom41",
+      "frames": 1798,
+      "gt_objects": 1798,
+      "images_received": 1798,
+      "processed": 277,
+      "processing_coverage": 0.15406006674082315,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1521,
+      "fn_on_processed_frames": 191,
+      "ros": {
+        "tp": 86,
+        "fp": 95,
+        "fn": 1712,
+        "precision": 0.47513812154696133,
+        "recall": 0.047830923248053395,
+        "f1": 0.08691258211217787
+      },
+      "offline_full_frames": {
+        "tp": 565,
+        "fp": 397,
+        "fn": 1233,
+        "precision": 0.5873180873180873,
+        "recall": 0.314238042269188,
+        "f1": 0.40942028985507245
+      },
+      "recorded_frames": 1798,
+      "recording_duration_s": 59.934,
+      "recording_bytes": 119717085,
+      "elapsed_s": 74.42970350799988,
+      "module_ms_mean": [
+        62.023381670459514,
+        55.85128594133398,
+        11.724077300145407,
+        32.74926818657136
+      ]
+    },
+    {
+      "video": "phantom43",
+      "frames": 1799,
+      "gt_objects": 1799,
+      "images_received": 1799,
+      "processed": 420,
+      "processing_coverage": 0.23346303501945526,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1379,
+      "fn_on_processed_frames": 291,
+      "ros": {
+        "tp": 129,
+        "fp": 27,
+        "fn": 1670,
+        "precision": 0.8269230769230769,
+        "recall": 0.0717065036131184,
+        "f1": 0.1319693094629156
+      },
+      "offline_full_frames": {
+        "tp": 493,
+        "fp": 107,
+        "fn": 1306,
+        "precision": 0.8216666666666667,
+        "recall": 0.274041133963313,
+        "f1": 0.41100458524385164
+      },
+      "recorded_frames": 1799,
+      "recording_duration_s": 59.967,
+      "recording_bytes": 77096518,
+      "elapsed_s": 74.55745505600134,
+      "module_ms_mean": [
+        57.40048534302485,
+        14.536994616758255,
+        5.5774620575543805,
+        14.893730845436428
+      ]
+    },
+    {
+      "video": "phantom46",
+      "frames": 1798,
+      "gt_objects": 1798,
+      "images_received": 1798,
+      "processed": 454,
+      "processing_coverage": 0.2525027808676307,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1344,
+      "fn_on_processed_frames": 330,
+      "ros": {
+        "tp": 124,
+        "fp": 7,
+        "fn": 1674,
+        "precision": 0.9465648854961832,
+        "recall": 0.06896551724137931,
+        "f1": 0.128564022809746
+      },
+      "offline_full_frames": {
+        "tp": 471,
+        "fp": 15,
+        "fn": 1327,
+        "precision": 0.9691358024691358,
+        "recall": 0.26195773081201335,
+        "f1": 0.4124343257443082
+      },
+      "recorded_frames": 1798,
+      "recording_duration_s": 59.934,
+      "recording_bytes": 92170576,
+      "elapsed_s": 74.37968389300113,
+      "module_ms_mean": [
+        57.61798746890434,
+        11.818461480513543,
+        3.7708003469421345,
+        12.427161511797973
+      ]
+    },
+    {
+      "video": "phantom47",
+      "frames": 2887,
+      "gt_objects": 2798,
+      "images_received": 2887,
+      "processed": 755,
+      "processing_coverage": 0.26151714582611707,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 2065,
+      "fn_on_processed_frames": 233,
+      "ros": {
+        "tp": 500,
+        "fp": 97,
+        "fn": 2298,
+        "precision": 0.8375209380234506,
+        "recall": 0.17869907076483202,
+        "f1": 0.29455081001472755
+      },
+      "offline_full_frames": {
+        "tp": 1983,
+        "fp": 198,
+        "fn": 815,
+        "precision": 0.9092159559834938,
+        "recall": 0.7087205146533238,
+        "f1": 0.7965454910624623
+      },
+      "recorded_frames": 2887,
+      "recording_duration_s": 96.234,
+      "recording_bytes": 111431942,
+      "elapsed_s": 110.60371194599975,
+      "module_ms_mean": [
+        51.86018193478616,
+        15.23265557344386,
+        4.202227099502455,
+        17.727628915595307
+      ]
+    },
+    {
+      "video": "phantom58",
+      "frames": 2218,
+      "gt_objects": 2218,
+      "images_received": 2218,
+      "processed": 605,
+      "processing_coverage": 0.2727682596934175,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1613,
+      "fn_on_processed_frames": 293,
+      "ros": {
+        "tp": 312,
+        "fp": 5,
+        "fn": 1906,
+        "precision": 0.9842271293375394,
+        "recall": 0.1406672678088368,
+        "f1": 0.24615384615384614
+      },
+      "offline_full_frames": {
+        "tp": 1188,
+        "fp": 3,
+        "fn": 1030,
+        "precision": 0.9974811083123426,
+        "recall": 0.5356176735798016,
+        "f1": 0.6969785860956291
+      },
+      "recorded_frames": 2218,
+      "recording_duration_s": 73.934,
+      "recording_bytes": 90351305,
+      "elapsed_s": 88.55818543700116,
+      "module_ms_mean": [
+        60.90080890182621,
+        4.600478918813477,
+        2.3760046223689626,
+        11.115483119742981
+      ]
+    },
+    {
+      "video": "phantom63",
+      "frames": 1799,
+      "gt_objects": 1799,
+      "images_received": 1799,
+      "processed": 337,
+      "processing_coverage": 0.18732629238465814,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1462,
+      "fn_on_processed_frames": 252,
+      "ros": {
+        "tp": 85,
+        "fp": 76,
+        "fn": 1714,
+        "precision": 0.5279503105590062,
+        "recall": 0.04724847137298499,
+        "f1": 0.086734693877551
+      },
+      "offline_full_frames": {
+        "tp": 471,
+        "fp": 315,
+        "fn": 1328,
+        "precision": 0.5992366412213741,
+        "recall": 0.26181211784324626,
+        "f1": 0.3644100580270794
+      },
+      "recorded_frames": 1799,
+      "recording_duration_s": 59.967,
+      "recording_bytes": 107546780,
+      "elapsed_s": 74.733340322,
+      "module_ms_mean": [
+        62.61320260724257,
+        34.19308791033238,
+        8.247972559477336,
+        19.885400153537287
+      ]
+    },
+    {
+      "video": "phantom65",
+      "frames": 2338,
+      "gt_objects": 2338,
+      "images_received": 2338,
+      "processed": 447,
+      "processing_coverage": 0.1911890504704876,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1891,
+      "fn_on_processed_frames": 180,
+      "ros": {
+        "tp": 267,
+        "fp": 20,
+        "fn": 2071,
+        "precision": 0.9303135888501742,
+        "recall": 0.11420017108639863,
+        "f1": 0.20342857142857143
+      },
+      "offline_full_frames": {
+        "tp": 1441,
+        "fp": 110,
+        "fn": 897,
+        "precision": 0.9290780141843972,
+        "recall": 0.61633875106929,
+        "f1": 0.7410645410131139
+      },
+      "recorded_frames": 2338,
+      "recording_duration_s": 77.934,
+      "recording_bytes": 114970076,
+      "elapsed_s": 92.61709219900149,
+      "module_ms_mean": [
+        71.2030714918303,
+        21.445009894285693,
+        5.634813085615036,
+        21.40336719151874
+      ]
+    },
+    {
+      "video": "phantom70",
+      "frames": 1349,
+      "gt_objects": 1349,
+      "images_received": 1349,
+      "processed": 235,
+      "processing_coverage": 0.17420311341734618,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1114,
+      "fn_on_processed_frames": 94,
+      "ros": {
+        "tp": 141,
+        "fp": 4,
+        "fn": 1208,
+        "precision": 0.9724137931034482,
+        "recall": 0.10452186805040771,
+        "f1": 0.1887550200803213
+      },
+      "offline_full_frames": {
+        "tp": 905,
+        "fp": 30,
+        "fn": 444,
+        "precision": 0.9679144385026738,
+        "recall": 0.6708673091178651,
+        "f1": 0.7924693520140106
+      },
+      "recorded_frames": 1349,
+      "recording_duration_s": 44.967,
+      "recording_bytes": 66195813,
+      "elapsed_s": 59.6142524400002,
+      "module_ms_mean": [
+        69.48813880758082,
+        30.31949761218213,
+        9.653219677577045,
+        26.680805269992746
+      ]
+    },
+    {
+      "video": "phantom86",
+      "frames": 1798,
+      "gt_objects": 1798,
+      "images_received": 1798,
+      "processed": 327,
+      "processing_coverage": 0.18186874304783093,
+      "source_frames_not_captured": [],
+      "fn_on_unprocessed_frames": 1471,
+      "fn_on_processed_frames": 145,
+      "ros": {
+        "tp": 182,
+        "fp": 15,
+        "fn": 1616,
+        "precision": 0.9238578680203046,
+        "recall": 0.10122358175750834,
+        "f1": 0.1824561403508772
+      },
+      "offline_full_frames": {
+        "tp": 1022,
+        "fp": 40,
+        "fn": 776,
+        "precision": 0.9623352165725048,
+        "recall": 0.5684093437152391,
+        "f1": 0.7146853146853146
+      },
+      "recorded_frames": 1798,
+      "recording_duration_s": 59.934,
+      "recording_bytes": 84221211,
+      "elapsed_s": 74.71483806900142,
+      "module_ms_mean": [
+        71.10104094805703,
+        25.646974584925065,
+        7.605852864300675,
+        25.143211685946913
+      ]
+    }
+  ],
+  "model_sha256": {
+    "lac.onnx": "61be295046edd1c691a4decc971a18cd23105dc31dfa614112264d6a1309d1ca",
+    "yolov5s_GLAD-crop.onnx": "a19585acee01b4d2dda12edc45b09612f4711ab4f176aff33dd2d0bd98255f96"
+  },
+  "paper_source": "paper/paper_mgmd_zh.md Table 1",
+  "offline_source": "outputs/logs/testset/final_d002/",
+  "archive": "deliverables/mgmd_ros_testset_30hz_20261108_v2.tar.gz",
+  "delta_ros_minus_paper": {
+    "precision": -0.005115005476451273,
+    "recall": -0.48172585227272724,
+    "f1": -0.49831132905821696
+  },
+  "delta_ros_minus_offline_full_frames": {
+    "precision": -0.062087201517921575,
+    "recall": -0.4324573863636364,
+    "f1": -0.48302774167785545
+  }
+}

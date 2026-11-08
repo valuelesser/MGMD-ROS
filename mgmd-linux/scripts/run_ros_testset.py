@@ -6,6 +6,7 @@ Outputs raw timestamp joins, per-video metrics and a resumable suite summary.
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import signal
 import subprocess
@@ -87,15 +88,21 @@ def run_video(video, args, config):
             ], stdout=log, stderr=subprocess.STDOUT, start_new_session=True,
                 env=dict(os.environ, PYTHONUNBUFFERED='1'))
             deadline = started + end / args.rate + 180
+            progress_at = started
             while time.monotonic() < deadline:
                 if proc.poll() is not None:
                     raise RuntimeError('roslaunch exited: ' + video)
                 now = time.monotonic()
+                source_done = ('[video_source] 退出，共发布 %d 帧' % end) in log_path.read_text(errors='replace')
                 with lock:
-                    complete = images and max(images.values()) >= end
                     quiet = last_detection_at[0] is not None and now - last_detection_at[0] > 4
                     image_quiet = last_image_at[0] is not None and now - last_image_at[0] > 12
-                if complete and quiet and image_quiet:
+                    if now - progress_at >= 15:
+                        print('  %s images=%d last=%s detector=%d source_done=%s' %
+                              (video, len(images), max(images.values()) if images else None,
+                               len(detections), source_done), flush=True)
+                        progress_at = now
+                if source_done and quiet and image_quiet:
                     break
                 time.sleep(1)
             else:
@@ -119,8 +126,12 @@ def run_video(video, args, config):
     missing = set(detections) - set(images)
     if missing:
         raise RuntimeError('Detection stamps missing image join: ' + str(len(missing)))
-    if set(images.values()) != set(range(1, end + 1)):
-        raise RuntimeError('Capture did not receive every source frame: ' + video)
+    expected = set(range(1, end + 1))
+    if not images or not set(images.values()).issubset(expected):
+        raise RuntimeError('Unexpected source frame sequence: ' + video)
+    # FileSource can exit before rospy's asynchronous queue drains its final images.
+    # These are real source/transport losses; retain their GT as FN, never omit them.
+    source_missing = sorted(expected - set(images.values()))
     mapped = {images[s]: [Detection(*d[:5]) for d in boxes]
               for s, boxes in detections.items()}
     m = summary(evaluate(mapped, gt))
@@ -134,6 +145,7 @@ def run_video(video, args, config):
         'video': video, 'configuration': config, 'frames': end,
         'gt_objects': sum(len(g.objects) for g in gt.values()),
         'image_messages': len(images), 'detection_messages': len(detections),
+        'source_frames_not_captured': source_missing,
         'frames_without_output': end - len(detections),
         'elapsed_s': time.monotonic() - started,
         'module_ms_mean': [sum(row[i] for row in timings) / len(timings)

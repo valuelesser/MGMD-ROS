@@ -67,7 +67,8 @@ def main():
                 detections[msg.header.stamp.to_nsec()] = [
                     [d.x1, d.y1, d.x2, d.y2, d.confidence, d.track_id] for d in msg.detections]
             else:
-                warm_lad[0] |= msg.lad_ms > 0
+                # Empty-loop timing is also > 0; require an actual LAD output.
+                warm_lad[0] |= any(d.source == 'lad' for d in msg.detections)
 
     si = rospy.Subscriber('/camera/image_raw', Image, image_cb, queue_size=8,
                           buff_size=32 * 1024 * 1024)

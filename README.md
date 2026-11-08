@@ -192,6 +192,15 @@ source scripts/env_setup.sh
 
 ROS 实际处理 5,983 帧，覆盖率 21.11%，大量未处理帧被计为漏检；当前负载下不能逐帧处理 30 Hz 输入。离线使用已有冻结结果，不是本次重跑；论文与工程的实验条件存在偏差。完整逐视频、分场景统计见 [全测试集报告](mgmd-linux/outputs/tables/ros_testset_30hz_20261108.md)。
 
+补充的 [phantom70 降速对照](mgmd-linux/outputs/tables/ros_nodrop_phantom70_20261108.md) 中，相同预热协议下，2 Hz 完整处理 1347/1347 个中心帧，P=0.9574、R=0.7005、F1=0.8091；与独立同模型同参数离线的逐帧 TP/FP/FN 完全一致，仍保留少量 1 像素级框与置信度差异。30 Hz 对照仅处理 276 个中心帧，F1=0.2348。这支持本视频的主要问题来自实时负载与漏处理，结论不外推到整个测试集。
+
+```bash
+# 加载 ROS/CUDA 环境，启动 roscore 和实时窗口后执行；新目录用于新一轮实验
+"$PY38" scripts/compare_ros_nodrop.py --rate 2 --out outputs/logs/nodrop_new
+"$PY38" scripts/compare_ros_nodrop.py --rate 30 --allow-drops \
+  --offline-reference outputs/logs/nodrop_new --out outputs/logs/control_new
+```
+
 全量 ROS 评测入口如下。先在各终端加载上述 ROS/CUDA 环境，再分别运行；使用新的输出目录，并确保没有其他检测/视频源/展示节点占用同名话题。
 
 ```bash

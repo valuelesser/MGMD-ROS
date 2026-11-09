@@ -2,6 +2,8 @@
 
 本项目复现论文 *Motion-Guided Small MAV Detection in Complex and Non-Planar Scenes*（arXiv:2410.10527v1），并将检测链路接入 ROS1 Noetic，支持本地视频回放和电脑摄像头实时输入。
 
+当前可交付版本与归档校验见 [DELIVERY.md](DELIVERY.md)。
+
 当前开发工程位于 **`mgmd-linux/`**。项目包含离线论文复现和 ROS 实时系统两个阶段；现阶段聚焦图像上的无人机检测与跟踪，不包含飞行控制。
 
 ## 处理流程

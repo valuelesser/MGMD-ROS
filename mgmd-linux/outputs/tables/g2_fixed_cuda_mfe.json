@@ -1,0 +1,77 @@
+{
+  "opencv": "5.0.0",
+  "torch": "2.4.1+cu121",
+  "synthetic_warp": "pass",
+  "videos": [
+    {
+      "video": "phantom30.mp4",
+      "center_frames": 48,
+      "reference_candidates": 7290,
+      "mismatch_counts": {
+        "gray": 0,
+        "previous_warp": 33325,
+        "previous_threshold": 0,
+        "previous_mask": 611,
+        "previous_mask_fixed_pixels": 0,
+        "following_warp": 38071,
+        "following_threshold": 0,
+        "following_mask": 692,
+        "following_mask_fixed_pixels": 0,
+        "motion": 885,
+        "morphology": 878,
+        "morphology_fixed_pixels": 0,
+        "candidate_list": 21
+      },
+      "max_abs": {
+        "gray": 0,
+        "previous_warp": 1,
+        "previous_threshold": 0,
+        "previous_mask": 1,
+        "previous_mask_fixed_pixels": 0,
+        "following_warp": 1,
+        "following_threshold": 0,
+        "following_mask": 1,
+        "following_mask_fixed_pixels": 0,
+        "motion": 1,
+        "morphology": 1,
+        "morphology_fixed_pixels": 0,
+        "candidate_list": 0
+      }
+    },
+    {
+      "video": "phantom70.mp4",
+      "center_frames": 48,
+      "reference_candidates": 751,
+      "mismatch_counts": {
+        "gray": 0,
+        "previous_warp": 33555,
+        "previous_threshold": 0,
+        "previous_mask": 104,
+        "previous_mask_fixed_pixels": 0,
+        "following_warp": 30316,
+        "following_threshold": 0,
+        "following_mask": 89,
+        "following_mask_fixed_pixels": 0,
+        "motion": 148,
+        "morphology": 55,
+        "morphology_fixed_pixels": 0,
+        "candidate_list": 1
+      },
+      "max_abs": {
+        "gray": 0,
+        "previous_warp": 1,
+        "previous_threshold": 0,
+        "previous_mask": 1,
+        "previous_mask_fixed_pixels": 0,
+        "following_warp": 1,
+        "following_threshold": 0,
+        "following_mask": 1,
+        "following_mask_fixed_pixels": 0,
+        "motion": 1,
+        "morphology": 1,
+        "morphology_fixed_pixels": 0,
+        "candidate_list": 0
+      }
+    }
+  ]
+}

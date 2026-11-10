@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.8` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.9` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.9 | 2026-11-11 | 本次 G2 提交 | 开始迁移 MFE 图像算子，记录固定单应矩阵下的像素和候选差异 |
 | 0.1.8 | 2026-11-11 | 本次 G1.4 提交 | 完成真实 NVDEC 帧到 LAC/LAD 的串联对拍和独立计时 |
 | 0.1.7 | 2026-11-11 | 本次 G1.3 提交 | 接入 libav CUDA 解码帧并验证生命周期、PTS 和色彩 |
 | 0.1.6 | 2026-11-11 | 本次 G1.2 提交 | 实现 CUDA 裁剪、预处理和模型后处理，使用两段 1080p 视频对拍 |
@@ -254,6 +255,23 @@ python3 scripts/measure_cuda_model_chain.py /tmp/mgmd-cuda-decoder.so \
 
 **G2 MFE**
 
+**首轮实测（2026-11-11）**。OpenCV CUDA 提供 `cvtColor`、`absdiff`、稀疏 PyrLK、滤波和 8 连通域标记。现有容器中的 OpenCV 5.0.0 返回 CUDA 设备数 0，Python 绑定没有暴露这些算子。现有 Torch 2.4.1+cu121 可用，首轮复用其设备运算、`grid_sample` 和池化实现灰度、反向 warp、差分、自适应阈值、二值中值、三帧组合及形态学。CUDA OpenCV 的 LK 和连通域适合后续独立构建验证，CUDA 连通域返回标签，区域统计仍需实现。 [OpenCV CUDA 图像处理](https://docs.opencv.org/doc/doxygen/html/d0/d05/group__cudaimgproc.html) · [绝对差](https://docs.opencv.org/4.13.0/d4/d03/cudaarithm_8hpp.html) · [稀疏 LK](https://docs.opencv.org/doc/doxygen/html/d7/d05/classcv_1_1cuda_1_1SparsePyrLKOpticalFlow.html) · [CUDA 滤波](https://docs.opencv.org/4.13.0/da/dc5/cudafilters_8hpp.html)
+
+在现有 Docker 中用 `phantom30`、`phantom70` 各前 50 张 1080p 帧。两条路径使用相同解码像素、参考单应矩阵和有效区。两段各有 48 个中心帧。灰度、阈值全部一致。将相同对齐像素送入两条路径时，差分掩膜和最终形态学结果逐像素一致。
+
+完整设备 warp 对拍中，试用 1/32 定点插值时实测最大像素差为 7，改用连续双线性后降为 1。两段分别有 21/48 和 1/48 个中心帧的有序候选列表变化。候选列表由 CPU 连通域读取设备生成的闭运算结果得到，作为差异定位。warp 舍入差异仍待收敛，GPU 有效区生成、LK、RANSAC 和连通域仍待迁移。上述是 MFE 分阶段对拍结果，正式 ROS 1080p 基线沿用主分支记录。
+
+以项目用户加载 G0 的 CUDA/Python 环境后，从容器工程目录运行。
+
+```bash
+a=(/data/videos/*/ARD-MAV/videos/phantom30.mp4)
+b=(/data/videos/*/ARD-MAV/videos/phantom70.mp4)
+python3 scripts/probe_cuda_mfe.py "outputs/g2_fixed_$(date +%Y%m%d_%H%M%S)" \
+  "${a[0]}" "${b[0]}"
+```
+
+探针退出状态用于同像素的灰度、掩膜和形态学对拍。warp 与候选差异另列。逐帧结果在容器 `outputs/g2_fixed_20261111_075104/frames.jsonl`。 [验证摘要](../outputs/tables/g2_fixed_cuda_mfe.json)
+
 1. 先实现灰度、预处理、差分、阈值、形态学及连通域统计。用固定单应矩阵将图像算子与对齐算法分开验证。记录插值、边界填充、有效区、连通性、候选面积和排序。
 2. 实测 CUDA 稀疏 LK 的关键点和状态，再接 GPU 单应性求解和透视变换。分别保存内点数、重投影误差、有效区、候选数量和位置。覆盖低纹理、无有效变换、镜头抖动和高候选帧。需要新增 CUDA 内核时放在 ROS GPU 后端，复用阶段一配置和参考输出。
 3. 隔离对拍通过后接入帧窗口。缓存可复用的灰度帧等中间结果。逐轮测量每项缓存或融合对延迟、显存与数值结果的影响。
@@ -289,6 +307,7 @@ python3 scripts/measure_cuda_model_chain.py /tmp/mgmd-cuda-decoder.so \
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.9 | 核对可用 CUDA 库并实现固定矩阵 MFE 的 GPU 图像阶段 | 两视频 96 个中心帧对拍。同像素灰度、掩膜和形态学一致。warp 最大差 1 灰阶，22 帧候选列表变化。 |
 | 2026-11-11 | 0.1.8 | 将 NVDEC 设备帧与 CUDA 模型前后处理串联，并独立测量各阶段 | 236 帧同像素对拍通过。登记颜色转换导致的 15 次 LAC 阈值变化及 5 次最终框有无变化。 |
 | 2026-11-11 | 0.1.7 | 增加 NVDEC CUDA 帧适配与设备端 NV12→BGR | 两段视频解到 EOF，指针共享、PTS、重置和帧生命周期通过。记录色彩差异。 |
 | 2026-11-11 | 0.1.6 | 迁移 CUDA 裁剪、整数缩放、归一化和 LAC/LAD 后处理 | 两段现有视频 236 个中心帧对拍，LAC 无阈值翻转，LAD 框和置信度同会话一致。 |

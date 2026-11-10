@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.5` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.6` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.6 | 2026-11-11 | 本次 G1.2 提交 | 实现 CUDA 裁剪、预处理和模型后处理，使用两段 1080p 视频对拍 |
 | 0.1.5 | 2026-11-11 | 本次 G1.1 提交 | 实测两份模型的 CUDA I/O Binding 与同会话数值一致性 |
 | 0.1.4 | 2026-11-11 | 本次 G0 提交 | 增加 Docker 能力探针、1080p 评测配置与实测记录 |
 | 0.1.3 | 2026-11-11 | 本次文档提交 | 固定主分支现有 1080p 基线，细化同 ROS、实时展示和录像负载下的验证 |
@@ -174,6 +175,32 @@ python3 scripts/probe_ort_iobinding.py /home/gaoduan/tracking/data_raw/mgmd_weig
 
 验证目录为容器 `outputs/g1_1_20261111_071119/`。 [验证摘要](../outputs/tables/g1_1_ort_iobinding.json)
 
+**G1.2 实测（2026-11-11）**
+
+`mgmd_onnx/cuda_models.py` 增加 CUDA LAC/LAD 模型阶段。用原裁剪坐标规则对设备图像切片，按 OpenCV 的 8 位固定点规则缩放，并使用与原 NumPy 归一化一致的查表值。LAC 计算批量 softmax。LAD 每次推理一个裁剪，在设备上复用 YOLOv5 的 NMS、坐标回映及最近中心规则。ORT 输出直接绑定 CUDA 张量。 [OpenCV resize 实现](https://github.com/opencv/opencv/blob/4.x/modules/imgproc/src/resize.cpp)
+
+从原 `phantom30`、`phantom70` 各读取前 120 帧，逐段使用容器实际的推荐 MFE 与 FastSortTracker 生成候选，两条路径逐帧共享候选及顺序。覆盖空候选、无效裁剪、贴边裁剪、等置信度的非重叠候选以及空 NMS 结果。G1.2 用主机解码后单次上传输入帧；参考和对拍日志在测试边界读取设备结果。设备输入接入、稳定缓冲与完整拷贝追踪由 G1.3 和 P5 验收。
+
+首次试验中浮点插值导致 LAC 输入相差 1 个 8 位灰阶，出现 4 次阈值翻转；LAD 浮点归一化路径也出现 1 次有无输出差异和 1 次坐标差异。最终采用整数插值与精确归一化，复测结果如下。
+
+| 视频 | 对拍中心帧 | LAC 候选 | LAC 阈值翻转 | LAD 候选 | 两路径均输出框 | LAD 框或置信度最大绝对差 |
+|---|---:|---:|---:|---:|---:|---:|
+| phantom30 | 118 | 13,635 | 0 | 291 | 134 | 0 |
+| phantom70 | 118 | 1,113 | 0 | 135 | 116 | 0 |
+
+两段的 LAC 输入和 logits、LAD 输入和主预测在同会话对拍中均逐元素相同。LAC softmax 最大绝对差约 `1.11e-16`。独立 LAD 会话的原始预测最大绝对差约 `0.62647`，本次 426 个候选中未出现出框变化或坐标变化。原始数值差异的成因仍待定位。当前实现保留 ORT 流同步，YOLOv5 NMS 的动态索引同步成本留待设备时间线验证。
+
+容器工程目录以项目用户加载 G0 CUDA 和 Python 环境后复测。
+
+```bash
+a=(/data/videos/*/ARD-MAV/videos/phantom30.mp4)
+b=(/data/videos/*/ARD-MAV/videos/phantom70.mp4)
+python3 scripts/probe_cuda_models.py "outputs/g1_2_$(date +%Y%m%d_%H%M%S)" \
+  "${a[0]}" "${b[0]}"
+```
+
+完整逐帧候选、ID 和框对照见容器 `outputs/g1_2_20261111_071848/frames.jsonl`。 [验证摘要](../outputs/tables/g1_2_cuda_models.json)
+
 **G2 MFE**
 
 1. 先实现灰度、预处理、差分、阈值、形态学及连通域统计。用固定单应矩阵将图像算子与对齐算法分开验证。记录插值、边界填充、有效区、连通性、候选面积和排序。
@@ -211,6 +238,7 @@ python3 scripts/probe_ort_iobinding.py /home/gaoduan/tracking/data_raw/mgmd_weig
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.6 | 迁移 CUDA 裁剪、整数缩放、归一化和 LAC/LAD 后处理 | 两段现有视频 236 个中心帧对拍，LAC 无阈值翻转，LAD 框和置信度同会话一致。 |
 | 2026-11-11 | 0.1.5 | 增加 G1.1 双模型 CUDA I/O Binding 探针，确认全输出可写入预分配显存 | 同会话全部输出逐元素一致。独立 LAD 会话差异保留在摘要，G1.2 待对拍真实候选。 |
 | 2026-11-11 | 0.1.4 | 实施 G0，添加 CUDA/编解码/libav 和 ROS/rqt 探针及固定评测配置 | CUDA、120 帧设备直通和 600 帧 ROS/NVENC 联合短测通过，见 §6.2.1。P5 与全量候选对照待后续。 |
 | 2026-11-11 | 0.1.3 | 按用户指示沿用主分支既有 1080p ROS 结果，固定 15 个现有视频和相同展示、录制负载，取消重建基线 | 核对远程默认分支、评测报告、配置 JSON 和运行脚本。候选运行待实现。 |

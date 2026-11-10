@@ -4,7 +4,7 @@
 > 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）§11
 > 当前运行环境：Windows 宿主机上的 WSL2 `Ubuntu-20.04`（Ubuntu 20.04.6 LTS）
 > WSL 工程根：`/home/gaodu/毕业设计/mgmd-linux/`
-> 最后更新：2026-11-10（补充 Docker 回放环境和运行记录，PRD v4.2）
+> 最后更新：2026-11-10（补充 Docker 回放与桌面预览记录，PRD v4.2）
 > WSL2 启动方式见 §2.3，Docker 启动方式见 §2.4。后续章节保留原生 Ubuntu 环境的历史记录。
 
 ---
@@ -22,12 +22,13 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一算法与指标保持冻结；`docs/SPEC.md` 1.0.2 仅按用户要求同步 WSL 环境说明，结果基线仍为 1.0.1（§10.13） |
 
-`spec_version: 2.0.3` | `prd_version: 4.2` | `stage1_spec: 1.0.2`（仅环境修订，结果基线仍为 1.0.1）
+`spec_version: 2.0.4` | `prd_version: 4.2` | `stage1_spec: 1.0.2`（仅环境修订，结果基线仍为 1.0.1）
 
 ### 0.1 版本记录
 
 | spec_version | 日期 | commit | 变更摘要 |
 |---|---|---|---|
+| **2.0.4** | **2026-11-10** | 本次文档修订 | §2.4 补充 Docker 实时桌面预览、显示连接和 Python 依赖修复 |
 | **2.0.3** | **2026-11-10** | 本次文档修订 | §2.4 记录现有 `mgmd-ros` 容器的工作空间修复、依赖、启动命令与回放结果 |
 | **2.0.2** | **2026-11-05** | 本次提交（环境维护） | **§2.3 更新为当前 WSL2 Ubuntu 20.04 环境、依赖、路径、运行方式和显示/编码限制；保留重跑脚本及运行记录；根目录 AGENTS.md 记录后续按 SPEC 维护与提交的授权；PRD 与业务代码不变** |
 | **0.1.0** | **2026-10-29** | 本轮 | 建立本文件；继承 PRD §11 全部决策；登记阶段二基线 |
@@ -229,7 +230,19 @@ docker exec mgmd-ros runuser -u valuelesser -- /usr/local/bin/mgmd-ros-demo
 | 可视化 | `/mav/debug_image` 抽样约 20.0 Hz。输出 960×720、1,498 帧、74.9 秒，FFmpeg 全段解码通过 |
 | 证据 | Windows 工作目录下 `mgmd-ros-docker-20261110/` 保存视频、节点清单及运行日志 |
 
-这次验收覆盖 Docker 内的文件回放、检测跟踪、可视化话题和录制。实时桌面窗口、摄像头、TT 实机与 E3 对拍仍待验证。输入、推理和录制异步运行，输出视频帧数与完成检测的帧数分别统计。
+#### 2.4.1 Windows 实时桌面预览
+
+实时预览入口 `/usr/local/bin/mgmd-ros-live` 调用 `roslaunch --screen /usr/local/share/mgmd-ros/live.launch`。该 launch 同时运行 `track.launch` 和 `rqt_image_view`，以 20 Hz 循环回放 `phantom30`，在 `/mav/debug_image` 显示跟踪框。关闭 rqt 窗口会触发 roslaunch 关闭本轮节点。
+
+本机通过 `mgmd-ros-display` 临时容器将 Docker Desktop 的 WSLg 显示套接字接到 `mgmd-ros` 的回环接口 `127.0.0.1:6047`。该转接运行时，PowerShell 可用以下命令打开窗口。
+
+```powershell
+docker exec -d -u valuelesser mgmd-ros /usr/local/bin/mgmd-ros-live
+```
+
+安装 Ubuntu 的 pytest 后，系统的 `importlib-metadata 1.5.0` 会在推理路径上引起 `EntryPoints` 缺失。为容器用户 `valuelesser` 安装 `importlib-metadata 8.5.0` 后，重新启动的两个模型使用 CUDA 正常检测。Windows 桌面已看到跟踪框和 ID，`/mav/debug_image` 抽样约 20 Hz。
+
+Docker 验收覆盖文件回放、检测跟踪、实时桌面预览和录制。摄像头、TT 实机与 E3 对拍仍待验证。输入、推理和录制异步运行，输出视频帧数与完成检测的帧数分别统计。
 
 ---
 
@@ -364,6 +377,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
+| 2026-11-10 | 2.0.4 | §2.4.1 记录 roslaunch 桌面入口、WSLg 转接和 `importlib-metadata` 兼容版本 | 验证 Windows 桌面实时预览 | Docker 端 `/mav/debug_image` 与 rqt 桌面显示 |
 | 2026-11-10 | 2.0.3 | §2.4 记录 Docker 容器的 Catkin 软链接、项目用户依赖、CUDA 配置、启动入口和回放结果 | 验证已迁移的 `mgmd-ros` 容器 | Docker 视频回放、检测话题、可视化话题和录制 |
 | 2026-11-05 | 2.0.2 | 当前环境从原生 Ubuntu 更新为 WSL2 Ubuntu 20.04；补齐 Python 3.8/ORT CUDA/CPU torch、路径、Qt/CPU 编码、重跑命令与收尾限制；一并保留 `.dsh-run/29_rerun_verify.sh` 与两份部署/运行记录，在根 AGENTS.md 固化维护与提交约定 | 用户要求只更新 SPEC 环境部分、PRD 不改，并要求及时按 SPEC 维护与提交 | 环境与运行说明；脚本增加 Qt 退出等待与兜底清理；记录本机回放证据，不新增精度或实机验收结论 |
 | 2026-10-29 | 0.1.0 | 建立本文件；登记阶段二基线、分支策略、实施阶段划分 | 用户要求 ROS 阶段独立 SPEC 并持续维护 | — |

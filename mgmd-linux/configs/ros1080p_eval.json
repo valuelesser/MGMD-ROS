@@ -1,0 +1,84 @@
+{
+  "baseline_ref": "905a39563a7fe07587071e62d12f37a98cd1db19",
+  "baseline_code": "570b801cc214199c232884d54484be1f7eecac14",
+  "baseline_report": "mgmd-linux/outputs/tables/ros_testset_30hz_20261108.json",
+  "rate_hz": 30.0,
+  "resolution": [
+    1920,
+    1080
+  ],
+  "device": "cuda",
+  "viewer": "rqt_image_view /mav/debug_image",
+  "encoder": "nvenc",
+  "mfe_preset": "recommended",
+  "d_min": 0.02,
+  "frame_delta_predict": true,
+  "association_radius_factor": 2.0,
+  "match_iou": 0.25,
+  "model_sha256": {
+    "lac.onnx": "61be295046edd1c691a4decc971a18cd23105dc31dfa614112264d6a1309d1ca",
+    "yolov5s_GLAD-crop.onnx": "a19585acee01b4d2dda12edc45b09612f4711ab4f176aff33dd2d0bd98255f96"
+  },
+  "videos": [
+    {
+      "video": "phantom05",
+      "labeled_frames": 1799
+    },
+    {
+      "video": "phantom08",
+      "labeled_frames": 1501
+    },
+    {
+      "video": "phantom09",
+      "labeled_frames": 1799
+    },
+    {
+      "video": "phantom10",
+      "labeled_frames": 1798
+    },
+    {
+      "video": "phantom19",
+      "labeled_frames": 2158
+    },
+    {
+      "video": "phantom30",
+      "labeled_frames": 1498
+    },
+    {
+      "video": "phantom41",
+      "labeled_frames": 1798
+    },
+    {
+      "video": "phantom43",
+      "labeled_frames": 1799
+    },
+    {
+      "video": "phantom46",
+      "labeled_frames": 1798
+    },
+    {
+      "video": "phantom47",
+      "labeled_frames": 2887
+    },
+    {
+      "video": "phantom58",
+      "labeled_frames": 2218
+    },
+    {
+      "video": "phantom63",
+      "labeled_frames": 1799
+    },
+    {
+      "video": "phantom65",
+      "labeled_frames": 2338
+    },
+    {
+      "video": "phantom70",
+      "labeled_frames": 1349
+    },
+    {
+      "video": "phantom86",
+      "labeled_frames": 1798
+    }
+  ]
+}

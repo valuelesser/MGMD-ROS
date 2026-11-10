@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.3` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.4` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.4 | 2026-11-11 | 本次 G0 提交 | 增加 Docker 能力探针、1080p 评测配置与实测记录 |
 | 0.1.3 | 2026-11-11 | 本次文档提交 | 固定主分支现有 1080p 基线，细化同 ROS、实时展示和录像负载下的验证 |
 | 0.1.2 | 2026-11-11 | 本次文档提交 | 细化工作包、接口、基准、对拍和上线条件 |
 | 0.1.1 | 2026-11-11 | 本次文档提交 | 定义全 GPU 数据路径、能力探针和逐阶段验收 |
@@ -116,6 +117,34 @@ ONNX Runtime I/O Binding 支持设备输入和输出，CUDA provider 可与调�
 
 G0 交付探针脚本、正式评测配置清单和候选环境摘要。若编解码失败，分别核查库映射、编译能力、驱动 API、输入格式和实际设备帧。允许先用主机解码后单次上传验证计算链。该模式单独标记为过渡模式。正式对照要求 NVENC 与可见 rqt 同时正常运行。
 
+#### 6.2.1 G0 实测记录（2026-11-11）
+
+在现有 `mgmd-ros` 容器以 `valuelesser` 运行。镜像为 Ubuntu 20.04（ID `8feb4d8ca535`），RTX 3050 Laptop 4 GiB，驱动 621.14，Torch 2.4.1+cu121、cuDNN 9.1、ORT 1.19.2。实际运行源码的逐文件 SHA-256 在探针的 `environment.log`，容器迁移副本按该清单标识。两份模型哈希与主分支正式结果一致。15 个视频均存在，逐视频标注帧数与正式清单相符，合计 28,337 帧。固定视频、标注帧数、模型哈希及正式参数见 [ros1080p_eval.json](../configs/ros1080p_eval.json)。
+
+| 项目 | 实测结果 |
+|---|---|
+| CUDA | Torch CUDA 张量运算通过。ORT profile 中 LAC 10 个、LAD 188 个执行事件标记为 CUDA，本次输入没有 CPU provider 执行事件。 |
+| NVDEC / libav | 现有 `phantom30` 的前 120 个可播放帧返回 CUDA `AVFrame`，底层 NV12，1920×1080，stride 2048。PTS 单调递增，首帧 0、末帧 119119。 |
+| NVENC / 显存帧直通 | 独立 NVENC 输出和 NVDEC→NVENC 输出均通过 H.264、1920×1080、120 帧读回校验。直通图的编码输入为 CUDA 帧。 |
+| ROS/rqt/NVENC | 1080p、30 Hz、`phantom30` 前 600 帧。两个图像话题均为 1920×1080 bgr8，WSLg 上有可见 rqt 窗口且订阅 `/mav/debug_image`。该话题采样约 26.4 Hz。源发布 600 帧，检测处理 49 帧，H.264 录像可解码 526 帧。此次使用现有 ROS 计算后端，结果只用于环境验收。 |
+
+现有容器创建时没有映射 `libnvcuvid.so.1` 和 `libnvidia-encode.so.1`。本轮从同一 Docker 驱动环境、启用 `compute,utility,video` 的临时容器中读取真实文件，临时放到 `/tmp/mgmd-g0-video-libs`。系统 FFmpeg 4.2.7 能加载编码库，但旧预设 API 返回 `unsupported param (12)`。本轮在 `/opt/mgmd-g0-ffmpeg` 独立构建 FFmpeg 6.1.3 和 `nv-codec-headers n12.1.14.0`。构建需启用 `file,pipe,fd` 协议，因为现有录像器以 `-i -` 传 BGR 帧。显式 `h264_cuvid` 路径曾产生 120 个编码包却只在默认编辑列表下读回 95 帧。通过的探针使用原生 H.264 解码器加 CUDA 硬件加速并检查设备像素格式，按正常播放范围验证 120 帧。
+
+在容器工程目录下以项目用户复测。视频路径选择现有 ARD-MAV 原文件。第二条脚本需已有 WSLg 转接，使用独立 ROS master 端口，结束后关闭本轮节点和窗口。
+
+```bash
+export PATH=/opt/mgmd-g0-ffmpeg/bin:$PATH
+export LD_LIBRARY_PATH=/tmp/mgmd-g0-video-libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+videos=(/data/videos/*/ARD-MAV/videos/phantom30.mp4)
+bash scripts/probe_gpu_g0.sh "${videos[0]}" "outputs/g0_$(date +%Y%m%d_%H%M%S)"
+bash scripts/probe_gpu_g0_ros.sh "outputs/g0_ros_$(date +%Y%m%d_%H%M%S)"
+cc -Wall -Wextra -Werror scripts/probe_cuda_frames.c -o /tmp/mgmd-probe-cuda-frames \
+  $(pkg-config --cflags --libs libavformat libavcodec libavutil)
+/tmp/mgmd-probe-cuda-frames "${videos[0]}"
+```
+
+成功证据在容器 `outputs/g0_modern_20261111_065343/` 和 `outputs/g0_ros_20261111_065554/`。显存直通判定来自 libav 帧和 FFmpeg 图日志，完整候选计算链的拷贝 trace 留给 P5。基线继续使用主分支原报告。
+
 ### 6.3 G1–G4 实施任务与逐阶段对拍
 
 **G1 模型与设备帧**
@@ -161,6 +190,7 @@ G0 交付探针脚本、正式评测配置清单和候选环境摘要。若编�
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.4 | 实施 G0，添加 CUDA/编解码/libav 和 ROS/rqt 探针及固定评测配置 | CUDA、120 帧设备直通和 600 帧 ROS/NVENC 联合短测通过，见 §6.2.1。P5 与全量候选对照待后续。 |
 | 2026-11-11 | 0.1.3 | 按用户指示沿用主分支既有 1080p ROS 结果，固定 15 个现有视频和相同展示、录制负载，取消重建基线 | 核对远程默认分支、评测报告、配置 JSON 和运行脚本。候选运行待实现。 |
 | 2026-11-11 | 0.1.2 | 把全 GPU 路线拆为可执行工作包，定义缓冲区契约、基准采集和分阶段验收 | 文档规划。现有源码、历史验收口径和官方接口已核对，性能和硬件探针待实施。 |
 | 2026-11-11 | 0.1.1 | 增加全 GPU 驻留路线和多场景新基线，覆盖编解码、MFE、TF、LAC/LAD、可视化和 ROS 边界 | 源码与官方接口已核对。Docker 引擎未连通，G0 和 P5 待实测。 |

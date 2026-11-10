@@ -1,0 +1,17 @@
+subscribed to [/mav/detections]
+average rate: 19.968
+	min: 0.032s max: 0.078s std dev: 0.01099s window: 20
+average rate: 19.941
+	min: 0.032s max: 0.078s std dev: 0.00825s window: 40
+average rate: 19.987
+	min: 0.032s max: 0.078s std dev: 0.00718s window: 60
+average rate: 19.229
+	min: 0.032s max: 0.108s std dev: 0.01107s window: 77
+average rate: 19.331
+	min: 0.032s max: 0.108s std dev: 0.01048s window: 97
+average rate: 18.976
+	min: 0.032s max: 0.133s std dev: 0.01306s window: 114
+average rate: 19.136
+	min: 0.032s max: 0.133s std dev: 0.01237s window: 134
+average rate: 19.142
+	min: 0.032s max: 0.133s std dev: 0.01253s window: 141

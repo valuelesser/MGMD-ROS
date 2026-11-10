@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# 常驻实时演示：roscore + 自绘窗口 + 三节点（loop=true），供肉眼观察
+# 停止：bash .dsh-run/13_kill_all.sh
+set +u
+ROOT=/home/gaodu/毕业设计/mgmd-linux
+WS=$ROOT/ros1_ws
+LOG=$ROOT/outputs/logs
+OUT=$ROOT/outputs/ros_viz
+mkdir -p "$LOG" "$OUT"
+
+source /opt/ros/noetic/setup.bash
+source "$WS/devel/setup.bash"
+ROSPATH=$PYTHONPATH
+
+SP=$ROOT/.venv38/lib/python3.8/site-packages
+NV=$(find "$SP/nvidia" -maxdepth 3 -type d -name lib 2>/dev/null | tr '\n' ':')
+export PYTHONPATH="$SP:$ROOT:$ROSPATH"
+export LD_LIBRARY_PATH="${NV}${LD_LIBRARY_PATH:-}"
+export DISPLAY=:0
+export PYTHONUNBUFFERED=1
+export MGMD_ARD_ROOT="/mnt/c/Users/gaodu/Desktop/毕业设计/mgmd/data/videos/视频/ARD-MAV"
+export MGMD_YOLOV5_DIR="$ROOT/third_party/yolov5-v6.0"
+
+VIDEO=${1:-phantom30}
+RATE=${2:-20}
+W=${3:-960}
+H=${4:-720}
+
+echo "[0] 清理"
+bash "$ROOT/.dsh-run/13_kill_all.sh" >/dev/null 2>&1 || true
+sleep 1
+
+echo "[1] roscore"
+setsid nohup roscore > "$LOG/live.core.log" 2>&1 < /dev/null &
+for i in $(seq 1 25); do timeout 3 rostopic list >/dev/null 2>&1 && break; sleep 1; done
+pgrep -x rosmaster >/dev/null && echo "    OK" || { echo "    FAIL"; tail -5 "$LOG/live.core.log"; exit 1; }
+
+echo "[2] 实时窗口"
+PYTHONPATH="$ROOT:$ROSPATH" setsid nohup python3 "$ROOT/.dsh-run/17_viewer.py" \
+  > "$LOG/live.viewer.log" 2>&1 < /dev/null &
+sleep 3
+
+echo "[3] 三节点（loop=true，Ctrl 关闭窗口不会退出，用 13_kill_all.sh 停）"
+setsid nohup roslaunch mav_tracker_nodes track.launch \
+  video:="$VIDEO" rate:="$RATE" limit:=0 \
+  width:="$W" height:="$H" loop:=true \
+  device:=cuda d_min:=0.02 buffer:=6 \
+  out_video:="$OUT/live_${VIDEO}_${W}x${H}.mp4" encoder:=cpu visualize:=true \
+  > "$LOG/live.launch.log" 2>&1 < /dev/null &
+
+sleep 8
+echo "[4] 状态"
+timeout 5 rosnode list 2>&1
+grep -E '已处理|分段明细' "$LOG/live.launch.log" 2>/dev/null | tail -2
+echo "LIVE_STARTED"

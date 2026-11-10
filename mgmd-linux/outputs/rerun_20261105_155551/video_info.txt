@@ -1,0 +1,6 @@
+codec_name=mpeg4
+width=960
+height=720
+nb_frames=1195
+duration=59.750000
+size=53283148

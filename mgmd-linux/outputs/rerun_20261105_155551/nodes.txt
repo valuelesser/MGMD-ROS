@@ -1,0 +1,5 @@
+/detector_node
+/qt_viewer_464_1793865355100
+/rosout
+/video_source
+/visualize_node

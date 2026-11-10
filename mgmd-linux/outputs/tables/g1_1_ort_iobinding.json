@@ -1,0 +1,253 @@
+{
+  "torch": "2.4.1+cu121",
+  "ort": "1.19.2",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "rtol": 1e-05,
+  "atol": 0.001,
+  "models": [
+    {
+      "model": "lac.onnx",
+      "sha256": "61be295046edd1c691a4decc971a18cd23105dc31dfa614112264d6a1309d1ca",
+      "input": {
+        "name": "input",
+        "type": "tensor(float)",
+        "model_shape": [
+          "batch",
+          3,
+          32,
+          32
+        ]
+      },
+      "cases": [
+        {
+          "shape": [
+            1,
+            3,
+            32,
+            32
+          ],
+          "outputs": [
+            {
+              "name": "logits",
+              "shape": [
+                1,
+                2
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.0
+            }
+          ]
+        },
+        {
+          "shape": [
+            1,
+            3,
+            32,
+            32
+          ],
+          "outputs": [
+            {
+              "name": "logits",
+              "shape": [
+                1,
+                2
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.0
+            }
+          ]
+        },
+        {
+          "shape": [
+            4,
+            3,
+            32,
+            32
+          ],
+          "outputs": [
+            {
+              "name": "logits",
+              "shape": [
+                4,
+                2
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.0
+            }
+          ]
+        },
+        {
+          "shape": [
+            4,
+            3,
+            32,
+            32
+          ],
+          "outputs": [
+            {
+              "name": "logits",
+              "shape": [
+                4,
+                2
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.0
+            }
+          ]
+        }
+      ],
+      "kernel_providers": {
+        "CUDAExecutionProvider": 40
+      },
+      "ort_copy_nodes": [],
+      "ort_profile": "lac_2026-11-11_07-11-22.json",
+      "passed": true
+    },
+    {
+      "model": "yolov5s_GLAD-crop.onnx",
+      "sha256": "a19585acee01b4d2dda12edc45b09612f4711ab4f176aff33dd2d0bd98255f96",
+      "input": {
+        "name": "images",
+        "type": "tensor(float)",
+        "model_shape": [
+          1,
+          3,
+          320,
+          320
+        ]
+      },
+      "cases": [
+        {
+          "shape": [
+            1,
+            3,
+            320,
+            320
+          ],
+          "outputs": [
+            {
+              "name": "output",
+              "shape": [
+                1,
+                6300,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.05712318420410156
+            },
+            {
+              "name": "onnx::Sigmoid_369",
+              "shape": [
+                1,
+                3,
+                40,
+                40,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.006289482116699219
+            },
+            {
+              "name": "onnx::Sigmoid_420",
+              "shape": [
+                1,
+                3,
+                20,
+                20,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.0073490142822265625
+            },
+            {
+              "name": "onnx::Sigmoid_468",
+              "shape": [
+                1,
+                3,
+                10,
+                10,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.004242897033691406
+            }
+          ]
+        },
+        {
+          "shape": [
+            1,
+            3,
+            320,
+            320
+          ],
+          "outputs": [
+            {
+              "name": "output",
+              "shape": [
+                1,
+                6300,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.07364654541015625
+            },
+            {
+              "name": "onnx::Sigmoid_369",
+              "shape": [
+                1,
+                3,
+                40,
+                40,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.00760650634765625
+            },
+            {
+              "name": "onnx::Sigmoid_420",
+              "shape": [
+                1,
+                3,
+                20,
+                20,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.006789207458496094
+            },
+            {
+              "name": "onnx::Sigmoid_468",
+              "shape": [
+                1,
+                3,
+                10,
+                10,
+                6
+              ],
+              "matches": true,
+              "max_abs": 0.0,
+              "independent_max_abs": 0.004117012023925781
+            }
+          ]
+        }
+      ],
+      "kernel_providers": {
+        "CUDAExecutionProvider": 376
+      },
+      "ort_copy_nodes": [],
+      "ort_profile": "yolov5s_GLAD-crop_2026-11-11_07-11-23.json",
+      "passed": true
+    }
+  ]
+}

@@ -4,7 +4,8 @@
 
 - 修改前阅读适用规格：`mgmd-linux/docs/SPEC.md`（阶段一）、`mgmd-linux/docs/SPEC-ROS.md`（ROS 阶段）；`tracking/` 同时遵循其目录内的 `AGENTS.md`。
 - 修改实现时同步维护相应 SPEC、修正记录、版本信息及受影响的验收项，并将实现与规格放在同一次提交中。纯文档修订说明其范围，不改写历史实验结果。
-- 当前部署基线为 WSL2 `Ubuntu-20.04`；Windows 源码与 WSL 运行副本是不同目录。运行前核对或同步本次相关源码，保留不属于本任务的改动。
+- WSL2 部署见 `SPEC-ROS.md` §2.3，Docker 部署见 §2.4。Windows 源码与运行副本是不同目录。运行前核对本次涉及的源码，保留不属于本任务的改动。
+- `perf-optimization` 从 `docker` 分出，使用现有 `mgmd-ros` 容器。性能优化前须阅读并遵守 `mgmd-linux/docs/SPEC-PERF.md`。每次优化改动须在同一提交中更新实现、规格版本、修正记录及受影响的验收证据；涉及原 SPEC 契约时同步更新对应 SPEC。
 - 提交前完成与改动相称的验证，检查 `git diff --check` 和暂存文件清单。只暂存本任务文件，不使用 `git add -A` 混入原有改动。
 - 提交信息遵循适用 SPEC 的格式，例如 `ros: <改动> (SPEC-ROS §2.3)`。纯文档提交可加 `[doc-only]`。
 - 提交后必须执行 `git show --stat HEAD`，核对文件与提交内容，并向用户报告提交哈希、验证结果及剩余未提交内容。

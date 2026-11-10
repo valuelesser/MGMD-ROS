@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.1` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.2` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.2 | 2026-11-11 | 本次文档提交 | 细化工作包、接口、基准、对拍和上线条件 |
 | 0.1.1 | 2026-11-11 | 本次文档提交 | 定义全 GPU 数据路径、能力探针和逐阶段验收 |
 | 0.1.0 | 2026-11-11 | 初始规格提交 | 建立 Docker 性能优化基线、测量口径与提交规则 |
 
@@ -76,6 +77,69 @@ FFmpeg 的 CUDA 硬件帧、NVDEC 和 NVENC 有官方支持。当前 WSL 容器�
 
 ONNX Runtime I/O Binding 支持设备输入和输出，CUDA provider 可与调用方计算流协作。GPU 路径需验证张量布局、缓冲生命周期、流同步和实际算子设备。CUDA LK 和 GPU 精确分配已有参考实现，现有算法的边界条件和结果一致性仍由对拍验证。[ORT I/O Binding](https://onnxruntime.ai/docs/performance/tune-performance/iobinding.html) · [ORT CUDA Provider](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html) · [OpenCV CUDA LK](https://docs.opencv.org/doc/doxygen/html/d7/d05/classcv_1_1cuda_1_1SparsePyrLKOpticalFlow.html) · [NVIDIA GPU 线性分配](https://docs.nvidia.com/cugraph/latest/graph_support/algorithms/cpp_algorithms/linear_cpp/) · [Nsight Systems CUDA Trace](https://docs.nvidia.com/nsight-systems/UserGuide/#cuda-trace)
 
+### 6.1 运行入口和缓冲区契约
+
+- 保留 `track.launch` 作为参考入口。新增独立 GPU launch，将读取、检测和叠框放进同一个工作进程，仍由 ROS 管理启停。第一版覆盖现有 Docker 的文件回放。后续摄像头按输入格式重新验收，已解码的主机帧需要一次入口上传。
+- 每个输入帧记录源帧号、循环轮次、视频 PTS、ROS 时间戳、到达时刻、尺寸、格式和逐平面 stride。设备帧由持有 FFmpeg 引用的对象管理。计算、预览和编码消费者完成后才能回收缓冲槽。FFmpeg CUDA 上下文与 Torch/ORT 的互操作先用单帧验证。统一 GPU 编号，显式使用同一上下文或确认可安全共享缓冲区。
+- 首版用一条计算流串行衔接 MFE、TF、LAC 和 LAD，阶段间靠流内顺序。解码及输出接口各自使用事件交接。先复用有界的帧、裁剪、候选和跟踪状态缓冲。首次分配、预热、阻塞等待、缓冲峰值和溢出单独计数。有结果后再测多流并发。 [FFmpeg 硬件帧示例](https://www.ffmpeg.org/doxygen/trunk/hw_decode_8c-example.html) · [CUDA 异步执行](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html)
+- 定义逐帧对拍与实时回放两种负载。对拍完整处理同一组可用帧，使用同一份解码输入隔离算法差异。实时按当前帧窗口和队列策略处理，记录等待未来帧、入口覆盖、缓冲淘汰和关闭时的尾帧。循环使用源帧号与轮次识别重置，先核对现有运行副本的契约。
+
+### 6.2 G0 可执行探针与基准数据
+
+1. 容器恢复后记录镜像 ID、实际源码路径和指纹、Docker GPU 配置、驱动、FFmpeg 版本及编译参数。用项目用户分别跑 Torch CUDA 张量、两份模型实际推理、NVDEC 和 NVENC。记录真实算子设备、输入格式、输出格式和错误日志。
+2. 用 H.264 样片验证解码到编码。以下是待在当前 FFmpeg 上验证的容器内探针，`VIDEO` 为样片路径，`RUN_DIR` 为本轮输出目录。再用最小 libav 适配器确认返回 CUDA 硬件帧及其 NV12 等实际底层格式，检查 trace 中的拷贝。 [NVIDIA FFmpeg 指南](https://docs.nvidia.com/video-technologies/video-codec-sdk/13.0/ffmpeg-with-nvidia-gpu/index.html)
+
+   ```bash
+   ffmpeg -hide_banner -loglevel verbose -hwaccel cuda -hwaccel_output_format cuda \
+     -i "$VIDEO" -map 0:v:0 -an -vsync 0 -frames:v 120 -c:v h264_nvenc \
+     "$RUN_DIR/gpu-codec-probe.mp4"
+   ffprobe -v error -select_streams v:0 -count_frames \
+     -show_entries stream=codec_name,width,height,nb_read_frames \
+     "$RUN_DIR/gpu-codec-probe.mp4"
+   ```
+
+3. 用当前参考实现先测新片段，按实测候选数和镜头运动分层并冻结片段清单。清单保存文件哈希、源帧范围、帧率和分辨率。分别测完整处理、固定节拍和非限速。每个正式比较条件至少三轮，基线与候选交错运行。预热参数固定，另报冷启动和预热耗时。
+4. 每帧记录源帧号、到达、入队、窗口就绪、开始处理、结果发布和可选输出完成的时刻。GPU 阶段用 CUDA events 计时，等待和墙钟时间另算。输出发布减去同一输入帧的到达时间为端到端延迟，含等待未来帧。记录 p50/p95/p99、处理帧数除以实测运行时间、各丢帧原因及分母、GPU 显存峰值和各类拷贝的次数与字节。trace 用于定位，正式性能比较使用未开启 trace 的运行。
+
+G0 交付探针脚本、固定片段清单、当前参考实现的基线表和环境摘要。若编解码失败，分别核查库映射、编译能力、驱动 API、输入格式和实际设备帧。允许先用主机解码后单次上传验证计算链。该模式单独标记为过渡模式，编解码能力恢复后再验收严格模式。
+
+### 6.3 G1–G4 实施任务与逐阶段对拍
+
+**G1 模型与设备帧**
+
+1. 先用固定设备张量验证 ORT CUDA I/O Binding。保留 CUDA 输入输出的引用，固定当前精度。确认每个模型实际输入名、输出名、形状和算子执行设备。分别比较参考裁剪张量、LAC logits/softmax、LAD 原始预测和最终精修框。
+2. 实现按候选裁剪、边界处理、letterbox、归一化和 GPU 后处理。复用当前置信度门限、NMS 门限、排序与最近中心规则。用零候选、单候选、多候选、贴边框和等分数样例验证。先以单裁剪模型打通。需要扩大 batch 时先检查模型支持与输出等价性。
+3. 接入 libav 解码适配。逐帧对照 PTS、帧数和色彩转换，覆盖 MP4 编辑列表、码流尾帧、退出和循环重置。像素对拍区分解码、色彩范围、缩放插值和算法误差。短样先隔离 GPU 模型，长样验证缓冲生命周期与显存稳定。
+
+**G2 MFE**
+
+1. 先实现灰度、预处理、差分、阈值、形态学及连通域统计。用固定单应矩阵将图像算子与对齐算法分开验证。记录插值、边界填充、有效区、连通性、候选面积和排序。
+2. 实测 CUDA 稀疏 LK 的关键点和状态，再接 GPU 单应性求解和透视变换。分别保存内点数、重投影误差、有效区、候选数量和位置。覆盖低纹理、无有效变换、镜头抖动和高候选帧。需要新增 CUDA 内核时放在 ROS GPU 后端，复用阶段一配置和参考输出。
+3. 隔离对拍通过后接入帧窗口。缓存可复用的灰度帧等中间结果。逐轮测量每项缓存或融合对延迟、显存与数值结果的影响。
+
+**G3 TF**
+
+1. 先从新基线采样真实关联矩阵，记录行列分布、门控稀疏度和代价并列频率。用实际规模比较 CPU 参考与设备端精确分配原型，时间包含同步和必要拷贝。
+2. 将 Kalman 预测、更新、关联和轨迹生命周期放到 GPU。验证空集、矩形矩阵、相同代价、同帧重复、跨帧跳跃、丢失重现和循环重置。对拍关联对、目标函数值和轨迹 ID。等价最优解导致 ID 变化时，先确定稳定的匹配规则并逐段检查其影响。
+3. 在 MFE 和 TF 间传递有界设备候选数组及设备端计数。超过容量时显式报告、按规则扩容或终止严格模式。禁止无记录地截断候选或切换求解器。
+
+**G4 输出与稳定性**
+
+1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
+2. 将叠框结果交给 NVENC，核对支持的输入格式、PTS、录制帧数与 EOF flush。整段解码输出录像，检查逐帧顺序和封装可读性。
+3. 分别跑只发布检测、桌面预览、录像和预览加录像。加入反复启动、长时间循环、退出和高负载验证。记录显存峰值与随时间变化，验证消费较慢时的队列上限和回放停止后的资源释放。
+
+### 6.4 验收与提交顺序
+
+| 验收 | 判定与证据 |
+|---|---|
+| 正确性 | 以循环轮次和源帧号对齐。记录未匹配框、每帧检测框数量、中心偏差、置信度偏差和 ID 切换。沿用 SPEC-ROS 的 E3 门槛作为最低框中心与检测帧数回归参考（分别小于 2 px 和 2%），逐帧记录阈值边缘差异和异常片段。跟踪 ID 连续性单独验收。 |
+| 显存驻留 | 严格模式无计算主链整帧或中间结果 H2D/D2H，无未登记的 CPU 算子。对 ROS 检测元数据、码流和可选预览分别计量。阶段完成以设备指针、trace 和功能结果共同确认。 |
+| 性能 | 同负载报告各轮、其中位数与波动。提升需超过轮间波动，并同时报告 p95/p99、丢帧和显存的变化。先由新基线确定目标值。GPU 驻留达标与加速达标分别记录。 |
+| 可重复 | 每轮交付运行摘要和结果表。记录 Git 提交、运行副本指纹、容器和依赖版本、配置、片段哈希、命令及 trace 位置。 |
+
+按 `G0 探针与基线 → G1 I/O Binding 和设备帧 → G2 MFE → G3 TF → G4 集成` 提交。G0 完成后可提前验证 G2 的单应性和 G3 的精确分配，避免直到集成才暴露语义差异。每个可验证的小步同次提交代码、配置、SPEC 版本、§8 修正记录和结果。第一笔实现提交交付当前 Docker 环境探针、基准采集入口和环境摘要。数值基线与目标值随首次有效运行登记。
+
 ## 7. 偏差表
 
 当前尚无优化实现引入的偏差。后续按版本、偏差、原因和验收影响登记。
@@ -84,5 +148,6 @@ ONNX Runtime I/O Binding 支持设备输入和输出，CUDA provider 可与调�
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.2 | 把全 GPU 路线拆为可执行工作包，定义缓冲区契约、基准采集和分阶段验收 | 文档规划。现有源码、历史验收口径和官方接口已核对，性能和硬件探针待实施。 |
 | 2026-11-11 | 0.1.1 | 增加全 GPU 驻留路线和多场景新基线，覆盖编解码、MFE、TF、LAC/LAD、可视化和 ROS 边界 | 源码与官方接口已核对。Docker 引擎未连通，G0 和 P5 待实测。 |
 | 2026-11-11 | 0.1.0 | 从本地 `docker` 创建优化分支并建立独立规格，约定每轮代码与规格同步提交 | 记录最近一次 Docker 回放证据与待复测项。P1–P4 等待首轮性能基线。 |

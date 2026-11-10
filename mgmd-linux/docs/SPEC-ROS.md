@@ -4,8 +4,8 @@
 > 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）§11
 > 当前运行环境：Windows 宿主机上的 WSL2 `Ubuntu-20.04`（Ubuntu 20.04.6 LTS）
 > WSL 工程根：`/home/gaodu/毕业设计/mgmd-linux/`
-> 最后更新：2026-11-05（环境文档修订，PRD 保持 v4.2）
-> 当前环境与启动方式以 §2.3 为准；后续章节的原生 Ubuntu 环境、性能数据与路径保留为历史记录。
+> 最后更新：2026-11-10（补充 Docker 回放环境和运行记录，PRD v4.2）
+> WSL2 启动方式见 §2.3，Docker 启动方式见 §2.4。后续章节保留原生 Ubuntu 环境的历史记录。
 
 ---
 
@@ -22,12 +22,13 @@
 | **V7** | **不得修改阶段一的 `mgmd/` 代码**（约束 C1-3）。必需扩展时在 `mgmd_ros/` 下包装，不改原文件 |
 | **V8** | 阶段一算法与指标保持冻结；`docs/SPEC.md` 1.0.2 仅按用户要求同步 WSL 环境说明，结果基线仍为 1.0.1（§10.13） |
 
-`spec_version: 2.0.2` | `prd_version: 4.2` | `stage1_spec: 1.0.2`（仅环境修订，结果基线仍为 1.0.1）
+`spec_version: 2.0.3` | `prd_version: 4.2` | `stage1_spec: 1.0.2`（仅环境修订，结果基线仍为 1.0.1）
 
 ### 0.1 版本记录
 
 | spec_version | 日期 | commit | 变更摘要 |
 |---|---|---|---|
+| **2.0.3** | **2026-11-10** | 本次文档修订 | §2.4 记录现有 `mgmd-ros` 容器的工作空间修复、依赖、启动命令与回放结果 |
 | **2.0.2** | **2026-11-05** | 本次提交（环境维护） | **§2.3 更新为当前 WSL2 Ubuntu 20.04 环境、依赖、路径、运行方式和显示/编码限制；保留重跑脚本及运行记录；根目录 AGENTS.md 记录后续按 SPEC 维护与提交的授权；PRD 与业务代码不变** |
 | **0.1.0** | **2026-10-29** | 本轮 | 建立本文件；继承 PRD §11 全部决策；登记阶段二基线 |
 
@@ -204,6 +205,34 @@ wsl -d Ubuntu-20.04 -- bash '/mnt/c/Users/gaodu/Desktop/opencode/mgmd_project_20
 
 ---
 
+### 2.4 Docker Desktop 回放环境
+
+`mgmd-ros` 使用 Ubuntu 20.04、ROS Noetic、Python 3.8.10，Docker 已透传 RTX 3050 Laptop GPU。容器工程位于 `/workspace/MGMD-ROS/mgmd-linux`。这次使用容器已有的迁移版本。它与本地检出的 ROS 源码存在差异，包含独立的 `mgmd_onnx/frame_buffer.py`。
+
+迁移后的 `ros1_ws/src/CMakeLists.txt` 是存有目标路径的普通文本文件。恢复指向 `/opt/ros/noetic/share/catkin/cmake/toplevel.cmake` 的软链接后，以 `catkin_make -j4 -DPYTHON_EXECUTABLE=/usr/bin/python3` 编译两个 ROS 包，生成自定义消息。
+
+检测使用容器用户 `valuelesser` 已安装的 PyTorch 2.4.1+cu121、torchvision 0.19.1+cu121、OpenCV 5.0.0、SciPy 1.10.1 和 ONNX Runtime GPU 1.19.2。启动时加载 Catkin 工作空间及 CUDA/cuDNN 动态库，YOLOv5 路径为 `/workspace/MGMD-ROS/tracking/third_party/yolov5-v6.0`。两份 ONNX 模型位于 `/home/gaoduan/tracking/data_raw/mgmd_weights`，SHA-256 均与登记值一致。
+
+容器已安装回放入口 `/usr/local/bin/mgmd-ros-demo`。在 Windows PowerShell 执行下面的命令。脚本以项目用户运行，默认读取 `/data/videos/视频/ARD-MAV/videos/phantom30.mp4`，以 20 Hz 回放到文件结束，用 CUDA 推理和 CPU 编码。运行目录由 `RUN=` 打印，视频与日志保存到该目录。回放结束后脚本关闭本轮 ROS 进程并检查视频能否完整解码。
+
+```powershell
+docker start mgmd-ros
+docker exec mgmd-ros runuser -u valuelesser -- /usr/local/bin/mgmd-ros-demo
+```
+
+| 验证 | 2026-11-10 结果 |
+|---|---|
+| ROS 构建和逻辑测试 | 两个包编译成功。容器安装 `python3-pytest` 后，跟踪和帧缓冲定向测试 28 项通过 |
+| 推理 | LAC 和 LAD 实际使用 `CUDAExecutionProvider` |
+| 源视频 | 容器内 FFmpeg 按 MP4 编辑列表解码 1,498 帧，忽略编辑列表时解码 1,523 帧。ROS 按默认播放范围发布 1,498 帧 |
+| 检测 | 节点处理 1,405 帧，收到 1,405 条检测消息，其中 1,108 条有检测框。抽样约 19.7 Hz |
+| 可视化 | `/mav/debug_image` 抽样约 20.0 Hz。输出 960×720、1,498 帧、74.9 秒，FFmpeg 全段解码通过 |
+| 证据 | Windows 工作目录下 `mgmd-ros-docker-20261110/` 保存视频、节点清单及运行日志 |
+
+这次验收覆盖 Docker 内的文件回放、检测跟踪、可视化话题和录制。实时桌面窗口、摄像头、TT 实机与 E3 对拍仍待验证。输入、推理和录制异步运行，输出视频帧数与完成检测的帧数分别统计。
+
+---
+
 ## 3. 实施阶段划分
 
 PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行按"**能否离线完成**"切分：
@@ -335,6 +364,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
+| 2026-11-10 | 2.0.3 | §2.4 记录 Docker 容器的 Catkin 软链接、项目用户依赖、CUDA 配置、启动入口和回放结果 | 验证已迁移的 `mgmd-ros` 容器 | Docker 视频回放、检测话题、可视化话题和录制 |
 | 2026-11-05 | 2.0.2 | 当前环境从原生 Ubuntu 更新为 WSL2 Ubuntu 20.04；补齐 Python 3.8/ORT CUDA/CPU torch、路径、Qt/CPU 编码、重跑命令与收尾限制；一并保留 `.dsh-run/29_rerun_verify.sh` 与两份部署/运行记录，在根 AGENTS.md 固化维护与提交约定 | 用户要求只更新 SPEC 环境部分、PRD 不改，并要求及时按 SPEC 维护与提交 | 环境与运行说明；脚本增加 Qt 退出等待与兜底清理；记录本机回放证据，不新增精度或实机验收结论 |
 | 2026-10-29 | 0.1.0 | 建立本文件；登记阶段二基线、分支策略、实施阶段划分 | 用户要求 ROS 阶段独立 SPEC 并持续维护 | — |
 | 2026-10-29 | 0.2.0 | §9 补详细计划 S1–S5；删除 ros2_ws；`vx/vy` 单位改为像素/帧 | 用户要求先看计划再动手 | §4.1 E3 |

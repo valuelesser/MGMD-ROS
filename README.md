@@ -97,7 +97,7 @@ source ros1_ws/devel/setup.bash
 source scripts/env_setup_ros38.sh
 
 roslaunch mav_tracker_nodes track.launch \
-  video:=phantom69 rate:=6 limit:=1349 loop:=false \
+  video:=phantom68 rate:=6 limit:=1349 loop:=false \
   width:=1920 height:=1080 device:=cuda \
   out_video:=/home/gaoduan/毕业设计/mgmd-linux/outputs/ros_viz/phantom70_manual.mp4
 ```

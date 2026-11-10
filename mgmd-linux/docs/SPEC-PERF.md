@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.7` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.8` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.8 | 2026-11-11 | 本次 G1.4 提交 | 完成真实 NVDEC 帧到 LAC/LAD 的串联对拍和独立计时 |
 | 0.1.7 | 2026-11-11 | 本次 G1.3 提交 | 接入 libav CUDA 解码帧并验证生命周期、PTS 和色彩 |
 | 0.1.6 | 2026-11-11 | 本次 G1.2 提交 | 实现 CUDA 裁剪、预处理和模型后处理，使用两段 1080p 视频对拍 |
 | 0.1.5 | 2026-11-11 | 本次 G1.1 提交 | 实测两份模型的 CUDA I/O Binding 与同会话数值一致性 |
@@ -226,6 +227,31 @@ python3 scripts/probe_cuda_decoder.py /tmp/mgmd-cuda-decoder.so \
 
 证据目录为容器 `outputs/g1_3_20261111_073306/`。 [验证摘要](../outputs/tables/g1_3_cuda_decoder.json)
 
+**G1.4 实测（2026-11-11）**
+
+从现有视频各取前 120 帧，以原 MFE/TF 在 OpenCV 解码帧上生成固定候选。GPU 模型链直接使用 NVDEC 产生的设备帧。诊断时，另将设备 BGR 下载给参考模型，以相同像素和候选比较模型链；再用原 OpenCV 像素比较颜色转换的影响。两段 236 个中心帧中，同像素的 LAC 输入、logits、LAD 输入和主预测逐元素相同。14,748 个 LAC 候选无阈值翻转，LAD 框和置信度一致。单独 ORT 会话在同像素上另有 4 个 LAD 框坐标变化，保留为跨会话差异。
+
+| 视频 | 原 OpenCV 像素对照 GPU 解码的 LAC 阈值变化 | 最终框有无变化 | 双方均出框时坐标变化 | GPU 链单帧 p50 / p95 | LAC 预处理 p50 / p95 |
+|---|---:|---:|---:|---:|---:|
+| phantom30 | 14 | 5 | 13 | 186.4 / 254.4 ms | 140.4 / 202.4 ms |
+| phantom70 | 1 | 0 | 5 | 41.6 / 60.8 ms | 15.1 / 30.0 ms |
+
+共同框的单坐标最大绝对差为 1 px。实际门控后原 OpenCV 路径输出 134/116 个框，GPU 解码路径输出 131/116 个框。逐框差异见 `frames.jsonl`。当前色彩转换与原路径的差异影响检测，须在 G2 对拍及正式验收中显式检查。正式主分支基线继续冻结。
+
+计时单独回放固定候选，排除参考推理、画面下载、MFE/TF、ROS 展示与录像。以同步墙钟报告解码和各模型子阶段，样本含冷启动。代码路径没有显式整帧上传或下载。为单裁剪 LAD 调度，LAC 阈值在 GPU 计算后读回紧凑索引，共 3,384 字节。PyTorch 分配峰值为 87.4/85.3 MiB，另有 ORT 和解码器分配。完整 CUDA 拷贝时间线属于 P5。高候选片段中逐候选 LAC 裁剪与缩放成为本实现的主要开销，结果仍属于开发验收。
+
+复用 G1.3 的库、环境和视频路径。
+
+```bash
+run="outputs/g1_4_$(date +%Y%m%d_%H%M%S)"
+python3 scripts/probe_cuda_models.py --decoder /tmp/mgmd-cuda-decoder.so \
+  "$run" "${a[0]}" "${b[0]}"
+python3 scripts/measure_cuda_model_chain.py /tmp/mgmd-cuda-decoder.so \
+  "$run/frames.jsonl" "$run/timed" "${a[0]}" "${b[0]}"
+```
+
+证据目录为容器 `outputs/g1_4_20261111_073306/`。 [逐视频摘要](../outputs/tables/g1_4_cuda_chain.json) · [分阶段计时](../outputs/tables/g1_4_cuda_timing.json)
+
 **G2 MFE**
 
 1. 先实现灰度、预处理、差分、阈值、形态学及连通域统计。用固定单应矩阵将图像算子与对齐算法分开验证。记录插值、边界填充、有效区、连通性、候选面积和排序。
@@ -263,6 +289,7 @@ python3 scripts/probe_cuda_decoder.py /tmp/mgmd-cuda-decoder.so \
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.8 | 将 NVDEC 设备帧与 CUDA 模型前后处理串联，并独立测量各阶段 | 236 帧同像素对拍通过。登记颜色转换导致的 15 次 LAC 阈值变化及 5 次最终框有无变化。 |
 | 2026-11-11 | 0.1.7 | 增加 NVDEC CUDA 帧适配与设备端 NV12→BGR | 两段视频解到 EOF，指针共享、PTS、重置和帧生命周期通过。记录色彩差异。 |
 | 2026-11-11 | 0.1.6 | 迁移 CUDA 裁剪、整数缩放、归一化和 LAC/LAD 后处理 | 两段现有视频 236 个中心帧对拍，LAC 无阈值翻转，LAD 框和置信度同会话一致。 |
 | 2026-11-11 | 0.1.5 | 增加 G1.1 双模型 CUDA I/O Binding 探针，确认全输出可写入预分配显存 | 同会话全部输出逐元素一致。独立 LAD 会话差异保留在摘要，G1.2 待对拍真实候选。 |

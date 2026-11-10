@@ -2,6 +2,7 @@
 
 import argparse
 from collections import Counter
+from contextlib import nullcontext
 import hashlib
 import importlib.util
 import json
@@ -15,6 +16,7 @@ from mgmd.lac import crop_box
 from mgmd.lad import crop_region
 from mgmd.mfe import MFEConfig, enhance
 from mgmd_onnx import LadOnnx
+from mgmd_onnx.cuda_frames import CudaDecoder
 from mgmd_onnx.cuda_models import CudaLac, CudaLad
 
 
@@ -38,7 +40,7 @@ def difference(actual, expected):
     return float(np.max(np.abs(actual - expected), initial=0))
 
 
-def compare_video(video, limit, pipe, lac, lad, independent_lad, log):
+def compare_video(video, limit, pipe, lac, lad, independent_lad, log, decoder=None):
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
         raise ValueError(f"Cannot open {video}")
@@ -48,12 +50,17 @@ def compare_video(video, limit, pipe, lac, lad, independent_lad, log):
     with torch.inference_mode():
         try:
             window = []
+            device_window = []
             for seq in range(limit):
                 ok, image = cap.read()
                 if not ok:
                     raise ValueError(f"{video} ended before frame {seq}")
                 assert image.shape == (1080, 1920, 3)
                 window.append(image)
+                if decoder is not None:
+                    decoded = decoder.read()
+                    assert decoded is not None and decoded.seq == seq
+                    device_window.append(decoded)
                 if len(window) < 3:
                     continue
                 prev, frame, following = window
@@ -64,8 +71,18 @@ def compare_video(video, limit, pipe, lac, lad, independent_lad, log):
                                          for x, y, w, h in boxes], frame_id,
                                         scores=[float(w * h) for _, _, w, h in boxes])
                 boxes = [track.box for track in tracks]
-                gpu = torch.from_numpy(frame).cuda()
-                crops = [crop_box(frame, box) for box in boxes]
+                if decoder is None:
+                    gpu = torch.from_numpy(frame).cuda()
+                    model_frame = frame
+                else:
+                    decoded = device_window[1]
+                    device_window.pop(0)
+                    gpu = decoded.image
+                    # Download solely for the same-pixel reference and color audit.
+                    model_frame = gpu.cpu().numpy()
+                    maxima["decode_bgr"] = max(maxima["decode_bgr"], difference(
+                        model_frame.astype(np.int16), frame.astype(np.int16)))
+                crops = [crop_box(model_frame, box) for box in boxes]
                 indices, inputs = lac.prepare(gpu, boxes)
                 assert indices == [i for i, crop in enumerate(crops) if crop is not None]
                 counts["frames"] += 1
@@ -73,6 +90,8 @@ def compare_video(video, limit, pipe, lac, lad, independent_lad, log):
                 row = {"video": video.stem, "frame": frame_id,
                        "candidates": [list(map(float, box)) for box in boxes],
                        "track_ids": [int(track.track_id) for track in tracks], "lad": []}
+                if decoder is not None:
+                    row["pts"] = decoded.pts
                 if indices:
                     host_crops = [crops[i] for i in indices]
                     expected = np.asarray(pipe.lac.mav_prob_batch(host_crops))
@@ -88,26 +107,33 @@ def compare_video(video, limit, pipe, lac, lad, independent_lad, log):
                     counts["lac_threshold_flips"] += int(np.count_nonzero(keep != gpu_keep))
                     row["lac_reference_keep"] = [i for i, flag in zip(indices, keep) if flag]
                     row["lac_gpu_keep"] = [i for i, flag in zip(indices, gpu_keep) if flag]
-                    for i, ref_keep, dev_keep in zip(indices, keep, gpu_keep):
-                        if not (ref_keep or dev_keep):
+                    original_keep = keep
+                    if decoder is not None:
+                        original = np.asarray(pipe.lac.mav_prob_batch(
+                            [crop_box(frame, boxes[i]) for i in indices]))
+                        original_keep = original >= pipe.lac_thresh
+                        counts["decode_lac_threshold_flips"] += int(np.count_nonzero(keep != original_keep))
+                        row["lac_original_keep"] = [i for i, flag in zip(indices, original_keep) if flag]
+                    for i, ref_keep, dev_keep, source_keep in zip(indices, keep, gpu_keep, original_keep):
+                        if not (ref_keep or dev_keep or source_keep):
                             continue
                         x1, y1, x2, y2 = boxes[i]
                         center = ((x1 + x2) / 2, (y1 + y2) / 2)
                         tensor, region = lad.prepare(gpu, center)
                         x, y, w, h = crop_region(frame.shape[:2], center, lad.size)
                         assert region == (x, y, w, h)
-                        crop = frame[y:y + h, x:x + w]
+                        crop = model_frame[y:y + h, x:x + w]
                         maxima["lad_input"] = max(maxima["lad_input"],
                                                  difference(tensor.cpu().numpy(), pipe.lad._preprocess(crop)[None]))
                         ref_raw = pipe.lad.infer(crop)
                         raw = lad.model.run(tensor)[0]
                         maxima["lad_raw"] = max(maxima["lad_raw"], difference(raw.cpu().numpy(), ref_raw))
-                        ref = pipe.lad.refine(frame, center)
+                        ref = pipe.lad.refine(model_frame, center)
                         expected_box = list(ref.box) + [ref.conf] if ref is not None else None
                         other_raw = independent_lad.infer(crop)
                         maxima["lad_independent_raw"] = max(maxima["lad_independent_raw"],
                                                              difference(other_raw, ref_raw))
-                        other = independent_lad.refine(frame, center)
+                        other = independent_lad.refine(model_frame, center)
                         other_box = list(other.box) + [other.conf] if other is not None else None
                         counts["lad_independent_presence_flips"] += int(
                             (expected_box is None) != (other_box is None))
@@ -123,8 +149,19 @@ def compare_video(video, limit, pipe, lac, lad, independent_lad, log):
                             delta = difference(np.asarray(actual_box), np.asarray(expected_box))
                             maxima["lad_box_or_confidence"] = max(maxima["lad_box_or_confidence"], delta)
                             counts["lad_coordinate_changes"] += int(actual_box[:4] != expected_box[:4])
-                        row["lad"].append({"candidate": i, "reference": expected_box, "gpu": actual_box,
-                                           "independent_reference": other_box})
+                        record = {"candidate": i, "reference": expected_box, "gpu": actual_box,
+                                  "independent_reference": other_box}
+                        if decoder is not None:
+                            original_box = pipe.lad.refine(frame, center) if source_keep else None
+                            original_box = list(original_box.box) + [original_box.conf] if original_box else None
+                            gpu_final = actual_box if dev_keep else None
+                            counts["decode_final_presence_flips"] += int((original_box is None) != (gpu_final is None))
+                            if original_box is not None and gpu_final is not None:
+                                counts["decode_final_coordinate_changes"] += int(original_box[:4] != gpu_final[:4])
+                                maxima["decode_final_coordinate"] = max(maxima["decode_final_coordinate"],
+                                    difference(np.asarray(original_box[:4]), np.asarray(gpu_final[:4])))
+                            record["original_decoder"] = original_box
+                        row["lad"].append(record)
                 log.write(json.dumps(row, allow_nan=False) + "\n")
         finally:
             cap.release()
@@ -153,6 +190,7 @@ def main():
     parser.add_argument("out", type=Path)
     parser.add_argument("videos", nargs="+", type=Path)
     parser.add_argument("--frames", type=int, default=120)
+    parser.add_argument("--decoder", type=Path, help="Use native CUDA decode for the GPU path")
     args = parser.parse_args()
     args.out.mkdir()
     pipe = reference_pipeline()
@@ -160,9 +198,13 @@ def main():
     independent = LadOnnx(device="cuda", conf_thresh=pipe.lad_conf)
     edge_cases(lac, lad)
     with (args.out / "frames.jsonl").open("w") as log:
-        results = [compare_video(video, args.frames, pipe, lac, lad, independent, log)
-                   for video in args.videos]
-    report = json.dumps({"edge_cases": "pass", "videos": results}, indent=2, allow_nan=False) + "\n"
+        results = []
+        for video in args.videos:
+            context = CudaDecoder(args.decoder, video) if args.decoder else nullcontext()
+            with context as decoder:
+                results.append(compare_video(video, args.frames, pipe, lac, lad, independent, log, decoder))
+    report = json.dumps({"edge_cases": "pass", "cuda_decode": bool(args.decoder),
+                         "videos": results}, indent=2, allow_nan=False) + "\n"
     (args.out / "summary.json").write_text(report)
     print(report, end="")
 

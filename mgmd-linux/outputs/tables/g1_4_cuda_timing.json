@@ -1,0 +1,96 @@
+{
+  "videos": [
+    {
+      "video": "phantom30.mp4",
+      "frames": 118,
+      "detections": 131,
+      "explicit_frame_uploads": 0,
+      "explicit_frame_downloads": 0,
+      "dispatch_metadata_d2h_bytes": 2296,
+      "torch_peak_allocated_bytes": 91681792,
+      "synchronized_wall_ms": {
+        "decode_and_bgr": {
+          "samples": 119,
+          "p50": 10.60016400015229,
+          "p95": 11.671376399999644
+        },
+        "lac_preprocess": {
+          "samples": 118,
+          "p50": 140.35619549986222,
+          "p95": 202.35969160000877
+        },
+        "lac_inference_and_softmax": {
+          "samples": 118,
+          "p50": 10.046832499938319,
+          "p95": 14.430835099892642
+        },
+        "per_frame": {
+          "samples": 118,
+          "p50": 186.39696149989504,
+          "p95": 254.4336615998645
+        },
+        "lad_preprocess": {
+          "samples": 287,
+          "p50": 0.22212399971976993,
+          "p95": 0.42976269987775595
+        },
+        "lad_inference": {
+          "samples": 287,
+          "p50": 6.214353999894229,
+          "p95": 12.670257899708304
+        },
+        "lad_nms_and_select": {
+          "samples": 287,
+          "p50": 0.6695199999739998,
+          "p95": 3.6383681998813686
+        }
+      }
+    },
+    {
+      "video": "phantom70.mp4",
+      "frames": 118,
+      "detections": 116,
+      "explicit_frame_uploads": 0,
+      "explicit_frame_downloads": 0,
+      "dispatch_metadata_d2h_bytes": 1088,
+      "torch_peak_allocated_bytes": 89428480,
+      "synchronized_wall_ms": {
+        "decode_and_bgr": {
+          "samples": 119,
+          "p50": 11.006845000338217,
+          "p95": 12.705326100194725
+        },
+        "lac_preprocess": {
+          "samples": 118,
+          "p50": 15.12254349995601,
+          "p95": 29.972721699687096
+        },
+        "lac_inference_and_softmax": {
+          "samples": 118,
+          "p50": 0.9158650000244961,
+          "p95": 6.334236950124249
+        },
+        "per_frame": {
+          "samples": 118,
+          "p50": 41.570334500192985,
+          "p95": 60.84516090020315
+        },
+        "lad_preprocess": {
+          "samples": 136,
+          "p50": 0.22098800013736764,
+          "p95": 0.45505250000132946
+        },
+        "lad_inference": {
+          "samples": 136,
+          "p50": 6.554579500061664,
+          "p95": 12.883731750207517
+        },
+        "lad_nms_and_select": {
+          "samples": 136,
+          "p50": 2.3828475000300386,
+          "p95": 4.959784249876975
+        }
+      }
+    }
+  ]
+}

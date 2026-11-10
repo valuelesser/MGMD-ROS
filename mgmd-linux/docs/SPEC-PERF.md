@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.6` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.7` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.7 | 2026-11-11 | 本次 G1.3 提交 | 接入 libav CUDA 解码帧并验证生命周期、PTS 和色彩 |
 | 0.1.6 | 2026-11-11 | 本次 G1.2 提交 | 实现 CUDA 裁剪、预处理和模型后处理，使用两段 1080p 视频对拍 |
 | 0.1.5 | 2026-11-11 | 本次 G1.1 提交 | 实测两份模型的 CUDA I/O Binding 与同会话数值一致性 |
 | 0.1.4 | 2026-11-11 | 本次 G0 提交 | 增加 Docker 能力探针、1080p 评测配置与实测记录 |
@@ -201,6 +202,30 @@ python3 scripts/probe_cuda_models.py "outputs/g1_2_$(date +%Y%m%d_%H%M%S)" \
 
 完整逐帧候选、ID 和框对照见容器 `outputs/g1_2_20261111_071848/frames.jsonl`。 [验证摘要](../outputs/tables/g1_2_cuda_models.json)
 
+**G1.3 实测（2026-11-11）**
+
+新增 libav CUDA 解码适配器。FFmpeg 6.1.3 使用 `current_ctx=1` 借用 Torch 当前 CUDA 上下文，兼容 ORT 已初始化的情况。NV12 两平面按实际指针、尺寸和步幅导入 Torch，每帧检查地址一致。BGR 在 GPU 生成独立张量。转换完成后等待计算流，再允许解码器回收输入面。设备帧转换首版使用单线程顺序读取与同步交接。 [FFmpeg CUDA 上下文接口](https://ffmpeg.org/doxygen/6.1/hwcontext__cuda_8h.html)
+
+| 视频 | 解码至 EOF | PTS 范围（时基 1/30000） | Y/UV 步幅 | 前 120 帧 BGR 与原 OpenCV 解码绝对差（最大 / 均值） |
+|---|---:|---|---|---|
+| phantom30 | 1,498 帧 | 0–1,498,497 | 2048 / 2048 | 3 / 1.118 |
+| phantom70 | 1,349 帧 | 0–1,349,348 | 2048 / 2048 | 3 / 1.077 |
+
+两段均确认 PTS 递增、EOF 重复读取稳定、重置后源帧号和首帧一致，并验证早期返回的 BGR 张量在后续解码和重置后保持内容。GPU 色彩转换与原 OpenCV 4.2 解码存在差异。G1.4 分别测同像素模型等价性和原解码路径的输出差异。
+
+在现有容器中，`/opt/mgmd-g1-libav` 由 G0 使用的 FFmpeg 6.1.3 与同一版本 nv-codec-headers 构建，增加 `--enable-pic` 供适配器链接。项目用户加载 G0 CUDA/Python 环境和视频驱动库后复测。
+
+```bash
+export LD_LIBRARY_PATH=/tmp/mgmd-g0-video-libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}
+bash scripts/build_cuda_decoder.sh /tmp/mgmd-cuda-decoder.so
+a=(/data/videos/*/ARD-MAV/videos/phantom30.mp4)
+b=(/data/videos/*/ARD-MAV/videos/phantom70.mp4)
+python3 scripts/probe_cuda_decoder.py /tmp/mgmd-cuda-decoder.so \
+  "outputs/g1_3_$(date +%Y%m%d_%H%M%S)" "${a[0]}" "${b[0]}"
+```
+
+证据目录为容器 `outputs/g1_3_20261111_073306/`。 [验证摘要](../outputs/tables/g1_3_cuda_decoder.json)
+
 **G2 MFE**
 
 1. 先实现灰度、预处理、差分、阈值、形态学及连通域统计。用固定单应矩阵将图像算子与对齐算法分开验证。记录插值、边界填充、有效区、连通性、候选面积和排序。
@@ -238,6 +263,7 @@ python3 scripts/probe_cuda_models.py "outputs/g1_2_$(date +%Y%m%d_%H%M%S)" \
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.7 | 增加 NVDEC CUDA 帧适配与设备端 NV12→BGR | 两段视频解到 EOF，指针共享、PTS、重置和帧生命周期通过。记录色彩差异。 |
 | 2026-11-11 | 0.1.6 | 迁移 CUDA 裁剪、整数缩放、归一化和 LAC/LAD 后处理 | 两段现有视频 236 个中心帧对拍，LAC 无阈值翻转，LAD 框和置信度同会话一致。 |
 | 2026-11-11 | 0.1.5 | 增加 G1.1 双模型 CUDA I/O Binding 探针，确认全输出可写入预分配显存 | 同会话全部输出逐元素一致。独立 LAD 会话差异保留在摘要，G1.2 待对拍真实候选。 |
 | 2026-11-11 | 0.1.4 | 实施 G0，添加 CUDA/编解码/libav 和 ROS/rqt 探针及固定评测配置 | CUDA、120 帧设备直通和 600 帧 ROS/NVENC 联合短测通过，见 §6.2.1。P5 与全量候选对照待后续。 |

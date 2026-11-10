@@ -1,0 +1,40 @@
+{
+  "videos": [
+    {
+      "video": "phantom30.mp4",
+      "frames": 1498,
+      "time_base": [
+        1,
+        30000
+      ],
+      "first_pts": 0,
+      "last_pts": 1498497,
+      "strides": [
+        2048,
+        2048
+      ],
+      "eof_and_reset": "pass",
+      "first_120_bgr_max_abs": 3,
+      "first_120_bgr_mean_abs": 1.1178817059970851,
+      "first_120_bgr_different_fraction": 0.8738116989240398
+    },
+    {
+      "video": "phantom70.mp4",
+      "frames": 1349,
+      "time_base": [
+        1,
+        30000
+      ],
+      "first_pts": 0,
+      "last_pts": 1349348,
+      "strides": [
+        2048,
+        2048
+      ],
+      "eof_and_reset": "pass",
+      "first_120_bgr_max_abs": 3,
+      "first_120_bgr_mean_abs": 1.0766584134409294,
+      "first_120_bgr_different_fraction": 0.841332447863083
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 """CUDA stages for the experimental ROS file playback path."""
 
+from threading import Lock
+
 import torch
 from torch.nn.functional import grid_sample
 
@@ -11,7 +13,7 @@ from mgmd_onnx.cuda_models import CudaModel
 from mgmd_onnx.cuda_tf import CudaTf
 
 
-def cuda_model(path, stream=None):
+def cuda_model(path, stream=None, default_stream_lock=None):
     import onnxruntime as ort
 
     options = ort.SessionOptions()
@@ -22,18 +24,21 @@ def cuda_model(path, stream=None):
                                "user_compute_stream": str(stream.cuda_stream)})
     session = ort.InferenceSession(str(path), options, providers=[provider])
     session.disable_fallback()
-    return CudaModel(session)
+    return CudaModel(session, default_stream_lock)
 
 
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
                  warp_backend="torch", mfe_stream=None, model_stream=None):
+        # OpenCV CCL uses the default stream and cannot run during ORT capture.
+        default_stream_lock = Lock() if mfe_stream is not None and model_stream is not None else None
         with torch.cuda.stream(mfe_stream):
             self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
-                               warp_backend=warp_backend)
+                               warp_backend=warp_backend, default_stream_lock=default_stream_lock)
         self.tf = CudaTf(library)
-        self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream)
-        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx", model_stream)
+        self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock)
+        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx", model_stream,
+                              default_stream_lock)
         _inject_syspath(yolov5_dir())
         self.lac_threshold = lac_threshold
         self.lad_threshold = lad_threshold

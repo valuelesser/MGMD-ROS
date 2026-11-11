@@ -1,5 +1,7 @@
 """CUDA model stages for the GPU backend, using the existing ONNX sessions."""
 
+from contextlib import nullcontext
+
 import numpy as np
 import torch
 from torch.nn.functional import pad
@@ -9,10 +11,11 @@ from mgmd.lad import crop_region
 
 
 class CudaModel:
-    def __init__(self, session):
+    def __init__(self, session, default_stream_lock=None):
         if session.get_providers()[0] != "CUDAExecutionProvider":
             raise ValueError("CUDAExecutionProvider is required")
         self.session = session
+        self.default_stream_lock = default_stream_lock
         self.input, = session.get_inputs()
         self.outputs = session.get_outputs()
 
@@ -35,8 +38,10 @@ class CudaModel:
             binding.bind_output(meta.name, "cuda", device, np.float32, shape, output.data_ptr())
             outputs.append(output)
         torch.cuda.current_stream(value.device).synchronize()
-        self.session.run_with_iobinding(binding)
-        binding.synchronize_outputs()
+        # ORT can capture CUDA work during initialization of a new input shape.
+        with self.default_stream_lock or nullcontext():
+            self.session.run_with_iobinding(binding)
+            binding.synchronize_outputs()
         return outputs
 
 

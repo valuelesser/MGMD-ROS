@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.19` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.20` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.20 | 2026-11-11 | 本次实时 A/B 提交 | 同一 ROS launch 对照串行和跨帧两流 |
 | 0.1.19 | 2026-11-11 | 本次两流实验提交 | 验证固定窗口上的跨帧 MFE 与 TF/LAC/LAD 重叠 |
 | 0.1.18 | 2026-11-11 | 本次并行方案记录 | 暂缓 LAD 多目标批处理，记录跨帧 CUDA 流水线的依赖和验收方式 |
 | 0.1.17 | 2026-11-11 | 本次 warp 对照提交 | 加入 GPU 共享坐标图的 OpenCV remap，记录全片吞吐和候选差异 |
@@ -395,6 +396,16 @@ Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSL
 
 置信度和坐标容差为 1e-6。相邻窗口阶段的 CUDA event 区间累计交叠 3.34 秒和 2.64 秒，包含阶段内空隙，不能据此计算内核同时执行的时间。两模式混合运行的 PyTorch 峰值分配约 224–227 MiB，范围不含 ORT、OpenCV 和 NVDEC。计时不含解码、ROS 发布、预览或 30 Hz 源节拍。默认 ROS 路径短测读取 12 帧并处理全部 10 个有效窗口。两流还需验证实时调度、跨组持续跟踪及进程总显存。容器日志在 `outputs/g4_cuda_overlap_20261111/`。 [phantom30 摘要](../outputs/tables/g4_cuda_overlap_phantom30.json) · [phantom70 摘要](../outputs/tables/g4_cuda_overlap_phantom70.json)
 
+#### ROS 1080p 实时串行与两流 A/B
+
+用 `roslaunch mav_tracker_nodes track_gpu.launch warp_backend:=opencv pipeline_mode:=serial` 或 `pipeline_mode:=overlap`。默认 `legacy` 沿用先前执行路径。A/B 都使用相同的 MFE 流、TF/模型流及 ORT 会话选项，串行先等待同帧候选，两流则最多提前提交一个窗口，由 CUDA event 交接设备缓冲。TF 状态贯穿整段，按源帧号顺序推进，EOF 排空待处理窗口。两个模式均由同一 30 Hz 源时钟判断过期窗口，实际处理帧集合可因运行速度不同而变化。
+
+首次 A/B 的第二次两流启动中，OpenCV CCL 默认流调用撞上 CUDA stream capture，进程提前退出。修复后 A/B 共用相同的局部互斥，隔离 CCL 默认流调用与 ORT 推理调用，其余阶段仍可重叠。
+
+用同一份 `phantom30`、1920×1080、全屏 rqt/HUD 按串行、两流、两流、串行顺序冷启动回放。延迟从中心帧的计划源时刻计到 ROS 发布调用完成，包含三帧窗口需要等待后一帧的成本，未包含订阅端渲染。显存是 `nvidia-smi` 500 ms 采样的设备总用量，含其他进程。日志在容器 `outputs/g4_ros_stream_ab_safe_20261111/`。 [四次全片摘要](../outputs/tables/g4_ros_stream_ab_phantom30.json)
+
+串行两次为 13.31、14.89 fps，两流两次为 16.47、17.65 fps。两次均值从 14.10 提高到 17.06 fps（约 21%），每轮平均多处理 148 个窗口。各轮延迟 p50 取平均后从 100.26 增至 146.82 ms，p95 从 127.18 增至 184.40 ms。实时选帧集合不同，结果用于吞吐和延迟对照，检测质量仍需用正式评测器计分。
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -422,6 +433,7 @@ Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSL
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.20 | 接入同一 ROS launch 并验证实时两流 | 完成 1080p、30 Hz、rqt/HUD 全片 ABBA。 |
 | 2026-11-11 | 0.1.19 | 验证两流固定窗口原型 | 两段共 276 个窗口通过对拍，计算吞吐提升约 11%。 |
 | 2026-11-11 | 0.1.18 | 登记 LAD 批处理待办和跨帧并行设计 | 纯文档修订，记录阶段依赖、CUDA 流和后续验收。 |
 | 2026-11-11 | 0.1.17 | 对拍全显存 OpenCV remap 和 Torch warp | 1080p 全片 13.45 fps。236 个固定窗口中 72 帧候选集合变化，继续按实验参数启用。 |

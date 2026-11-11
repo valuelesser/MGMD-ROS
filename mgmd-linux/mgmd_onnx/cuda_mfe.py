@@ -1,5 +1,7 @@
 """Device image operations and CUDA candidate extraction for MFE."""
 
+from contextlib import nullcontext
+
 import torch
 from torch.nn.functional import avg_pool2d, grid_sample, max_pool2d, pad
 
@@ -71,7 +73,8 @@ def morphology(mask, size, open_iters, close_iters):
 class CudaMfe:
     """Sparse CUDA LK, batched RANSAC, and GPU connected component statistics."""
 
-    def __init__(self, cfg, width, height, hypotheses=256, warp_backend="torch"):
+    def __init__(self, cfg, width, height, hypotheses=256, warp_backend="torch",
+                 default_stream_lock=None):
         import cv2
         from mgmd.mfe import grid_keypoints
 
@@ -83,6 +86,7 @@ class CudaMfe:
         self.cv = cv2
         self.cfg = cfg
         self.stream = torch.cuda.current_stream()
+        self.default_stream_lock = default_stream_lock
         self.cv_stream = (cv2.cuda.wrapStream(self.stream.cuda_stream)
                           if self.stream.cuda_stream else cv2.cuda.Stream.Null())
         if warp_backend not in ("torch", "opencv"):
@@ -190,9 +194,10 @@ class CudaMfe:
         # OpenCV 4.12 CCL has no stream argument.
         if self.stream.cuda_stream:
             self.stream.synchronize()
-        labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
-        if self.stream.cuda_stream:
-            torch.cuda.default_stream().synchronize()
+        with self.default_stream_lock or nullcontext():
+            labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
+            if self.stream.cuda_stream:
+                torch.cuda.default_stream().synchronize()
         stamp("CCL")
         ids = mask.flatten().nonzero().flatten()
         labels = self._tensor(labels_mat, "<i4").reshape(-1)[ids].long()

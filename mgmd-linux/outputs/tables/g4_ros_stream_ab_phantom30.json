@@ -1,0 +1,36 @@
+{
+  "video": "phantom30",
+  "resolution": [1920, 1080],
+  "source_hz": 30,
+  "rqt_hud": true,
+  "warp": "opencv",
+  "trial_order": ["serial1", "overlap1", "overlap2", "serial2"],
+  "read_frames_per_trial": 1498,
+  "trials": {
+    "serial1": {
+      "processed": 665, "skipped": 831, "detection_frames": 467,
+      "wall_s": 49.957, "fps": 13.31,
+      "source_to_publish_ms": {"p50": 102.06, "p95": 131.52},
+      "gpu_device_peak_mib": 1316
+    },
+    "overlap1": {
+      "processed": 823, "skipped": 673, "detection_frames": 596,
+      "wall_s": 49.960, "fps": 16.47,
+      "source_to_publish_ms": {"p50": 148.74, "p95": 190.25},
+      "gpu_device_peak_mib": 1357
+    },
+    "overlap2": {
+      "processed": 882, "skipped": 614, "detection_frames": 650,
+      "wall_s": 49.964, "fps": 17.65,
+      "source_to_publish_ms": {"p50": 144.89, "p95": 178.55},
+      "gpu_device_peak_mib": 1389
+    },
+    "serial2": {
+      "processed": 744, "skipped": 752, "detection_frames": 549,
+      "wall_s": 49.957, "fps": 14.89,
+      "source_to_publish_ms": {"p50": 98.46, "p95": 122.83},
+      "gpu_device_peak_mib": 1087
+    }
+  },
+  "container_output": "outputs/g4_ros_stream_ab_safe_20261111/"
+}

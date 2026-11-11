@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Publish detections and an optional preview from the GPU file pipeline."""
 
-from collections import deque
+from collections import defaultdict, deque
 from statistics import mean
 import time
 
@@ -63,6 +63,7 @@ def main():
     if source_rate <= 0:
         raise ValueError("Playback rate must be positive")
     realtime = get("~realtime", True)
+    profile_mfe = get("~profile_mfe", False)
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     detections = rospy.Publisher("/mav/detections", DetectionArray, queue_size=10)
@@ -72,6 +73,7 @@ def main():
     read = processed = detected = skipped = 0
     recent = deque()
     stages = []
+    mfe_samples = defaultdict(list)
     elapsed = 0.
     with torch.inference_mode(), CudaDecoder(get("~decoder_library"), video) as decoder:
         pipe = None
@@ -101,14 +103,21 @@ def main():
                     time.sleep(delay)
             previous, center, following = frames
             begin = time.perf_counter()
+            mfe_timing = [] if profile_mfe else None
             boxes, status, candidates, timing = pipe.step(
-                previous.image, center.image, following.image, center.seq)
+                previous.image, center.image, following.image, center.seq, mfe_timing)
             # Detection metadata and the optional display image cross the ROS boundary here.
             error = status.item()
             if error:
                 raise RuntimeError("CUDA TF failed with status {}".format(error))
             data = boxes.tolist()
             stage_ms = [a.elapsed_time(b) for a, b in zip(timing, timing[1:])]
+            if mfe_timing:
+                subtotals = defaultdict(float)
+                for (_, start), (name, end) in zip(mfe_timing, mfe_timing[1:]):
+                    subtotals[name] += start.elapsed_time(end)
+                for name, total in subtotals.items():
+                    mfe_samples[name].append(total)
             now = time.perf_counter()
             elapsed += now - begin
             stages.append(stage_ms)
@@ -142,6 +151,10 @@ def main():
                           ", ".join(f"{name}={avg:.2f}/{tail:.2f}"
                                     for name, avg, tail in zip(STAGES, average, p95)),
                           STAGES[int(np.argmax(average))])
+        for name, samples in sorted(mfe_samples.items(), key=lambda row: mean(row[1]), reverse=True):
+            rospy.loginfo("MFE profile: %s n=%d mean=%.3f p50=%.3f p95=%.3f ms",
+                          name, len(samples), mean(samples),
+                          np.percentile(samples, 50), np.percentile(samples, 95))
 
 
 if __name__ == "__main__":

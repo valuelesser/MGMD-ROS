@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.15` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.16` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.16 | 2026-11-11 | 本次 MFE 分段计时提交 | 记录 ROS 全片 MFE 热点和 WSLg 显示缩放实测 |
 | 0.1.15 | 2026-11-11 | 本次推送约定提交 | 记录每次核验提交后推送远程对应分支的约定 |
 | 0.1.14 | 2026-11-11 | 本次 HUD 与实时回放提交 | 恢复按源时钟跳过过期窗口，增加分阶段统计及全屏 rqt |
 | 0.1.13 | 2026-11-11 | 本次 GPU ROS 提交 | 接通 MFE、TF、LAC、LAD 的 CUDA 数据链，验证 1080p 全片和 Windows 原生预览 |
@@ -352,6 +353,14 @@ rqt ImageView 默认全屏，Escape 返回窗口模式，F11 全屏，`fullscree
 
 全片 49.968 秒，读 1,498 帧，处理 545 个有效窗口、跳过 951 个，平均 10.91 fps。阶段 CUDA 事件均值/p95（ms）为 MFE 40.49/44.14、TF 1.98/2.79、LAC 3.38/8.65、LAD 16.96/30.03。MFE 占四阶段平均时间约 64%。四阶段时间未包含源解码、预览绘制、ROS 发布及节流。运行日志和 1080p HUD 样图在容器 `outputs/g4_gpu_ros_hud_20261111/`。 [运行摘要](../outputs/tables/g4_gpu_ros_hud_phantom30.json)
 
+#### 1080p ROS 的 MFE 分段计时
+
+容器内按前述环境运行 `roslaunch mav_tracker_nodes track_gpu.launch profile_mfe:=true`。该开关默认关闭。CUDA 事件按已处理中心帧统计，前、后两个方向同名阶段先在帧内相加。计时包含阶段内同步和调度间隔，可用于定位端到端瓶颈。
+
+`phantom30` 全片读取 1,498 帧，按 30 Hz 源时钟在 49.974 秒内处理 511 个窗口，10.23 fps，MFE 均值 39.37 ms。最高项为 Torch 双精度坐标网格和透视采样，含 warp 边界同步，双向均值 16.222 ms、p95 16.659 ms，占 MFE 均值约 41%。第二项为 RANSAC，双向均值 6.247 ms、p95 7.579 ms。下一次 warp 优化可比较融合坐标生成、透视采样和有效区的 CUDA 实现，避免将 GPU 上求出的单应矩阵下载给 CPU。容器日志在 `outputs/g4_mfe_profile_20261111/launch.log`。 [完整分段数据](../outputs/tables/g4_mfe_profile_phantom30.json)
+
+Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSLg XWayland 和全屏 rqt 均为 1440×810。源图像仍为 1920×1080。若 WSLg 跟随 Windows 150% 显示缩放，逻辑尺寸可为 1920×1080。该配置未实测，本轮保留系统设置。 [WSLg 显示配置](https://github.com/microsoft/wslg/wiki/WSLg-Configuration-Options-for-Debugging)
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -379,6 +388,7 @@ rqt ImageView 默认全屏，Escape 返回窗口模式，F11 全屏，`fullscree
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.16 | 增加可选 MFE 子阶段计时，核对 Windows 主屏和 WSLg 尺寸 | 511 个 1080p 中心帧中，warp 平均 16.222 ms，为最慢环节。 |
 | 2026-11-11 | 0.1.15 | 同步 SPEC 与仓库维护约定，每次核验提交后推送对应远程分支 | 纯文档修订。远程分支与本地 HEAD 一致作为推送验收。 |
 | 2026-11-11 | 0.1.14 | 增加 HUD 和全屏 rqt，按 30 Hz 源时钟处理过期窗口 | 1080p 全片处理 545 个窗口，10.91 fps。MFE 平均 40.49 ms，为最慢阶段。 |
 | 2026-11-11 | 0.1.13 | 增加四阶段 CUDA ROS launch 和 Windows 原生 1080p 预览 | 全片处理 1,496 帧，12.18 fps。300 帧原生预览通过，正式评分、拷贝验收和 NVENC 待接入。 |

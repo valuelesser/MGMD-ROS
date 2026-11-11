@@ -140,21 +140,27 @@ class CudaMfe:
         good = (keep.sum() >= self.cfg.min_keypoints) & (status == 0) & torch.isfinite(h).all()
         return torch.where(good, h, self.identity)
 
-    def _direction(self, source, center):
+    def _direction(self, source, center, stamp):
         cv = self.cv
         tracked, status, _ = self.lk.calc(
             self._mat(source, cv.CV_8UC1), self._mat(center, cv.CV_8UC1),
             self._mat(self.points, cv.CV_32FC2), None, stream=self.cv_stream)
+        stamp("LK")
         h = self._homography(self._tensor(tracked, "<f4", 2), self._tensor(status, "|u1"))
+        stamp("RANSAC")
         aligned, valid = warp_inverse(source, h, return_valid=True)
         # The Torch solver consumes OpenCV-owned buffers asynchronously.
         self.stream.synchronize()
-        return threshold_direction(center, aligned, valid, self.cfg)[0]
+        stamp("warp")
+        mask, _ = threshold_direction(center, aligned, valid, self.cfg)
+        stamp("threshold_median")
+        return mask
 
-    def _boxes(self, mask):
+    def _boxes(self, mask, stamp):
         cv = self.cv
         pixels = mask.to(torch.uint8)
         labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
+        stamp("CCL")
         ids = mask.flatten().nonzero().flatten()
         labels = self._tensor(labels_mat, "<i4").reshape(-1)[ids].long()
         pixel = self.pixel[ids]
@@ -180,14 +186,25 @@ class CudaMfe:
         ids = keep.nonzero().flatten()
         ids = ids[minimum[ids].argsort()]
         boxes = torch.stack((x1[ids], y1[ids], x2[ids] + 1, y2[ids] + 1), dim=1).double()
-        return boxes, (w[ids] * h[ids]).double()
+        scores = (w[ids] * h[ids]).double()
+        stamp("region_stats")
+        return boxes, scores
 
-    def candidates(self, previous, center, following):
+    def candidates(self, previous, center, following, profile=None):
         if torch.cuda.current_stream() != self.stream:
             raise RuntimeError("CUDA MFE requires the default CUDA stream")
+        def stamp(name):
+            if profile is not None:
+                event = torch.cuda.Event(enable_timing=True)
+                event.record(self.stream)
+                profile.append((name, event))
+
+        stamp("start")
         frames = [bgr_to_gray(frame) for frame in (previous, center, following)]
-        a = self._direction(frames[0], frames[1])
-        b = self._direction(frames[2], frames[1]) if self.cfg.needs_next else None
+        stamp("gray")
+        a = self._direction(frames[0], frames[1], stamp)
+        b = self._direction(frames[2], frames[1], stamp) if self.cfg.needs_next else None
         motion = combine_motion(a, b, self.cfg.mode)
-        return self._boxes(morphology(motion, self.cfg.morph_size,
-                                      self.cfg.open_iters, self.cfg.close_iters))
+        motion = morphology(motion, self.cfg.morph_size, self.cfg.open_iters, self.cfg.close_iters)
+        stamp("morphology")
+        return self._boxes(motion, stamp)

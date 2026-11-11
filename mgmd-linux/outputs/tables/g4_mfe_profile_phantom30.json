@@ -1,0 +1,22 @@
+{
+  "video": "phantom30",
+  "resolution": [1920, 1080],
+  "source_hz": 30,
+  "read_frames": 1498,
+  "processed_windows": 511,
+  "skipped_windows": 985,
+  "wall_seconds": 49.974,
+  "processing_fps": 10.23,
+  "mfe_mean_ms": 39.37,
+  "stage_ms_per_center_frame": {
+    "warp": {"mean": 16.222, "p50": 16.098, "p95": 16.659},
+    "RANSAC": {"mean": 6.247, "p50": 4.882, "p95": 7.579},
+    "gray": {"mean": 4.145, "p50": 4.101, "p95": 4.195},
+    "morphology": {"mean": 4.049, "p50": 4.010, "p95": 4.118},
+    "region_stats": {"mean": 2.907, "p50": 2.686, "p95": 3.640},
+    "threshold_median": {"mean": 2.888, "p50": 2.807, "p95": 3.085},
+    "LK": {"mean": 2.117, "p50": 2.010, "p95": 2.763},
+    "CCL": {"mean": 0.381, "p50": 0.359, "p95": 0.456}
+  },
+  "container_log": "outputs/g4_mfe_profile_20261111/launch.log"
+}

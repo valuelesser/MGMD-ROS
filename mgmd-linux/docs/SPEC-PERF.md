@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.10` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.11` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.11 | 2026-11-11 | 本次 G3 对照提交 | 同步容器 TF 参考，比较 CUDA 分配库和并行 TF 原型，登记独立卡尔曼备选 |
 | 0.1.10 | 2026-11-11 | 本次 G2 对照提交 | 实测新增 OpenCV 4.12 CUDA 与 Torch 路径的数值、耗时及混合方案 |
 | 0.1.9 | 2026-11-11 | 本次 G2 提交 | 开始迁移 MFE 图像算子，记录固定单应矩阵下的像素和候选差异 |
 | 0.1.8 | 2026-11-11 | 本次 G1.4 提交 | 完成真实 NVDEC 帧到 LAC/LAD 的串联对拍和独立计时 |
@@ -300,6 +301,18 @@ python3 scripts/probe_cuda_mfe.py "outputs/g2_fixed_$(date +%Y%m%d_%H%M%S)" \
 2. 将 Kalman 预测、更新、关联和轨迹生命周期放到 GPU。验证空集、矩形矩阵、相同代价、同帧重复、跨帧跳跃、丢失重现和循环重置。对拍关联对、目标函数值和轨迹 ID。等价最优解导致 ID 变化时，先确定稳定的匹配规则并逐段检查其影响。
 3. 在 MFE 和 TF 间传递有界设备候选数组及设备端计数。超过容量时显式报告、按规则扩容或终止严格模式。禁止无记录地截断候选或切换求解器。
 
+#### G3 CUDA 分配库与 TF 原型对照
+
+CPU 参考同步自当前容器的 `tf_fast.py`，SHA-256 为 `a9eb989a2c8c2d14185a563581015a280ec23d560e03e7a2ba0bef3e163d7240`。分支既有默认参数仍采用单轮 IoU。G3 回放显式启用按视频帧间隔预测和第二轮距离补配，参数为 `iou_thresh=.3, association_radius_factor=2, span=3, d_min=.02, max_age=3, min_hits=1`。两视频各取 118 个连续中心帧及其中每三个取一帧的 40 帧，另做 10 个合成帧。两组使用同一 CPU MFE 候选。
+
+`torch-linear-assignment==0.0.6` 已在 Python 3.8.10、Torch 2.4.1+cu121、CUDA 12.1 上从 PyPI 源码包编译成功，构建时临时提供 `importlib-metadata==8.5.0`。源码包 SHA-256 为 `6aad76d3c976b40cf1572e81bed8aedbeafdacb817f290e137c7a76ad58fcd23`。公开接口将 CUDA 双精度代价降为单精度，631 次求解中有 62 次门控后的配对和目标值差异。底层双精度入口在这批矩阵上无门控配对或目标值差异。内核按矩阵并行，单路视频每轮仅一张矩阵。`phantom30` 连续段单次求解 p50/p95 为 SciPy 0.43/0.77 ms、库公开接口 16.28/25.79 ms、库双精度入口 28.39/44.93 ms。计时同步 CUDA，排除测试上传和下载。库未通过速度验收，未接入 TF。 [库文档](https://pypi.org/project/torch-linear-assignment/0.0.6/) · [求解对照](../outputs/tables/g3_cuda_assignment.json)
+
+现有原型使用线程块内并行扫描求解列。326 帧的逐候选轨迹 ID、选中 ID、框、轨迹详情与生命周期均与参考一致。容量溢出、重置和设备有效计数通过。`phantom30` 连续段整段 TF 每帧 p50/p95 为 CPU 17.04/26.44 ms、CUDA 4.57/6.12 ms。稀疏 `phantom70` 连续段为 CPU 1.04/1.83 ms、CUDA 0.49/0.66 ms。保留原型用于 MFE→TF 设备串联，ROS 接入、CUDA trace 与正式 1080p 展示对比待验证。 [TF 回放摘要](../outputs/tables/g3_cuda_tf.json)
+
+**卡尔曼备选**使用 `torch-kf==0.3.1` 的批量 CUDA 滤波与独立 GPU 分配求解器拼接。该版支持 Python 3.8。沿用现有 7 维状态、4 维测量、噪声矩阵、跳帧预测和面积保护，先用双精度对拍逐轨迹预测框与协方差。如果分段计时显示卡尔曼有优化空间，再验证批量收益及更新过程中的主机同步。本轮保留现有 CUDA 卡尔曼。 [torch-kf 文档](https://pypi.org/project/torch-kf/0.3.1/)
+
+从容器的 `mgmd-linux` 运行 `PYTHONPATH=. python3 scripts/probe_cuda_assignment.py <summary.json> /data/videos/phantom30.mp4 /data/videos/phantom70.mp4`。执行 `bash scripts/build_cuda_tf.sh /tmp/mgmd-tf-g3.so` 后运行 `PYTHONPATH=. python3 scripts/probe_cuda_tf.py /tmp/mgmd-tf-g3.so <新输出目录> /data/videos/phantom30.mp4 /data/videos/phantom70.mp4`。逐帧日志在容器 `outputs/g3_tf_parallel_20261111/`。
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -325,6 +338,7 @@ python3 scripts/probe_cuda_mfe.py "outputs/g2_fixed_$(date +%Y%m%d_%H%M%S)" \
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.11 | 同步容器 TF 参考，验证 CUDA 分配库及并行 TF，记录独立卡尔曼备选 | 631 矩阵对照与 326 帧回放完成。CUDA 分配库未达速度验收，并行 TF 原型继续用于设备串联。 |
 | 2026-11-11 | 0.1.10 | 验证新装 OpenCV CUDA 的 MFE 算子，并对照已有 Torch 路径 | 96 帧数值对照与分段计时完成。混合 warp 路径、CUDA LK 和连通域的后续接入边界见 §6.3。 |
 | 2026-11-11 | 0.1.9 | 核对可用 CUDA 库并实现固定矩阵 MFE 的 GPU 图像阶段 | 两视频 96 个中心帧对拍。同像素灰度、掩膜和形态学一致。warp 最大差 1 灰阶，22 帧候选列表变化。 |
 | 2026-11-11 | 0.1.8 | 将 NVDEC 设备帧与 CUDA 模型前后处理串联，并独立测量各阶段 | 236 帧同像素对拍通过。登记颜色转换导致的 15 次 LAC 阈值变化及 5 次最终框有无变化。 |

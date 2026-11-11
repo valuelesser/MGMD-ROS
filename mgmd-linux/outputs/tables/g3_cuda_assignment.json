@@ -1,0 +1,211 @@
+{
+  "synthetic": {
+    "frames": 10,
+    "counts": {
+      "iou_matrices": 4,
+      "max_rows": 2,
+      "max_cols": 3,
+      "distance_matrices": 3
+    },
+    "gated_difference_frames": {
+      "public_cuda": [],
+      "native_float64_cuda": []
+    },
+    "synchronized_solver_ms": {
+      "scipy": {
+        "p50": 0.006024998583598062,
+        "p95": 0.010282799848937426
+      },
+      "public_cuda": {
+        "p50": 0.48336600048060063,
+        "p95": 1.2436368009730354
+      },
+      "native_float64_cuda": {
+        "p50": 0.39802799983590376,
+        "p95": 2.098962500167543
+      }
+    }
+  },
+  "phantom30.continuous": {
+    "frames": 118,
+    "counts": {
+      "iou_matrices": 117,
+      "max_rows": 451,
+      "max_cols": 262,
+      "distance_matrices": 117,
+      "public_cuda_objective_difference": 41,
+      "public_cuda_gated_difference": 41
+    },
+    "gated_difference_frames": {
+      "public_cuda": [
+        4,
+        8,
+        12,
+        13,
+        15,
+        16,
+        17,
+        23,
+        24,
+        25,
+        31,
+        32,
+        39,
+        41,
+        42,
+        46,
+        49,
+        50,
+        53,
+        54,
+        55,
+        60,
+        63,
+        64,
+        65,
+        68,
+        69,
+        70,
+        71,
+        72,
+        73,
+        75,
+        78,
+        85,
+        93,
+        99,
+        103,
+        107,
+        110,
+        114,
+        118
+      ],
+      "native_float64_cuda": []
+    },
+    "synchronized_solver_ms": {
+      "scipy": {
+        "p50": 0.4315924998081755,
+        "p95": 0.7747238993943025
+      },
+      "public_cuda": {
+        "p50": 16.28222999988793,
+        "p95": 25.785216100211983
+      },
+      "native_float64_cuda": {
+        "p50": 28.38908349895064,
+        "p95": 44.934075751007185
+      }
+    }
+  },
+  "phantom30.gaps": {
+    "frames": 40,
+    "counts": {
+      "iou_matrices": 39,
+      "max_rows": 438,
+      "max_cols": 253,
+      "distance_matrices": 39,
+      "public_cuda_objective_difference": 17,
+      "public_cuda_gated_difference": 17
+    },
+    "gated_difference_frames": {
+      "public_cuda": [
+        4,
+        10,
+        19,
+        28,
+        34,
+        40,
+        43,
+        52,
+        61,
+        64,
+        67,
+        70,
+        73,
+        91,
+        106,
+        115,
+        118
+      ],
+      "native_float64_cuda": []
+    },
+    "synchronized_solver_ms": {
+      "scipy": {
+        "p50": 0.5226409994065762,
+        "p95": 1.003377350843948
+      },
+      "public_cuda": {
+        "p50": 18.46189499974571,
+        "p95": 27.20665605083923
+      },
+      "native_float64_cuda": {
+        "p50": 32.23018399967259,
+        "p95": 49.2652651998469
+      }
+    }
+  },
+  "phantom70.continuous": {
+    "frames": 118,
+    "counts": {
+      "iou_matrices": 117,
+      "max_rows": 51,
+      "max_cols": 28,
+      "distance_matrices": 117,
+      "public_cuda_objective_difference": 2,
+      "public_cuda_gated_difference": 2
+    },
+    "gated_difference_frames": {
+      "public_cuda": [
+        11,
+        18
+      ],
+      "native_float64_cuda": []
+    },
+    "synchronized_solver_ms": {
+      "scipy": {
+        "p50": 0.0062484987211064436,
+        "p95": 0.014471850408881435
+      },
+      "public_cuda": {
+        "p50": 0.39064300017344067,
+        "p95": 0.7657929509150563
+      },
+      "native_float64_cuda": {
+        "p50": 0.45202750061434926,
+        "p95": 0.9165037003185714
+      }
+    }
+  },
+  "phantom70.gaps": {
+    "frames": 40,
+    "counts": {
+      "iou_matrices": 39,
+      "max_rows": 51,
+      "max_cols": 28,
+      "distance_matrices": 39,
+      "public_cuda_objective_difference": 2,
+      "public_cuda_gated_difference": 2
+    },
+    "gated_difference_frames": {
+      "public_cuda": [
+        13,
+        112
+      ],
+      "native_float64_cuda": []
+    },
+    "synchronized_solver_ms": {
+      "scipy": {
+        "p50": 0.007657499736524187,
+        "p95": 0.012681948919635021
+      },
+      "public_cuda": {
+        "p50": 0.428227499469358,
+        "p95": 0.6651144497482162
+      },
+      "native_float64_cuda": {
+        "p50": 0.5221255005380954,
+        "p95": 0.9796815494155418
+      }
+    }
+  }
+}

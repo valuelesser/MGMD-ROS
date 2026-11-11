@@ -1,6 +1,8 @@
 <launch>
   <arg name="video" default="/data/videos/phantom30.mp4"/>
   <arg name="decoder_library" default="/tmp/mgmd-cuda-decoder.so"/>
+  <arg name="decoder_backend" default="libav"/>
+  <arg name="decoder_leading_frames" default="0"/>
   <arg name="tf_library" default="/tmp/mgmd-tf-g3.so"/>
   <arg name="rate" default="30"/>
   <arg name="realtime" default="true"/>
@@ -16,6 +18,8 @@
         output="screen" required="true">
     <param name="video" value="$(arg video)"/>
     <param name="decoder_library" value="$(arg decoder_library)"/>
+    <param name="decoder_backend" value="$(arg decoder_backend)"/>
+    <param name="decoder_leading_frames" value="$(arg decoder_leading_frames)"/>
     <param name="tf_library" value="$(arg tf_library)"/>
     <param name="rate" value="$(arg rate)"/>
     <param name="realtime" value="$(arg realtime)"/>

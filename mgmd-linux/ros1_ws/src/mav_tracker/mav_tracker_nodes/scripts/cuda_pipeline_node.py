@@ -123,6 +123,9 @@ def main():
         raise ValueError("pipeline_mode must be legacy, serial or overlap")
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
+    decoder_backend = get("~decoder_backend", "libav")
+    if decoder_backend not in ("libav", "opencv"):
+        raise ValueError("decoder_backend must be libav or opencv")
     detections = rospy.Publisher("/mav/detections", DetectionArray, queue_size=10)
     debug = (rospy.Publisher("/mav/debug_image", Image, queue_size=1)
              if get("~preview", True) else None)
@@ -133,8 +136,12 @@ def main():
     latency = []
     mfe_samples = defaultdict(list)
     elapsed = 0.
-    with torch.inference_mode(), CudaDecoder(get("~decoder_library"), video) as decoder, \
-            ThreadPoolExecutor(max_workers=1) as executor:
+    if decoder_backend == "opencv":
+        from mgmd_onnx.cuda_opencv_decoder import OpenCvCudaDecoder
+        source = OpenCvCudaDecoder(video, get("~decoder_leading_frames", 0))
+    else:
+        source = CudaDecoder(get("~decoder_library"), video)
+    with torch.inference_mode(), source as decoder, ThreadPoolExecutor(max_workers=1) as executor:
         first = decoder.read()
         if first is None:
             raise RuntimeError("Video has no decodable frames")
@@ -150,6 +157,7 @@ def main():
         torch.cuda.synchronize()
         rospy.loginfo("GPU path initialized: NVDEC, MFE, TF, LAC, LAD (%dx%d)", width, height)
         rospy.loginfo("MFE warp backend: %s; pipeline mode: %s", warp_backend, mode)
+        rospy.loginfo("GPU decoder backend: %s", decoder_backend)
         started = time.perf_counter()
         for (previous, center, following), job, mfe_timing in ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,

@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.22` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.23` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.23 | 2026-11-11 | 本次 GPU 解码接入提交 | OpenCV cudacodec 接入 ROS 两流，并与 libav 完整回放对照 |
 | 0.1.22 | 2026-11-11 | 本次 OpenCV 解码环境提交 | 为 OpenCV 4.12 补编 cudacodec，验证 GPU BGR 和 libav 对照 |
 | 0.1.21 | 2026-11-11 | 本次墙钟分段提交 | 测量 NVDEC、源节拍、流水线等待与 ROS 预览的实际时间 |
 | 0.1.20 | 2026-11-11 | 本次实时 A/B 提交 | 同一 ROS launch 对照串行和跨帧两流 |
@@ -426,6 +427,14 @@ Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSL
 
 OpenCV 读出 1,523 帧，libav 读出正常播放范围的 1,498 帧。对六个位置以像素内容匹配，OpenCV 均向后对齐 25 帧，包含 25 个额外片头帧。按该偏移对齐后抽样 50 帧，BGR 通道平均绝对差 1.13、最大差 12。偏移仅用于 `phantom30` 诊断。接入 ROS 前需保留 MP4 播放范围与帧时间语义，并验证候选和检测质量。 [全片对照摘要](../outputs/tables/g4_opencv_decoder_phantom30.json)
 
+#### OpenCV 解码接入 ROS 两流
+
+使用上述独立 OpenCV 前缀，运行 `roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=overlap warp_backend:=opencv decoder_backend:=opencv decoder_leading_frames:=25 profile_wall:=true`。默认解码器为 libav。OpenCV 借出 GPU BGR 帧并保留 `GpuMat` 所有者，导入 Torch 时校验设备指针。该试验使用源序号和 30 Hz 时钟，OpenCV 入口目前未提供原始 PTS；25 帧前缀只用于已验证的 `phantom30` 播放范围。
+
+两轮同环境使用 1080p、30 Hz、全屏 rqt/HUD、OpenCV warp 和跨帧两流。两条解码路径都读到 EOF，并检查实际范围为 1,498 帧。容器日志为 `outputs/g4_opencv_decoder_overlap_20261111/`。 [两轮全片摘要](../outputs/tables/g4_opencv_decoder_overlap_phantom30.json)
+
+libav 处理 785 个窗口、15.70 fps，OpenCV 处理 930 个窗口、18.60 fps（约 +18.5%）。取帧到 GPU BGR 的主线程墙钟摊到每个处理窗口为 18.31 和 3.66 ms，按读取的源帧摊销约为 9.60 和 2.28 ms。源帧到发布的 p50/p95 分别为 154.63/196.60 和 143.24/176.40 ms。两轮处理的窗口集合不同，尚未做正式精度对照。
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -453,6 +462,7 @@ OpenCV 读出 1,523 帧，libav 读出正常播放范围的 1,498 帧。对六�
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.23 | 接入可选 OpenCV 解码器并验证 ROS 两流 | 1080p、30 Hz、rqt/HUD 两个解码后端均完成全片。 |
 | 2026-11-11 | 0.1.22 | 补编 OpenCV cudacodec | 记录独立安装和两种硬解接口的 GPU BGR 验证。 |
 | 2026-11-11 | 0.1.21 | 增加可选主线程墙钟分段 | 用相同 1080p、30 Hz、rqt/HUD 设置复测串行与两流。 |
 | 2026-11-11 | 0.1.20 | 接入同一 ROS launch 并验证实时两流 | 完成 1080p、30 Hz、rqt/HUD 全片 ABBA。 |

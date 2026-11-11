@@ -3,6 +3,7 @@
 import ctypes as C
 from dataclasses import dataclass
 import os
+from time import perf_counter
 
 import torch
 
@@ -78,11 +79,16 @@ class CudaDecoder:
             raise RuntimeError(message.value.decode())
         return result
 
-    def read(self):
+    def read(self, profile=None):
         if not self.handle:
             raise RuntimeError("CUDA decoder is closed")
         view = FrameView()
-        if self._check(self.lib.mgmd_decoder_next(self.handle, C.byref(view))) == 0:
+        started = perf_counter() if profile is not None else None
+        result = self._check(self.lib.mgmd_decoder_next(self.handle, C.byref(view)))
+        if profile is not None:
+            submitted = perf_counter()
+            profile["decode_nvdec"] += submitted - started
+        if result == 0:
             return None
         y = torch.as_tensor(DevicePlane(view.y, (view.height, view.width), view.y_stride),
                             device=self.device)
@@ -94,7 +100,12 @@ class CudaDecoder:
             image = _to_bgr(y, uv, view.color_space, view.full_range)
         finally:
             # The next libav read may reuse the borrowed NV12 surface.
+            if profile is not None:
+                enqueued = perf_counter()
+                profile["decode_bgr_enqueue"] += enqueued - submitted
             torch.cuda.current_stream(self.device).synchronize()
+            if profile is not None:
+                profile["decode_gpu_wait"] += perf_counter() - enqueued
         result = CudaFrame(image, self.seq, view.pts, (view.time_num, view.time_den),
                            (view.y_stride, view.uv_stride))
         self.seq += 1

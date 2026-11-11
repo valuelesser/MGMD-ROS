@@ -1,0 +1,56 @@
+{
+  "video": "phantom30",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "source_hz": 30,
+  "rqt_hud": true,
+  "warp": "opencv",
+  "runs": {
+    "serial": {
+      "mode": "serial",
+      "ms_per_window": {
+        "decode_bgr_enqueue": 2.108,
+        "decode_gpu_wait": 7.352,
+        "decode_nvdec": 13.943,
+        "detection_publish": 0.039,
+        "detection_readback": 0.117,
+        "other": 0.558,
+        "preview_download_and_gpu_wait": 1.06,
+        "preview_hud_and_pack": 1.56,
+        "preview_overlay_enqueue": 0.547,
+        "preview_publish": 1.57,
+        "source_sleep": 0.071,
+        "tf_lac_lad_and_gpu_wait": 22.476,
+        "wait_mfe_worker": 25.922
+      },
+      "processed": 646,
+      "read": 1498,
+      "skipped": 850,
+      "wall_s": 49.950779384999805
+    },
+    "overlap": {
+      "mode": "overlap",
+      "ms_per_window": {
+        "decode_bgr_enqueue": 2.05,
+        "decode_gpu_wait": 5.799,
+        "decode_nvdec": 8.718,
+        "detection_publish": 0.042,
+        "detection_readback": 0.18,
+        "other": 0.531,
+        "preview_download_and_gpu_wait": 1.246,
+        "preview_hud_and_pack": 1.783,
+        "preview_overlay_enqueue": 0.935,
+        "preview_publish": 1.635,
+        "source_sleep": 0.078,
+        "tf_lac_lad_and_gpu_wait": 35.566,
+        "wait_mfe_worker": 2.033
+      },
+      "processed": 825,
+      "read": 1498,
+      "skipped": 671,
+      "wall_s": 49.99197517799985
+    }
+  }
+}

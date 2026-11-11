@@ -3,6 +3,7 @@
 
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
+import json
 from statistics import mean
 import time
 
@@ -35,11 +36,11 @@ def extract_mfe(pipe, stream, window, profile):
 
 
 def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, stream,
-                  executor, profile, counts):
+                  executor, profile, counts, wall_bins):
     frames = deque((first,), maxlen=3)
     pending = None
     while not rospy.is_shutdown() and (limit == 0 or counts["read"] < limit):
-        frame = decoder.read()
+        frame = decoder.read(wall_bins)
         if frame is None:
             break
         counts["read"] += 1
@@ -54,6 +55,8 @@ def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, st
             delay = started + frame.seq / rate - now
             if delay > 0:
                 time.sleep(delay)
+                if wall_bins is not None:
+                    wall_bins["source_sleep"] += time.perf_counter() - now
         marks = [] if profile else None
         window = tuple(frames)
         if mode == "legacy":
@@ -113,6 +116,7 @@ def main():
         raise ValueError("Playback rate must be positive")
     realtime = get("~realtime", True)
     profile_mfe = get("~profile_mfe", False)
+    wall_bins = defaultdict(float) if get("~profile_wall", False) else None
     warp_backend = get("~warp_backend", "torch")
     mode = get("~pipeline_mode", "legacy")
     if mode not in ("legacy", "serial", "overlap"):
@@ -149,13 +153,16 @@ def main():
         started = time.perf_counter()
         for (previous, center, following), job, mfe_timing in ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
-                mfe_stream, executor, profile_mfe, counts):
+                mfe_stream, executor, profile_mfe, counts, wall_bins):
             begin = time.perf_counter()
             if job is None:
                 boxes, status, candidates, timing = pipe.step(
                     previous.image, center.image, following.image, center.seq, mfe_timing)
             else:
                 candidates_gpu, scores, mfe_start, ready = job.result()
+                mfe_done = time.perf_counter()
+                if wall_bins is not None:
+                    wall_bins["wait_mfe_worker"] += mfe_done - begin
                 post_stream.wait_event(ready)
                 candidates_gpu.record_stream(post_stream)
                 scores.record_stream(post_stream)
@@ -167,11 +174,19 @@ def main():
                         center.image, candidates_gpu, scores, center.seq, timing)
                 # Complete the post stream before the ROS output boundary reads its buffers.
                 timing[-1].synchronize()
+            compute_done = time.perf_counter()
+            if wall_bins is not None:
+                if job is None:
+                    wall_bins["legacy_compute"] += compute_done - begin
+                else:
+                    wall_bins["tf_lac_lad_and_gpu_wait"] += compute_done - mfe_done
             # Detection metadata and the optional display image cross the ROS boundary here.
             error = status.item()
             if error:
                 raise RuntimeError("CUDA TF failed with status {}".format(error))
             data = boxes.tolist()
+            if wall_bins is not None:
+                wall_bins["detection_readback"] += time.perf_counter() - compute_done
             stage_ms = [a.elapsed_time(b) for a, b in zip(timing, timing[1:])]
             if job is not None:
                 stage_ms[0] = mfe_start.elapsed_time(ready)
@@ -188,15 +203,32 @@ def main():
             while len(recent) > 1 and recent[1][0] < now - 2:
                 recent.popleft()
             header = Header(seq=center.seq, stamp=rospy.Time.now(), frame_id="camera")
+            publish_started = time.perf_counter() if wall_bins is not None else None
             detections.publish(build_detection_array(
                 header, width, height, [row[:4] for row in data], [row[4] for row in data],
                 ["lad"] * len(data), candidates, *stage_ms,
                 track_ids=[int(row[5]) for row in data]))
+            if wall_bins is not None:
+                preview_started = time.perf_counter()
+                wall_bins["detection_publish"] += preview_started - publish_started
             if debug is not None:
-                image = preview_image(center.image, boxes).cpu().numpy()
+                preview = preview_image(center.image, boxes)
+                if wall_bins is not None:
+                    download_started = time.perf_counter()
+                    wall_bins["preview_overlay_enqueue"] += download_started - preview_started
+                image = preview.cpu().numpy()
+                if wall_bins is not None:
+                    hud_started = time.perf_counter()
+                    wall_bins["preview_download_and_gpu_wait"] += hud_started - download_started
                 add_hud(image, playback, processed + 1, counts["skipped"], recent, now)
+                payload = image.tobytes()
+                if wall_bins is not None:
+                    image_publish_started = time.perf_counter()
+                    wall_bins["preview_hud_and_pack"] += image_publish_started - hud_started
                 debug.publish(Image(header=header, height=height, width=width, encoding="bgr8",
-                                    step=width * 3, data=image.tobytes()))
+                                    step=width * 3, data=payload))
+                if wall_bins is not None:
+                    wall_bins["preview_publish"] += time.perf_counter() - image_publish_started
             processed += 1
             detected += bool(data)
             if realtime:
@@ -205,6 +237,14 @@ def main():
                 rospy.loginfo("GPU progress: %d frames, %.2f fps", processed,
                               processed / (time.perf_counter() - started))
         wall = time.perf_counter() - started
+        if wall_bins is not None and processed:
+            wall_bins["other"] = wall - sum(wall_bins.values())
+            rospy.loginfo("GPU wall ledger: %s", json.dumps({
+                "mode": mode, "read": counts["read"], "processed": processed,
+                "skipped": counts["skipped"], "wall_s": wall,
+                "ms_per_window": {key: round(seconds * 1000 / processed, 3)
+                                  for key, seconds in wall_bins.items()},
+            }, sort_keys=True))
         rospy.loginfo("GPU summary: read=%d processed=%d skipped=%d detection_frames=%d wall=%.3fs "
                       "fps=%.2f compute_mean=%.2fms",
                       counts["read"], processed, counts["skipped"], detected, wall,

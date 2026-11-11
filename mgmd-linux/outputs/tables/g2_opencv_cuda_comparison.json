@@ -1,0 +1,321 @@
+{
+  "reference": {
+    "opencv": "5.0.0",
+    "frames": 50
+  },
+  "comparison_opencv": "4.12.0",
+  "videos": {
+    "phantom30": {
+      "counts": {
+        "opencv_cpu.gray_vs_5": 0,
+        "opencv_cuda.gray_vs_5": 0,
+        "torch_cuda.gray_vs_5": 0,
+        "lk_points": 28800,
+        "lk_status_changes": 313,
+        "opencv_cpu.warp_vs_5": 15729753,
+        "opencv_cpu.warp_vs_4": 0,
+        "opencv_cuda.warp_vs_5": 67719,
+        "opencv_cuda.warp_vs_4": 15729717,
+        "torch_cuda.warp_vs_5": 71396,
+        "torch_cuda.warp_vs_4": 15729674,
+        "opencv_cuda.direction_mask_fixed_vs_5": 149941,
+        "opencv_cuda.closed_fixed_vs_5": 18314,
+        "opencv_cpu.closed_vs_5": 151163,
+        "opencv_cpu.closed_vs_4": 0,
+        "opencv_cpu.box_changed_frames": 48,
+        "opencv_cpu.boxes_added": 3288,
+        "opencv_cpu.boxes_removed": 3249,
+        "opencv_cuda.closed_vs_5": 19104,
+        "opencv_cuda.closed_vs_4": 167059,
+        "opencv_cuda.box_changed_frames": 48,
+        "opencv_cuda.boxes_added": 229,
+        "opencv_cuda.boxes_removed": 190,
+        "torch_cuda.closed_vs_5": 878,
+        "torch_cuda.closed_vs_4": 151301,
+        "torch_cuda.box_changed_frames": 21,
+        "torch_cuda.boxes_added": 22,
+        "torch_cuda.boxes_removed": 24,
+        "hybrid.closed_vs_5": 794,
+        "hybrid.closed_vs_4": 151135,
+        "hybrid.box_changed_frames": 18,
+        "hybrid.boxes_added": 18,
+        "hybrid.boxes_removed": 22,
+        "ccl_partition_changed_frames": 0
+      },
+      "max_abs": {
+        "opencv_cpu.gray_vs_5": 0,
+        "opencv_cuda.gray_vs_5": 0,
+        "torch_cuda.gray_vs_5": 0,
+        "opencv_cpu.warp_vs_5": 5,
+        "opencv_cpu.warp_vs_4": 0,
+        "opencv_cuda.warp_vs_5": 1,
+        "opencv_cuda.warp_vs_4": 5,
+        "torch_cuda.warp_vs_5": 1,
+        "torch_cuda.warp_vs_4": 5,
+        "opencv_cuda.direction_mask_fixed_vs_5": 255,
+        "opencv_cuda.closed_fixed_vs_5": 255,
+        "opencv_cpu.closed_vs_5": 255,
+        "opencv_cpu.closed_vs_4": 0,
+        "opencv_cuda.closed_vs_5": 255,
+        "opencv_cuda.closed_vs_4": 255,
+        "torch_cuda.closed_vs_5": 255,
+        "torch_cuda.closed_vs_4": 255,
+        "hybrid.closed_vs_5": 255,
+        "hybrid.closed_vs_4": 255
+      },
+      "lk_common_point_error_px": {
+        "samples": 28420,
+        "p50": 0.001727413502521813,
+        "p95": 0.00361464568413794
+      },
+      "milliseconds": {
+        "opencv_cpu.gray": {
+          "samples": 129,
+          "p50": 0.29150800037314184,
+          "p95": 0.8138636003423017
+        },
+        "opencv_cuda.gray": {
+          "samples": 129,
+          "p50": 0.7310630007850705,
+          "p95": 1.184399599878816
+        },
+        "torch_cuda.gray": {
+          "samples": 129,
+          "p50": 1.448397000785917,
+          "p95": 1.58511679910589
+        },
+        "opencv_cpu.sparse_lk": {
+          "samples": 43,
+          "p50": 3.1490129986195825,
+          "p95": 6.080626201219275
+        },
+        "opencv_cuda.sparse_lk": {
+          "samples": 43,
+          "p50": 3.1739009991724743,
+          "p95": 4.123924600207829
+        },
+        "opencv_cpu.warp": {
+          "samples": 86,
+          "p50": 3.0671664999317727,
+          "p95": 3.977805499744136
+        },
+        "opencv_cuda.warp": {
+          "samples": 86,
+          "p50": 1.40340500001912,
+          "p95": 1.8039835008494265
+        },
+        "torch_cuda.warp": {
+          "samples": 86,
+          "p50": 7.806972999787831,
+          "p95": 8.25981724938174
+        },
+        "opencv_cpu.direction_mask": {
+          "samples": 86,
+          "p50": 4.397194499688339,
+          "p95": 6.46734075007771
+        },
+        "opencv_cuda.direction_mask": {
+          "samples": 86,
+          "p50": 35.75963399998727,
+          "p95": 48.24649475085607
+        },
+        "torch_cuda.direction_mask": {
+          "samples": 86,
+          "p50": 1.5088899990587379,
+          "p95": 1.8948540000565117
+        },
+        "hybrid.direction_mask": {
+          "samples": 86,
+          "p50": 1.5345519996117218,
+          "p95": 1.7581172496647923
+        },
+        "opencv_cpu.morphology": {
+          "samples": 43,
+          "p50": 1.637486999243265,
+          "p95": 2.1062129984784406
+        },
+        "opencv_cuda.morphology": {
+          "samples": 43,
+          "p50": 4.572726000333205,
+          "p95": 5.421278200992674
+        },
+        "torch_cuda.morphology": {
+          "samples": 43,
+          "p50": 4.254164001395111,
+          "p95": 4.693932300324377
+        },
+        "hybrid.morphology": {
+          "samples": 43,
+          "p50": 4.106533000594936,
+          "p95": 4.523401800179272
+        },
+        "opencv_cpu.ccl_labels": {
+          "samples": 43,
+          "p50": 1.0544909982854733,
+          "p95": 1.7891987992697977
+        },
+        "opencv_cuda.ccl_labels": {
+          "samples": 43,
+          "p50": 1.5008590016805101,
+          "p95": 1.755461599350383
+        }
+      }
+    },
+    "phantom70": {
+      "counts": {
+        "opencv_cpu.gray_vs_5": 0,
+        "opencv_cuda.gray_vs_5": 0,
+        "torch_cuda.gray_vs_5": 0,
+        "lk_points": 28800,
+        "lk_status_changes": 5733,
+        "opencv_cpu.warp_vs_5": 10926239,
+        "opencv_cpu.warp_vs_4": 0,
+        "opencv_cuda.warp_vs_5": 54246,
+        "opencv_cuda.warp_vs_4": 10926257,
+        "torch_cuda.warp_vs_5": 63871,
+        "torch_cuda.warp_vs_4": 10926627,
+        "opencv_cuda.direction_mask_fixed_vs_5": 119875,
+        "opencv_cuda.closed_fixed_vs_5": 1151,
+        "opencv_cpu.closed_vs_5": 7794,
+        "opencv_cpu.closed_vs_4": 0,
+        "opencv_cpu.box_changed_frames": 48,
+        "opencv_cpu.boxes_added": 273,
+        "opencv_cpu.boxes_removed": 255,
+        "opencv_cuda.closed_vs_5": 1245,
+        "opencv_cuda.closed_vs_4": 8443,
+        "opencv_cuda.box_changed_frames": 6,
+        "opencv_cuda.boxes_added": 3,
+        "opencv_cuda.boxes_removed": 3,
+        "torch_cuda.closed_vs_5": 55,
+        "torch_cuda.closed_vs_4": 7809,
+        "torch_cuda.box_changed_frames": 1,
+        "torch_cuda.boxes_added": 0,
+        "torch_cuda.boxes_removed": 1,
+        "hybrid.closed_vs_5": 94,
+        "hybrid.closed_vs_4": 7806,
+        "hybrid.box_changed_frames": 4,
+        "hybrid.boxes_added": 3,
+        "hybrid.boxes_removed": 1,
+        "ccl_partition_changed_frames": 0
+      },
+      "max_abs": {
+        "opencv_cpu.gray_vs_5": 0,
+        "opencv_cuda.gray_vs_5": 0,
+        "torch_cuda.gray_vs_5": 0,
+        "opencv_cpu.warp_vs_5": 7,
+        "opencv_cpu.warp_vs_4": 0,
+        "opencv_cuda.warp_vs_5": 1,
+        "opencv_cuda.warp_vs_4": 7,
+        "torch_cuda.warp_vs_5": 1,
+        "torch_cuda.warp_vs_4": 7,
+        "opencv_cuda.direction_mask_fixed_vs_5": 255,
+        "opencv_cuda.closed_fixed_vs_5": 255,
+        "opencv_cpu.closed_vs_5": 255,
+        "opencv_cpu.closed_vs_4": 0,
+        "opencv_cuda.closed_vs_5": 255,
+        "opencv_cuda.closed_vs_4": 255,
+        "torch_cuda.closed_vs_5": 255,
+        "torch_cuda.closed_vs_4": 255,
+        "hybrid.closed_vs_5": 255,
+        "hybrid.closed_vs_4": 255
+      },
+      "lk_common_point_error_px": {
+        "samples": 22678,
+        "p50": 0.0017198489513248205,
+        "p95": 0.0033762981183826923
+      },
+      "milliseconds": {
+        "opencv_cpu.gray": {
+          "samples": 129,
+          "p50": 0.4304880003473954,
+          "p95": 0.8521667998138582
+        },
+        "opencv_cuda.gray": {
+          "samples": 129,
+          "p50": 0.6920979994902154,
+          "p95": 0.9711359994980739
+        },
+        "torch_cuda.gray": {
+          "samples": 129,
+          "p50": 1.448077999157249,
+          "p95": 1.5284262000932358
+        },
+        "opencv_cpu.sparse_lk": {
+          "samples": 43,
+          "p50": 2.435467999021057,
+          "p95": 5.749211900001682
+        },
+        "opencv_cuda.sparse_lk": {
+          "samples": 43,
+          "p50": 2.765153998552705,
+          "p95": 3.8561794008273864
+        },
+        "opencv_cpu.warp": {
+          "samples": 86,
+          "p50": 3.029228499144665,
+          "p95": 3.8396727495637606
+        },
+        "opencv_cuda.warp": {
+          "samples": 86,
+          "p50": 1.3401674996202928,
+          "p95": 1.7252019997613388
+        },
+        "torch_cuda.warp": {
+          "samples": 86,
+          "p50": 7.82439000067825,
+          "p95": 8.525282748905738
+        },
+        "opencv_cpu.direction_mask": {
+          "samples": 86,
+          "p50": 4.380692500490113,
+          "p95": 5.63316300031147
+        },
+        "opencv_cuda.direction_mask": {
+          "samples": 86,
+          "p50": 36.497296498964715,
+          "p95": 45.8964187505444
+        },
+        "torch_cuda.direction_mask": {
+          "samples": 86,
+          "p50": 1.5067100002852385,
+          "p95": 1.8484302504475636
+        },
+        "hybrid.direction_mask": {
+          "samples": 86,
+          "p50": 1.5198730006886763,
+          "p95": 1.7409267497896508
+        },
+        "opencv_cpu.morphology": {
+          "samples": 43,
+          "p50": 1.5546530012215953,
+          "p95": 2.1224541997071356
+        },
+        "opencv_cuda.morphology": {
+          "samples": 43,
+          "p50": 4.525327000010293,
+          "p95": 5.499959200096782
+        },
+        "torch_cuda.morphology": {
+          "samples": 43,
+          "p50": 4.258555998603697,
+          "p95": 4.7055449007530115
+        },
+        "hybrid.morphology": {
+          "samples": 43,
+          "p50": 4.085025999302161,
+          "p95": 4.558272799113183
+        },
+        "opencv_cpu.ccl_labels": {
+          "samples": 43,
+          "p50": 0.8812210016913014,
+          "p95": 1.8070461992465423
+        },
+        "opencv_cuda.ccl_labels": {
+          "samples": 43,
+          "p50": 1.4517370000248775,
+          "p95": 1.8595916993945139
+        }
+      }
+    }
+  }
+}

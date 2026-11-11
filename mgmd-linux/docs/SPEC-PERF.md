@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.9` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.10` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.10 | 2026-11-11 | 本次 G2 对照提交 | 实测新增 OpenCV 4.12 CUDA 与 Torch 路径的数值、耗时及混合方案 |
 | 0.1.9 | 2026-11-11 | 本次 G2 提交 | 开始迁移 MFE 图像算子，记录固定单应矩阵下的像素和候选差异 |
 | 0.1.8 | 2026-11-11 | 本次 G1.4 提交 | 完成真实 NVDEC 帧到 LAC/LAD 的串联对拍和独立计时 |
 | 0.1.7 | 2026-11-11 | 本次 G1.3 提交 | 接入 libav CUDA 解码帧并验证生命周期、PTS 和色彩 |
@@ -272,6 +273,23 @@ python3 scripts/probe_cuda_mfe.py "outputs/g2_fixed_$(date +%Y%m%d_%H%M%S)" \
 
 探针退出状态用于同像素的灰度、掩膜和形态学对拍。warp 与候选差异另列。逐帧结果在容器 `outputs/g2_fixed_20261111_075104/frames.jsonl`。 [验证摘要](../outputs/tables/g2_fixed_cuda_mfe.json)
 
+**OpenCV CUDA 实测（2026-11-11）**。新装的 OpenCV 4.12.0（CUDA 12.1）位于 `/opt/opencv-cuda-4.12.0`，实测 CUDA 设备数 1。默认 Python 仍加载 OpenCV 5.0.0 CPU。分别运行两个进程，先以 5.0.0 冻结 `phantom30` 与 `phantom70` 各前 50 张 1080p 帧、参考 H、有效区和结果，再在 4.12.0 环境中比较 CPU OpenCV、CUDA OpenCV、CUDA Torch，以及 CUDA OpenCV warp 加 CUDA Torch 掩膜和形态学的混合路径。每段 48 个中心帧参与对拍，前 5 帧排除出计时。算子计时为同步墙钟，输入上传和诊断下载在计时外。
+
+| 算子 | OpenCV 4.12 CPU p50 范围（ms） | OpenCV 4.12 CUDA p50 范围（ms） | Torch CUDA p50 范围（ms） |
+|---|---:|---:|---:|
+| 灰度 | 0.29–0.43 | 0.69–0.73 | 1.45 |
+| warp（每方向） | 3.03–3.07 | 1.34–1.40 | 7.81–7.82 |
+| 差分、阈值、掩膜、中值（每方向） | 4.38–4.40 | 35.76–36.50 | 1.51 |
+| 形态学 | 1.56–1.64 | 4.53–4.57 | 4.25–4.26 |
+| 稀疏 LK（每方向） | 2.44–3.15 | 2.77–3.17 | — |
+| 8 连通域标记 | 0.88–1.05 | 1.45–1.50 | — |
+
+三条路径的灰度与 5.0.0 参考完全一致。CUDA OpenCV 与 Torch 的 warp 最大差均为 1 灰阶，4.12 CPU 对 5.0 CPU 最大差为 7。与 5.0 参考比较候选框集合，纯 CUDA OpenCV、纯 Torch CUDA 和混合路径分别有 **54/96、22/96、22/96 帧变化**。固定相同的对齐像素和有效区后，CUDA OpenCV 的方向掩膜仍有 269,816 个像素变化，最终形态学掩膜有 19,465 个像素变化。混合路径的设备指针共享通过，算子联调优先采用 CUDA OpenCV warp 和 Torch 掩膜。另以 Torch 显存构造 `GpuMat` 再执行恒等 warp，确认双向可共享设备缓冲。
+
+稀疏 LK 在共同有效点上的位移差 p95 为 0.0034–0.0036 px，状态差为 `phantom30` 313/28,800、`phantom70` 5,733/28,800。候选接入前须用这些状态差验证 RANSAC 内点、回退与候选影响。CUDA 连通域在相同输入掩膜下 96 帧区域分区一致。本轮只计标签生成，区域统计和候选顺序另验。
+
+复测时先在默认环境运行 `compare_mfe_opencv_cuda.py capture <fixtures> <phantom30> <phantom70>`，再将 `/opt/opencv-cuda-4.12.0/python` 加入 `PYTHONPATH` 首位、将该前缀的 `lib` 加入 `LD_LIBRARY_PATH`，运行 `compare_mfe_opencv_cuda.py compare <fixtures> <summary.json>`。本次目录 `outputs/g2_opencv_cuda_20261111_085437/`，原始冻结帧保留在容器。 [对照摘要](../outputs/tables/g2_opencv_cuda_comparison.json)
+
 1. 先实现灰度、预处理、差分、阈值、形态学及连通域统计。用固定单应矩阵将图像算子与对齐算法分开验证。记录插值、边界填充、有效区、连通性、候选面积和排序。
 2. 实测 CUDA 稀疏 LK 的关键点和状态，再接 GPU 单应性求解和透视变换。分别保存内点数、重投影误差、有效区、候选数量和位置。覆盖低纹理、无有效变换、镜头抖动和高候选帧。需要新增 CUDA 内核时放在 ROS GPU 后端，复用阶段一配置和参考输出。
 3. 隔离对拍通过后接入帧窗口。缓存可复用的灰度帧等中间结果。逐轮测量每项缓存或融合对延迟、显存与数值结果的影响。
@@ -307,6 +325,7 @@ python3 scripts/probe_cuda_mfe.py "outputs/g2_fixed_$(date +%Y%m%d_%H%M%S)" \
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.10 | 验证新装 OpenCV CUDA 的 MFE 算子，并对照已有 Torch 路径 | 96 帧数值对照与分段计时完成。混合 warp 路径、CUDA LK 和连通域的后续接入边界见 §6.3。 |
 | 2026-11-11 | 0.1.9 | 核对可用 CUDA 库并实现固定矩阵 MFE 的 GPU 图像阶段 | 两视频 96 个中心帧对拍。同像素灰度、掩膜和形态学一致。warp 最大差 1 灰阶，22 帧候选列表变化。 |
 | 2026-11-11 | 0.1.8 | 将 NVDEC 设备帧与 CUDA 模型前后处理串联，并独立测量各阶段 | 236 帧同像素对拍通过。登记颜色转换导致的 15 次 LAC 阈值变化及 5 次最终框有无变化。 |
 | 2026-11-11 | 0.1.7 | 增加 NVDEC CUDA 帧适配与设备端 NV12→BGR | 两段视频解到 EOF，指针共享、PTS、重置和帧生命周期通过。记录色彩差异。 |

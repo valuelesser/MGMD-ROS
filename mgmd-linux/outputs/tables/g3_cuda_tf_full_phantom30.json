@@ -1,0 +1,82 @@
+{
+  "opencv": "5.0.0",
+  "scipy": "1.10.1",
+  "sequences": [
+    {
+      "sequence": "synthetic",
+      "counts": {
+        "frames": 10,
+        "candidates": 9,
+        "tf_output": 0,
+        "reference_output": 0,
+        "different_frames": 0
+      },
+      "peak": {
+        "candidates": 3,
+        "active_tracks": 3
+      },
+      "differences": {},
+      "synchronized_wall_ms": {
+        "cpu": {
+          "p50": 0.14435250000133237,
+          "p95": 0.44712390000114494
+        },
+        "cuda": {
+          "p50": 0.1840510000050699,
+          "p95": 0.24215680000878592
+        }
+      }
+    },
+    {
+      "sequence": "phantom30.continuous",
+      "counts": {
+        "frames": 1496,
+        "candidates": 170615,
+        "tf_output": 112485,
+        "reference_output": 112485,
+        "different_frames": 0
+      },
+      "peak": {
+        "candidates": 262,
+        "active_tracks": 451
+      },
+      "differences": {},
+      "synchronized_wall_ms": {
+        "cpu": {
+          "p50": 6.020297000020491,
+          "p95": 11.458255249991112
+        },
+        "cuda": {
+          "p50": 2.4683394999840402,
+          "p95": 4.597382000000039
+        }
+      }
+    },
+    {
+      "sequence": "phantom30.gaps",
+      "counts": {
+        "frames": 499,
+        "candidates": 57258,
+        "tf_output": 34818,
+        "reference_output": 34818,
+        "different_frames": 0
+      },
+      "peak": {
+        "candidates": 253,
+        "active_tracks": 438
+      },
+      "differences": {},
+      "synchronized_wall_ms": {
+        "cpu": {
+          "p50": 8.962812999982361,
+          "p95": 15.472065800008743
+        },
+        "cuda": {
+          "p50": 2.67053200002465,
+          "p95": 4.689255300002057
+        }
+      }
+    }
+  ],
+  "overflow_and_reset": "pass"
+}

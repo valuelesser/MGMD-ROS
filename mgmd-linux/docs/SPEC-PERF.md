@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.11` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.12` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.12 | 2026-11-11 | 本次全片验证提交 | 完成 phantom30 1080p CUDA TF 对拍及现有 ROS 后端的桌面回放 |
 | 0.1.11 | 2026-11-11 | 本次 G3 对照提交 | 同步容器 TF 参考，比较 CUDA 分配库和并行 TF 原型，登记独立卡尔曼备选 |
 | 0.1.10 | 2026-11-11 | 本次 G2 对照提交 | 实测新增 OpenCV 4.12 CUDA 与 Torch 路径的数值、耗时及混合方案 |
 | 0.1.9 | 2026-11-11 | 本次 G2 提交 | 开始迁移 MFE 图像算子，记录固定单应矩阵下的像素和候选差异 |
@@ -313,6 +314,12 @@ CPU 参考同步自当前容器的 `tf_fast.py`，SHA-256 为 `a9eb989a2c8c2d141
 
 从容器的 `mgmd-linux` 运行 `PYTHONPATH=. python3 scripts/probe_cuda_assignment.py <summary.json> /data/videos/phantom30.mp4 /data/videos/phantom70.mp4`。执行 `bash scripts/build_cuda_tf.sh /tmp/mgmd-tf-g3.so` 后运行 `PYTHONPATH=. python3 scripts/probe_cuda_tf.py /tmp/mgmd-tf-g3.so <新输出目录> /data/videos/phantom30.mp4 /data/videos/phantom70.mp4`。逐帧日志在容器 `outputs/g3_tf_parallel_20261111/`。
 
+#### phantom30 1080p 全片验证
+
+输入按正常播放范围可解码 1,498 帧。对 `9fef1b9` 的 CUDA TF 原型使用 `probe_cuda_tf.py` 和 `--frames 1498`，先读取整个视频，再对 1,496 个有效三帧窗口进行连续对拍，并从中抽取 499 帧做跳帧对拍。两组逐候选轨迹 ID、筛选及生命周期差异均为零。连续段 170,615 个候选保留 112,485 个，TF p50/p95 为 CPU 6.02/11.46 ms、CUDA 2.47/4.60 ms。时间排除探针的上传和比对下载。原始证据在容器 `outputs/g3_tf_full_1080p_exact_20261111/`。 [全片 TF 摘要](../outputs/tables/g3_cuda_tf_full_phantom30.json)
+
+ROS 回放沿用 G0 的 rqt、NVENC 和隔离 master 配置，将源帧限制改为 `limit:=0`，沿用 1920×1080、30 Hz、`loop:=false`、`frame_delta_predict:=true` 和 `association_radius_factor:=2.0`。ROS 使用现有 CPU FastSort 和 CUDA 模型推理。源在 50.1 秒内发布 1,498 帧，检测线程处理 227 帧，覆盖率 15.15%。主分支既有正式评测的同视频为 329 条检测消息、22.0% 覆盖率。本轮只读检测线程计数，未用正式采集器对齐消息和评分。可见 rqt 订阅叠框话题，话题抽样 30.49 Hz，输出 H.264 1920×1080 全段解码 1,491 帧，比发布少 7 帧。首轮缺失 NVENC 库，重跑前按 G0 恢复 FFmpeg 6.1.3 和驱动库路径。成功运行在容器 `outputs/g3_ros_full_1080p_nvenc_20261111/`，Windows 工作区同级的 `mgmd-1080p-phantom30-20261111/` 保存录像和日志。CUDA TF 接入 ROS 后仍需用正式采集器重做同口径对比。
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -338,6 +345,7 @@ CPU 参考同步自当前容器的 `tf_fast.py`，SHA-256 为 `a9eb989a2c8c2d141
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.12 | 记录 phantom30 1080p 全片验证 | CUDA TF 的 1,496 个连续窗口逐帧一致。现有 ROS 后端发布 1,498 帧，NVENC 录像解码 1,491 帧。 |
 | 2026-11-11 | 0.1.11 | 同步容器 TF 参考，验证 CUDA 分配库及并行 TF，记录独立卡尔曼备选 | 631 矩阵对照与 326 帧回放完成。CUDA 分配库未达速度验收，并行 TF 原型继续用于设备串联。 |
 | 2026-11-11 | 0.1.10 | 验证新装 OpenCV CUDA 的 MFE 算子，并对照已有 Torch 路径 | 96 帧数值对照与分段计时完成。混合 warp 路径、CUDA LK 和连通域的后续接入边界见 §6.3。 |
 | 2026-11-11 | 0.1.9 | 核对可用 CUDA 库并实现固定矩阵 MFE 的 GPU 图像阶段 | 两视频 96 个中心帧对拍。同像素灰度、掩膜和形态学一致。warp 最大差 1 灰阶，22 帧候选列表变化。 |

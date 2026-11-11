@@ -1,0 +1,22 @@
+<launch>
+  <arg name="video" default="/data/videos/phantom30.mp4"/>
+  <arg name="decoder_library" default="/tmp/mgmd-cuda-decoder.so"/>
+  <arg name="tf_library" default="/tmp/mgmd-tf-g3.so"/>
+  <arg name="rate" default="30"/>
+  <arg name="limit" default="0"/>
+  <arg name="preview" default="true"/>
+  <arg name="rqt" default="true"/>
+  <node pkg="mav_tracker_nodes" type="cuda_pipeline_node.py" name="cuda_pipeline"
+        output="screen" required="true">
+    <param name="video" value="$(arg video)"/>
+    <param name="decoder_library" value="$(arg decoder_library)"/>
+    <param name="tf_library" value="$(arg tf_library)"/>
+    <param name="rate" value="$(arg rate)"/>
+    <param name="limit" value="$(arg limit)"/>
+    <param name="preview" value="$(arg preview)"/>
+  </node>
+  <group if="$(arg preview)">
+    <node if="$(arg rqt)" pkg="rqt_image_view" type="rqt_image_view" name="gpu_viewer"
+          args="/mav/debug_image" output="screen"/>
+  </group>
+</launch>

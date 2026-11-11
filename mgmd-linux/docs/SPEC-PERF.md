@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.12` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.13` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.13 | 2026-11-11 | 本次 GPU ROS 提交 | 接通 MFE、TF、LAC、LAD 的 CUDA 数据链，验证 1080p 全片和 Windows 原生预览 |
 | 0.1.12 | 2026-11-11 | 本次全片验证提交 | 完成 phantom30 1080p CUDA TF 对拍及现有 ROS 后端的桌面回放 |
 | 0.1.11 | 2026-11-11 | 本次 G3 对照提交 | 同步容器 TF 参考，比较 CUDA 分配库和并行 TF 原型，登记独立卡尔曼备选 |
 | 0.1.10 | 2026-11-11 | 本次 G2 对照提交 | 实测新增 OpenCV 4.12 CUDA 与 Torch 路径的数值、耗时及混合方案 |
@@ -320,6 +321,27 @@ CPU 参考同步自当前容器的 `tf_fast.py`，SHA-256 为 `a9eb989a2c8c2d141
 
 ROS 回放沿用 G0 的 rqt、NVENC 和隔离 master 配置，将源帧限制改为 `limit:=0`，沿用 1920×1080、30 Hz、`loop:=false`、`frame_delta_predict:=true` 和 `association_radius_factor:=2.0`。ROS 使用现有 CPU FastSort 和 CUDA 模型推理。源在 50.1 秒内发布 1,498 帧，检测线程处理 227 帧，覆盖率 15.15%。主分支既有正式评测的同视频为 329 条检测消息、22.0% 覆盖率。本轮只读检测线程计数，未用正式采集器对齐消息和评分。可见 rqt 订阅叠框话题，话题抽样 30.49 Hz，输出 H.264 1920×1080 全段解码 1,491 帧，比发布少 7 帧。首轮缺失 NVENC 库，重跑前按 G0 恢复 FFmpeg 6.1.3 和驱动库路径。成功运行在容器 `outputs/g3_ros_full_1080p_nvenc_20261111/`，Windows 工作区同级的 `mgmd-1080p-phantom30-20261111/` 保存录像和日志。CUDA TF 接入 ROS 后仍需用正式采集器重做同口径对比。
 
+#### GPU ROS 文件回放与 1080p 预览
+
+`track_gpu.launch` 使用单进程 NVDEC → CUDA MFE → CUDA TF → CUDA LAC/LAD。MFE 用 OpenCV CUDA LK、Torch 批量单应性 RANSAC、warp 和形态学，以及 OpenCV CUDA 连通域和 Torch 区域统计。TF 沿用 G3 并行原型，ONNX 会话禁用 CPU 算子回退和运行时 provider 回退。LAC 裁剪使用 GPU 双线性采样，LAD 在 GPU 裁剪、推理及 NMS。ROS 发布边界读取检测元数据，预览支路下载 GPU 叠框后的 BGR 帧。动态索引和模型运行仍有主机同步。
+
+当前版本的 MFE 采样、单应性有效区、连通域顺序与 CPU 实现有差异，LAC 批量插值与旧路径也可能有舍入差异。本轮验证完整执行和吞吐，待正式采集器评估 F1、ID 连续性和逐阶段输出。预览画绿色框，正式评测所需的标注样式、NVENC 写盘和 30 Hz 丢帧策略待接入；本入口顺序处理全部有效窗口，超出 30 Hz 时间预算时放慢回放。
+
+在 `mgmd-ros` 中以 `valuelesser` 运行。先沿用现有 ROS demo 的环境，再显式选用 CUDA OpenCV 和 NVDEC 驱动目录。新入口默认使用 G1 和 G3 已生成的临时库，可通过 launch 参数覆盖路径。
+
+```bash
+source <(sed -n '1,/^cd "\$ROOT"$/p' /usr/local/bin/mgmd-ros-demo)
+export PYTHONPATH=/opt/opencv-cuda-4.12.0/python:$PYTHONPATH
+export LD_LIBRARY_PATH=/opt/opencv-cuda-4.12.0/lib:/tmp/mgmd-g0-video-libs:$LD_LIBRARY_PATH
+export DISPLAY=127.0.0.1:47 QT_X11_NO_MITSHM=1
+export ROS_MASTER_URI=http://127.0.0.1:11331 ROS_IP=127.0.0.1
+roslaunch mav_tracker_nodes track_gpu.launch video:=/data/videos/phantom30.mp4
+```
+
+Windows 原生预览通过 PowerShell 7 执行 `scripts/preview_ros_native.ps1`。它订阅同一个 ROS master 的 `/mav/debug_image`，核验 1920×1080 BGR 布局，再逐帧传给 Windows FFplay，不走 WSLg 窗口缩放。只用原生预览时，launch 可传入 `rqt:=false`。300 帧短跑验证窗口实际打开，Windows 200% DPI 下的物理外框为 1924×1140。关闭 FFplay 即结束该预览订阅。
+
+1080p 全片在 rqt 打开时读取 1,498 帧，连续处理 1,496 个中心帧，其中 1,169 帧有检测。墙钟 122.792 秒，**12.18 fps**，平均计算耗时 67.71 ms。Windows 原生预览与 rqt 同时开启的 300 帧短测处理 298 帧，9.59 fps，两次运行的片段长度和预览负载不同。Nsight 短段报告有 CUDA runtime 事件，未采到 GPU memcpy 或 kernel activity 表，因此严格拷贝验收仍未完成。容器日志和 trace 位于 `outputs/g4_gpu_ros_phantom30_20261111/`。 [运行摘要](../outputs/tables/g4_gpu_ros_phantom30.json)
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -345,6 +367,7 @@ ROS 回放沿用 G0 的 rqt、NVENC 和隔离 master 配置，将源帧限制改
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.13 | 增加四阶段 CUDA ROS launch 和 Windows 原生 1080p 预览 | 全片处理 1,496 帧，12.18 fps。300 帧原生预览通过，正式评分、拷贝验收和 NVENC 待接入。 |
 | 2026-11-11 | 0.1.12 | 记录 phantom30 1080p 全片验证 | CUDA TF 的 1,496 个连续窗口逐帧一致。现有 ROS 后端发布 1,498 帧，NVENC 录像解码 1,491 帧。 |
 | 2026-11-11 | 0.1.11 | 同步容器 TF 参考，验证 CUDA 分配库及并行 TF，记录独立卡尔曼备选 | 631 矩阵对照与 326 帧回放完成。CUDA 分配库未达速度验收，并行 TF 原型继续用于设备串联。 |
 | 2026-11-11 | 0.1.10 | 验证新装 OpenCV CUDA 的 MFE 算子，并对照已有 Torch 路径 | 96 帧数值对照与分段计时完成。混合 warp 路径、CUDA LK 和连通域的后续接入边界见 §6.3。 |

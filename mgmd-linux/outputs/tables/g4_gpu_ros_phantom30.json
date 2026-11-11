@@ -1,0 +1,32 @@
+{
+  "video": "/data/videos/phantom30.mp4",
+  "width": 1920,
+  "height": 1080,
+  "full_rqt": {
+    "source_frames": 1498,
+    "processed_frames": 1496,
+    "detection_frames": 1169,
+    "wall_seconds": 122.792,
+    "processed_fps": 12.18,
+    "compute_mean_ms": 67.71
+  },
+  "windows_native_and_rqt": {
+    "source_frames": 300,
+    "processed_frames": 298,
+    "detection_frames": 284,
+    "wall_seconds": 31.079,
+    "processed_fps": 9.59,
+    "compute_mean_ms": 89.30,
+    "window_physical_width": 1924,
+    "window_physical_height": 1140,
+    "windows_dpi": 192
+  },
+  "nsight_short_probe": {
+    "source_frames": 20,
+    "processed_frames": 18,
+    "cuda_runtime_events": 56525,
+    "gpu_kernel_activity_available": false,
+    "gpu_memcpy_activity_available": false
+  },
+  "container_output": "outputs/g4_gpu_ros_phantom30_20261111/"
+}

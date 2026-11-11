@@ -1,4 +1,4 @@
-"""Device image operations for the MFE branch with supplied alignment."""
+"""Device image operations and CUDA candidate extraction for MFE."""
 
 import torch
 from torch.nn.functional import avg_pool2d, grid_sample, max_pool2d, pad
@@ -11,7 +11,7 @@ def bgr_to_gray(image):
     return ((3735 * b + 19235 * g + 9798 * r + 16384) >> 15).to(torch.uint8)
 
 
-def warp_inverse(source, matrix):
+def warp_inverse(source, matrix, return_valid=False):
     """Apply a destination-to-source homography with bilinear sampling."""
     h, w = source.shape
     x = torch.arange(w, dtype=torch.float64, device=source.device)[None, :]
@@ -23,7 +23,11 @@ def warp_inverse(source, matrix):
     grid = torch.stack(((2 * sx + 1) / w - 1, (2 * sy + 1) / h - 1), dim=-1)
     warped = grid_sample(source[None, None].double(), grid[None], padding_mode="zeros",
                          align_corners=False)
-    return warped[0, 0].round().clamp_(0, 255).to(torch.uint8)
+    pixels = warped[0, 0].round().clamp_(0, 255).to(torch.uint8)
+    if return_valid:
+        valid = (sx >= 0) & (sx <= w - 1) & (sy >= 0) & (sy <= h - 1)
+        return pixels, valid
+    return pixels
 
 
 def threshold_direction(center, aligned, valid, cfg):
@@ -57,3 +61,133 @@ def morphology(mask, size, open_iters, close_iters):
             for _ in range(iterations):
                 value = sign * max_pool2d(sign * value, size, stride=1, padding=size // 2)
     return value[0, 0].bool()
+
+
+class CudaMfe:
+    """Sparse CUDA LK, batched RANSAC, and GPU connected component statistics."""
+
+    def __init__(self, cfg, width, height, hypotheses=256):
+        import cv2
+        from mgmd.mfe import grid_keypoints
+
+        cfg.validate()
+        if cfg.preprocess_blur or cfg.disp_filter:
+            raise ValueError("CUDA MFE supports the recommended preprocessing profile")
+        if not hasattr(cv2.cuda, "connectedComponents") or cv2.cuda.getCudaEnabledDeviceCount() < 1:
+            raise RuntimeError("CUDA OpenCV with cudaoptflow and cudaimgproc is required")
+        self.cv = cv2
+        self.cfg = cfg
+        self.stream = torch.cuda.default_stream()
+        self.cv_stream = cv2.cuda.Stream.Null()
+        self.lk = cv2.cuda.SparsePyrLKOpticalFlow_create((15, 15), 3, 30)
+        points = grid_keypoints(width, height, cfg.grid_cols, cfg.grid_rows)
+        self.points = torch.as_tensor(points.reshape(1, -1, 2), device="cuda")
+        self.scale = float(max(width, height))
+        self.identity = torch.eye(3, dtype=torch.float64, device="cuda")
+        generator = torch.Generator(device="cuda").manual_seed(0)
+        self.sample = torch.rand((hypotheses, 4), generator=generator, device="cuda")
+        self.pixel = torch.arange(width * height, dtype=torch.int32, device="cuda")
+        self.width, self.height = width, height
+
+    def _mat(self, value, kind):
+        height, width = value.shape[:2]
+        return self.cv.cuda.createGpuMatFromCudaMemory(
+            height, width, kind, value.data_ptr(), value.stride(0) * value.element_size())
+
+    @staticmethod
+    def _tensor(mat, dtype, channels=1):
+        width, height = mat.size()
+        size = int(dtype[-1])
+        shape = (height, width) if channels == 1 else (height, width, channels)
+        strides = (mat.step, size) if channels == 1 else (mat.step, channels * size, size)
+
+        class BorrowedMat:
+            __cuda_array_interface__ = {"version": 2, "shape": shape, "strides": strides,
+                                        "typestr": dtype, "data": (mat.cudaPtr(), False)}
+
+        return torch.as_tensor(BorrowedMat(), device="cuda")
+
+    def _homography(self, tracked, status):
+        src = self.points.reshape(-1, 2).double() / self.scale
+        dst = tracked.reshape(-1, 2).double() / self.scale
+        valid = status.reshape(-1).bool() & torch.isfinite(dst).all(dim=1)
+        dst = torch.where(valid[:, None], dst, 0)
+        x, y = dst.unbind(dim=1)
+        u, v = src.unbind(dim=1)
+        z, one = torch.zeros_like(x), torch.ones_like(x)
+        system = torch.stack((torch.stack((x, y, one, z, z, z, -u*x, -u*y), dim=1),
+                              torch.stack((z, z, z, x, y, one, -v*x, -v*y), dim=1)), dim=1)
+        count = valid.sum()
+        order = valid.to(torch.uint8).argsort(descending=True)
+        index = order[(self.sample * count.clamp_min(1)).long()]
+        a = system[index].reshape(-1, 8, 8)
+        b = src[index].reshape(-1, 8, 1)
+        parameters, info = torch.linalg.solve_ex(a, b)
+        parameters = parameters.squeeze(-1)
+        mapped = torch.einsum("nki,bi->bnk", system[:, :, :6], parameters[:, :6])
+        denominator = 1 + parameters[:, 6:8] @ dst.T
+        error = (mapped / denominator[..., None] - src).square().sum(dim=-1)
+        inliers = (error <= (self.cfg.ransac_thresh / self.scale)**2) & valid
+        inliers &= info[:, None] == 0
+        best = inliers.sum(dim=1).argmax().reshape(1)
+        keep = inliers.index_select(0, best).reshape(-1)
+        aw = (system * keep[:, None, None]).reshape(-1, 8)
+        bw = (src * keep[:, None]).reshape(-1, 1)
+        refined, status = torch.linalg.solve_ex(aw.T @ aw, aw.T @ bw)
+        h = torch.cat((refined.flatten(), one[:1])).reshape(3, 3)
+        scale = h.new_tensor((self.scale, self.scale, 1))
+        h = h * scale[:, None] / scale
+        good = (keep.sum() >= self.cfg.min_keypoints) & (status == 0) & torch.isfinite(h).all()
+        return torch.where(good, h, self.identity)
+
+    def _direction(self, source, center):
+        cv = self.cv
+        tracked, status, _ = self.lk.calc(
+            self._mat(source, cv.CV_8UC1), self._mat(center, cv.CV_8UC1),
+            self._mat(self.points, cv.CV_32FC2), None, stream=self.cv_stream)
+        h = self._homography(self._tensor(tracked, "<f4", 2), self._tensor(status, "|u1"))
+        aligned, valid = warp_inverse(source, h, return_valid=True)
+        # The Torch solver consumes OpenCV-owned buffers asynchronously.
+        self.stream.synchronize()
+        return threshold_direction(center, aligned, valid, self.cfg)[0]
+
+    def _boxes(self, mask):
+        cv = self.cv
+        pixels = mask.to(torch.uint8)
+        labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
+        ids = mask.flatten().nonzero().flatten()
+        labels = self._tensor(labels_mat, "<i4").reshape(-1)[ids].long()
+        pixel = self.pixel[ids]
+        size = mask.numel() + 1
+        area = torch.zeros(size, dtype=torch.int32, device=labels.device)
+        area.scatter_add_(0, labels, torch.ones_like(pixel))
+        minimum = torch.full_like(area, size)
+        minimum.scatter_reduce_(0, labels, pixel, reduce="amin")
+        x, y = pixel % self.width, pixel // self.width
+        x1, y1 = torch.full_like(area, self.width), torch.full_like(area, self.height)
+        x2, y2 = torch.zeros_like(area), torch.zeros_like(area)
+        for target, coord, op in ((x1, x, "amin"), (y1, y, "amin"),
+                                  (x2, x, "amax"), (y2, y, "amax")):
+            target.scatter_reduce_(0, labels, coord, reduce=op)
+        w, h = x2 - x1 + 1, y2 - y1 + 1
+        cfg = self.cfg
+        keep = area >= max(1, cfg.official_area_min or cfg.min_area)
+        keep[0] = False
+        if cfg.max_area:
+            keep &= area <= cfg.max_area
+        if cfg.aspect_filter:
+            keep &= (w >= cfg.min_aspect * h) & (w <= cfg.max_aspect * h)
+        ids = keep.nonzero().flatten()
+        ids = ids[minimum[ids].argsort()]
+        boxes = torch.stack((x1[ids], y1[ids], x2[ids] + 1, y2[ids] + 1), dim=1).double()
+        return boxes, (w[ids] * h[ids]).double()
+
+    def candidates(self, previous, center, following):
+        if torch.cuda.current_stream() != self.stream:
+            raise RuntimeError("CUDA MFE requires the default CUDA stream")
+        frames = [bgr_to_gray(frame) for frame in (previous, center, following)]
+        a = self._direction(frames[0], frames[1])
+        b = self._direction(frames[2], frames[1]) if self.cfg.needs_next else None
+        motion = combine_motion(a, b, self.cfg.mode)
+        return self._boxes(morphology(motion, self.cfg.morph_size,
+                                      self.cfg.open_iters, self.cfg.close_iters))

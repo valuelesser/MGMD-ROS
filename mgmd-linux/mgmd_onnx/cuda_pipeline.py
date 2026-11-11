@@ -22,8 +22,10 @@ def cuda_model(path):
 
 
 class CudaPipeline:
-    def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5):
-        self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height)
+    def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
+                 warp_backend="torch"):
+        self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
+                           warp_backend=warp_backend)
         self.tf = CudaTf(library)
         self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx")
         self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx")

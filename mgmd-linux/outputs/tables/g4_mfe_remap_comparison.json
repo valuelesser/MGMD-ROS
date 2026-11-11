@@ -1,0 +1,46 @@
+{
+  "phantom30": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "candidates": {
+      "center_frames": 118,
+      "torch_boxes": 20226,
+      "opencv_boxes": 20223,
+      "ordered_frames_changed": 53,
+      "box_set_frames_changed": 53,
+      "boxes_added": 71,
+      "boxes_removed": 74
+    },
+    "warp": {
+      "directions": 236,
+      "pixels": 489369600,
+      "pixel_differences": 197334,
+      "valid_differences": 40,
+      "max_gray_difference": 1
+    }
+  },
+  "phantom70": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "candidates": {
+      "center_frames": 118,
+      "torch_boxes": 5387,
+      "opencv_boxes": 5387,
+      "ordered_frames_changed": 19,
+      "box_set_frames_changed": 19,
+      "boxes_added": 24,
+      "boxes_removed": 24
+    },
+    "warp": {
+      "directions": 236,
+      "pixels": 489369600,
+      "pixel_differences": 185126,
+      "valid_differences": 317,
+      "max_gray_difference": 1
+    }
+  }
+}

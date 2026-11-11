@@ -64,6 +64,7 @@ def main():
         raise ValueError("Playback rate must be positive")
     realtime = get("~realtime", True)
     profile_mfe = get("~profile_mfe", False)
+    warp_backend = get("~warp_backend", "torch")
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     detections = rospy.Publisher("/mav/detections", DetectionArray, queue_size=10)
@@ -88,8 +89,9 @@ def main():
                 height, width = frame.image.shape[:2]
                 if min(height, width) < 320:
                     raise ValueError("GPU LAD requires both dimensions to be at least 320")
-                pipe = CudaPipeline(get("~tf_library"), width, height)
+                pipe = CudaPipeline(get("~tf_library"), width, height, warp_backend=warp_backend)
                 rospy.loginfo("GPU path initialized: NVDEC, MFE, TF, LAC, LAD (%dx%d)", width, height)
+                rospy.loginfo("MFE warp backend: %s", warp_backend)
                 started = time.perf_counter()
             if len(frames) < 3:
                 continue

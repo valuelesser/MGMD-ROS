@@ -11,15 +11,20 @@ def bgr_to_gray(image):
     return ((3735 * b + 19235 * g + 9798 * r + 16384) >> 15).to(torch.uint8)
 
 
+def perspective_coordinates(matrix, x, y):
+    z = matrix[2, 0] * x + matrix[2, 1] * y + matrix[2, 2]
+    factor = torch.where(z != 0, 1 / z, 0)
+    sx = (matrix[0, 0] * x + matrix[0, 1] * y + matrix[0, 2]) * factor
+    sy = (matrix[1, 0] * x + matrix[1, 1] * y + matrix[1, 2]) * factor
+    return sx, sy
+
+
 def warp_inverse(source, matrix, return_valid=False):
     """Apply a destination-to-source homography with bilinear sampling."""
     h, w = source.shape
     x = torch.arange(w, dtype=torch.float64, device=source.device)[None, :]
     y = torch.arange(h, dtype=torch.float64, device=source.device)[:, None]
-    z = matrix[2, 0] * x + matrix[2, 1] * y + matrix[2, 2]
-    factor = torch.where(z != 0, 1 / z, 0)
-    sx = (matrix[0, 0] * x + matrix[0, 1] * y + matrix[0, 2]) * factor
-    sy = (matrix[1, 0] * x + matrix[1, 1] * y + matrix[1, 2]) * factor
+    sx, sy = perspective_coordinates(matrix, x, y)
     grid = torch.stack(((2 * sx + 1) / w - 1, (2 * sy + 1) / h - 1), dim=-1)
     warped = grid_sample(source[None, None].double(), grid[None], padding_mode="zeros",
                          align_corners=False)
@@ -66,7 +71,7 @@ def morphology(mask, size, open_iters, close_iters):
 class CudaMfe:
     """Sparse CUDA LK, batched RANSAC, and GPU connected component statistics."""
 
-    def __init__(self, cfg, width, height, hypotheses=256):
+    def __init__(self, cfg, width, height, hypotheses=256, warp_backend="torch"):
         import cv2
         from mgmd.mfe import grid_keypoints
 
@@ -79,6 +84,12 @@ class CudaMfe:
         self.cfg = cfg
         self.stream = torch.cuda.default_stream()
         self.cv_stream = cv2.cuda.Stream.Null()
+        if warp_backend not in ("torch", "opencv"):
+            raise ValueError("warp_backend must be torch or opencv")
+        self.warp_backend = warp_backend
+        if warp_backend == "opencv":
+            self.warp_x = torch.arange(width, dtype=torch.float32, device="cuda")[None, :]
+            self.warp_y = torch.arange(height, dtype=torch.float32, device="cuda")[:, None]
         self.lk = cv2.cuda.SparsePyrLKOpticalFlow_create((15, 15), 3, 30)
         points = grid_keypoints(width, height, cfg.grid_cols, cfg.grid_rows)
         self.points = torch.as_tensor(points.reshape(1, -1, 2), device="cuda")
@@ -140,6 +151,22 @@ class CudaMfe:
         good = (keep.sum() >= self.cfg.min_keypoints) & (status == 0) & torch.isfinite(h).all()
         return torch.where(good, h, self.identity)
 
+    def _warp(self, source, matrix):
+        if self.warp_backend == "torch":
+            return warp_inverse(source, matrix, return_valid=True)
+        cv = self.cv
+        sx, sy = perspective_coordinates(matrix.float(), self.warp_x, self.warp_y)
+        valid = (sx >= 0) & (sx <= self.width - 1) & (sy >= 0) & (sy <= self.height - 1)
+        output = torch.empty_like(source)
+        dst = self._mat(output, cv.CV_8UC1)
+        cv.cuda.remap(self._mat(source, cv.CV_8UC1),
+                      self._mat(sx, cv.CV_32FC1), self._mat(sy, cv.CV_32FC1),
+                      cv.INTER_LINEAR, dst=dst, borderMode=cv.BORDER_CONSTANT,
+                      stream=self.cv_stream)
+        if dst.cudaPtr() != output.data_ptr():
+            raise RuntimeError("OpenCV remap replaced the shared CUDA output")
+        return output, valid
+
     def _direction(self, source, center, stamp):
         cv = self.cv
         tracked, status, _ = self.lk.calc(
@@ -148,7 +175,7 @@ class CudaMfe:
         stamp("LK")
         h = self._homography(self._tensor(tracked, "<f4", 2), self._tensor(status, "|u1"))
         stamp("RANSAC")
-        aligned, valid = warp_inverse(source, h, return_valid=True)
+        aligned, valid = self._warp(source, h)
         # The Torch solver consumes OpenCV-owned buffers asynchronously.
         self.stream.synchronize()
         stamp("warp")

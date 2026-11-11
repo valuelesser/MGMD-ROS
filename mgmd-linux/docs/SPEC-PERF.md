@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.16` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.17` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.17 | 2026-11-11 | 本次 warp 对照提交 | 加入 GPU 共享坐标图的 OpenCV remap，记录全片吞吐和候选差异 |
 | 0.1.16 | 2026-11-11 | 本次 MFE 分段计时提交 | 记录 ROS 全片 MFE 热点和 WSLg 显示缩放实测 |
 | 0.1.15 | 2026-11-11 | 本次推送约定提交 | 记录每次核验提交后推送远程对应分支的约定 |
 | 0.1.14 | 2026-11-11 | 本次 HUD 与实时回放提交 | 恢复按源时钟跳过过期窗口，增加分阶段统计及全屏 rqt |
@@ -361,6 +362,14 @@ rqt ImageView 默认全屏，Escape 返回窗口模式，F11 全屏，`fullscree
 
 Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSLg XWayland 和全屏 rqt 均为 1440×810。源图像仍为 1920×1080。若 WSLg 跟随 Windows 150% 显示缩放，逻辑尺寸可为 1920×1080。该配置未实测，本轮保留系统设置。 [WSLg 显示配置](https://github.com/microsoft/wslg/wiki/WSLg-Configuration-Options-for-Debugging)
 
+#### OpenCV CUDA remap 设备路径
+
+`roslaunch mav_tracker_nodes track_gpu.launch warp_backend:=opencv profile_mfe:=true` 启用实验路径。Torch 将 GPU 单应矩阵转换为 FP32 后生成两张源坐标图及有效掩膜，OpenCV CUDA remap 在默认 CUDA 流借用灰度图和坐标图地址，输出写入 Torch 预分配的 GPU 图像并校验指针。图像、矩阵、坐标图和掩膜没有显式主机往返。计时含坐标生成、采样、有效区和原有边界同步。
+
+同一 `phantom30` 1080p 全片按 30 Hz 源时钟运行，rqt 和 HUD 开启。Torch 与 OpenCV 分别处理 511 和 672 个窗口，吞吐 10.23 → 13.45 fps。warp 均值/p95 由 16.222/16.659 降至 3.775/3.956 ms，MFE 由 39.37/41.50 降至 26.42/29.08 ms。两轮实时选帧不同。OpenCV 轮读取 1,498 帧，跳过 824 个窗口，488 帧有检测，耗时 49.951 秒。日志在容器 `outputs/g4_mfe_remap_20261111/launch.log`。
+
+`compare_cuda_mfe_warp.py /tmp/mgmd-cuda-decoder.so <summary.json> /data/videos/phantom30.mp4 /data/videos/phantom70.mp4` 用相同解码帧对拍，每段 118 个中心帧。逐方向同矩阵对照最大差 1 灰阶，前后两方向的有效区差分别按视频累计为 40 和 317 像素。两段分别有 53 和 19 帧候选框集合变化，净候选数变化为 −3 和 0。保留 Torch 为默认，正式检测和轨迹质量通过后再考虑切换。 [候选与像素对照](../outputs/tables/g4_mfe_remap_comparison.json)
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -388,6 +397,7 @@ Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSL
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.17 | 对拍全显存 OpenCV remap 和 Torch warp | 1080p 全片 13.45 fps。236 个固定窗口中 72 帧候选集合变化，继续按实验参数启用。 |
 | 2026-11-11 | 0.1.16 | 增加可选 MFE 子阶段计时，核对 Windows 主屏和 WSLg 尺寸 | 511 个 1080p 中心帧中，warp 平均 16.222 ms，为最慢环节。 |
 | 2026-11-11 | 0.1.15 | 同步 SPEC 与仓库维护约定，每次核验提交后推送对应远程分支 | 纯文档修订。远程分支与本地 HEAD 一致作为推送验收。 |
 | 2026-11-11 | 0.1.14 | 增加 HUD 和全屏 rqt，按 30 Hz 源时钟处理过期窗口 | 1080p 全片处理 545 个窗口，10.91 fps。MFE 平均 40.49 ms，为最慢阶段。 |

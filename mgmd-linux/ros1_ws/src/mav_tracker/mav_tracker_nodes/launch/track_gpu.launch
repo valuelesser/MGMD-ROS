@@ -5,6 +5,7 @@
   <arg name="rate" default="30"/>
   <arg name="realtime" default="true"/>
   <arg name="profile_mfe" default="false"/>
+  <arg name="warp_backend" default="torch"/>
   <arg name="limit" default="0"/>
   <arg name="preview" default="true"/>
   <arg name="rqt" default="true"/>
@@ -17,6 +18,7 @@
     <param name="rate" value="$(arg rate)"/>
     <param name="realtime" value="$(arg realtime)"/>
     <param name="profile_mfe" value="$(arg profile_mfe)"/>
+    <param name="warp_backend" value="$(arg warp_backend)"/>
     <param name="limit" value="$(arg limit)"/>
     <param name="preview" value="$(arg preview)"/>
   </node>

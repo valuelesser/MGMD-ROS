@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.21` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.22` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.22 | 2026-11-11 | 本次 OpenCV 解码环境提交 | 为 OpenCV 4.12 补编 cudacodec，验证 GPU BGR 和 libav 对照 |
 | 0.1.21 | 2026-11-11 | 本次墙钟分段提交 | 测量 NVDEC、源节拍、流水线等待与 ROS 预览的实际时间 |
 | 0.1.20 | 2026-11-11 | 本次实时 A/B 提交 | 同一 ROS launch 对照串行和跨帧两流 |
 | 0.1.19 | 2026-11-11 | 本次两流实验提交 | 验证固定窗口上的跨帧 MFE 与 TF/LAC/LAD 重叠 |
@@ -413,6 +414,18 @@ Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSL
 
 1080p、30 Hz、OpenCV warp、rqt/HUD 各跑一轮。串行和两流分别为 12.93 和 16.50 fps。串行每处理窗口墙钟 77.32 ms，其中主线程等待 MFE 25.92 ms，TF/LAC/LAD 与末尾同步 22.48 ms，解码加转色 23.40 ms，预览 4.74 ms，主动源节拍等待 0.07 ms。两流每窗口墙钟 60.60 ms，等待 MFE 2.03 ms，TF/LAC/LAD 与末尾同步 35.57 ms，解码加转色 16.57 ms，预览 5.60 ms，主动源节拍等待 0.08 ms。两轮分别跳过 850 和 671 个窗口；源帧依旧逐帧解码与转色。解码和转色是串行四阶段计时之外的最大项。 [墙钟分段原始数据](../outputs/tables/g4_wall_ledger_phantom30.json)
 
+#### OpenCV cudacodec 解码环境
+
+`mgmd-ros` 复用 `/home/valuelesser/mgmd-opencv-build` 的 OpenCV 和 opencv_contrib 4.12.0 源码及构建目录。用户下载的 NVIDIA Video Codec SDK 12.0.16 只取 `Interface/nvcuvid.h` 和 `Interface/cuviddec.h` 放入 CUDA 12.1 的 include 目录。CMake 复用 RTX 3050 的 `CUDA_ARCH_BIN=8.6`，设置 `WITH_FFMPEG=ON`、`WITH_NVCUVID=ON`、`WITH_NVCUVENC=OFF`，通过 `CUDA_nvcuvid_LIBRARY=/tmp/mgmd-g0-video-libs/libnvcuvid.so.1` 链接已验证的驱动库，在原 `BUILD_LIST` 加入 `videoio,cudacodec`。
+
+独立前缀为 `/home/valuelesser/opt/opencv-cuda-4.12.0-cudacodec`，Python 安装目录为该前缀的 `python` 子目录。验证前将两目录分别加入 `PYTHONPATH` 与 `LD_LIBRARY_PATH`，后者另包含 `/tmp/mgmd-g0-video-libs`。编译和安装日志分别为构建根目录下的 `configure-cudacodec.log`、`build-cudacodec.log` 和 `install-cudacodec.log`。 [OpenCV 模块文档](https://docs.opencv.org/4.12.0/d0/d61/group__cudacodec.html)
+
+增量构建首次复用了旧的 `build/modules/python_bindings_generator/pyopencv_generated_*.h`，导致绑定没有声明 `videoio`。备份生成文件并续编后，Python 绑定链接成功，续编日志为 `build-cudacodec-bindings.log`。旧安装清单 `build/install_manifest.txt` 由 root 创建，修正属主后完成独立安装。
+
+在 `mgmd-linux` 运行 `PYTHONPATH="$prefix/python:$PWD" LD_LIBRARY_PATH="$prefix/lib:/tmp/mgmd-g0-video-libs" python3 scripts/compare_cuda_decoders.py /tmp/mgmd-cuda-decoder.so /data/videos/phantom30.mp4 <summary.json> --opencv-leading-frames 25`，其中 `prefix` 为上述独立前缀。OpenCV 输出 1920×1080 的 `CV_8UC3 GpuMat`，抽样导入 Torch 时指针一致。完整离线读帧并同步至 BGR 可用，OpenCV 为 2.37/4.52 ms（p50/p95），libav 为 7.50/9.75 ms。此结果不含 ROS、实时节拍或推理。
+
+OpenCV 读出 1,523 帧，libav 读出正常播放范围的 1,498 帧。对六个位置以像素内容匹配，OpenCV 均向后对齐 25 帧，包含 25 个额外片头帧。按该偏移对齐后抽样 50 帧，BGR 通道平均绝对差 1.13、最大差 12。偏移仅用于 `phantom30` 诊断。接入 ROS 前需保留 MP4 播放范围与帧时间语义，并验证候选和检测质量。 [全片对照摘要](../outputs/tables/g4_opencv_decoder_phantom30.json)
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -440,6 +453,7 @@ Windows 主屏实测物理尺寸 2880×1620，当前逻辑尺寸 1440×810，WSL
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.22 | 补编 OpenCV cudacodec | 记录独立安装和两种硬解接口的 GPU BGR 验证。 |
 | 2026-11-11 | 0.1.21 | 增加可选主线程墙钟分段 | 用相同 1080p、30 Hz、rqt/HUD 设置复测串行与两流。 |
 | 2026-11-11 | 0.1.20 | 接入同一 ROS launch 并验证实时两流 | 完成 1080p、30 Hz、rqt/HUD 全片 ABBA。 |
 | 2026-11-11 | 0.1.19 | 验证两流固定窗口原型 | 两段共 276 个窗口通过对拍，计算吞吐提升约 11%。 |

@@ -1,0 +1,39 @@
+{
+  "opencv_version": "4.12.0",
+  "opencv_module": "/home/valuelesser/opt/opencv-cuda-4.12.0-cudacodec/python/cv2/__init__.py",
+  "video": "/data/videos/phantom30.mp4",
+  "libav": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "frames": 1498,
+    "seconds": 12.070014601998992,
+    "fps": 124.10921191030761,
+    "ready_ms": {
+      "p50": 7.498698500057799,
+      "p95": 9.750560049451446
+    }
+  },
+  "opencv": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "frames": 1523,
+    "seconds": 4.244373955998526,
+    "fps": 358.82794866544714,
+    "ready_ms": {
+      "p50": 2.3684119987592567,
+      "p95": 4.517398899042744
+    }
+  },
+  "color": {
+    "opencv_leading_frames_skipped_for_comparison": 25,
+    "sampled_frames": 50,
+    "different_channels": 218243572,
+    "sampled_channels": 311040000,
+    "mean_abs_channel_difference": 1.1336485146604938,
+    "max_channel_difference": 12
+  }
+}

@@ -11,24 +11,29 @@ from mgmd_onnx.cuda_models import CudaModel
 from mgmd_onnx.cuda_tf import CudaTf
 
 
-def cuda_model(path):
+def cuda_model(path, stream=None):
     import onnxruntime as ort
 
     options = ort.SessionOptions()
     options.add_session_config_entry("session.disable_cpu_ep_fallback", "1")
-    session = ort.InferenceSession(str(path), options, providers=["CUDAExecutionProvider"])
+    provider = "CUDAExecutionProvider"
+    if stream is not None:
+        provider = (provider, {"device_id": stream.device.index,
+                               "user_compute_stream": str(stream.cuda_stream)})
+    session = ort.InferenceSession(str(path), options, providers=[provider])
     session.disable_fallback()
     return CudaModel(session)
 
 
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
-                 warp_backend="torch"):
-        self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
-                           warp_backend=warp_backend)
+                 warp_backend="torch", mfe_stream=None, model_stream=None):
+        with torch.cuda.stream(mfe_stream):
+            self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
+                               warp_backend=warp_backend)
         self.tf = CudaTf(library)
-        self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx")
-        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx")
+        self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream)
+        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx", model_stream)
         _inject_syspath(yolov5_dir())
         self.lac_threshold = lac_threshold
         self.lad_threshold = lad_threshold
@@ -73,21 +78,27 @@ class CudaPipeline:
         timing[0].record()
         boxes, scores = self.mfe.candidates(previous, center, following, mfe_profile)
         timing[1].record()
+        return self.finish(center, boxes, scores, seq, timing)
+
+    def finish(self, center, boxes, scores, seq, timing=None):
         result = self.tf.step(boxes, scores, seq)
         rows = torch.arange(result.boxes.shape[0], device=center.device)
         valid = rows < result.count
         tracks, ids = result.boxes[valid], result.ids[valid]
-        timing[2].record()
+        if timing:
+            timing[2].record()
         image = center.permute(2, 0, 1).flip(0).unsqueeze(0).float()
         if tracks.shape[0]:
             selected = self._classify(image, tracks) >= self.lac_threshold
             tracks, ids = tracks[selected], ids[selected]
-        timing[3].record()
+        if timing:
+            timing[3].record()
         detections = []
         for track, track_id in zip(tracks.unbind(), ids.unbind()):
             box = self._refine(image, track)
             if box.shape[0]:
                 detections.append(torch.cat((box, track_id.reshape(1, 1)), dim=1))
         output = torch.cat(detections) if detections else tracks.new_empty((0, 6))
-        timing[4].record()
+        if timing:
+            timing[4].record()
         return output, result.status, len(boxes), timing

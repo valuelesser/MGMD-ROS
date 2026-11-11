@@ -82,8 +82,9 @@ class CudaMfe:
             raise RuntimeError("CUDA OpenCV with cudaoptflow and cudaimgproc is required")
         self.cv = cv2
         self.cfg = cfg
-        self.stream = torch.cuda.default_stream()
-        self.cv_stream = cv2.cuda.Stream.Null()
+        self.stream = torch.cuda.current_stream()
+        self.cv_stream = (cv2.cuda.wrapStream(self.stream.cuda_stream)
+                          if self.stream.cuda_stream else cv2.cuda.Stream.Null())
         if warp_backend not in ("torch", "opencv"):
             raise ValueError("warp_backend must be torch or opencv")
         self.warp_backend = warp_backend
@@ -186,7 +187,12 @@ class CudaMfe:
     def _boxes(self, mask, stamp):
         cv = self.cv
         pixels = mask.to(torch.uint8)
+        # OpenCV 4.12 CCL has no stream argument.
+        if self.stream.cuda_stream:
+            self.stream.synchronize()
         labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
+        if self.stream.cuda_stream:
+            torch.cuda.default_stream().synchronize()
         stamp("CCL")
         ids = mask.flatten().nonzero().flatten()
         labels = self._tensor(labels_mat, "<i4").reshape(-1)[ids].long()
@@ -219,7 +225,7 @@ class CudaMfe:
 
     def candidates(self, previous, center, following, profile=None):
         if torch.cuda.current_stream() != self.stream:
-            raise RuntimeError("CUDA MFE requires the default CUDA stream")
+            raise RuntimeError("CUDA MFE requires its creation stream")
         def stamp(name):
             if profile is not None:
                 event = torch.cuda.Event(enable_timing=True)

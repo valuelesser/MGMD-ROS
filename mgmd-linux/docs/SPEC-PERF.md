@@ -1,6 +1,6 @@
 # SPEC-PERF · Docker 环境下的 ROS 性能优化
 
-`spec_version: 0.1.13` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
+`spec_version: 0.1.14` · `branch: perf-optimization` · `base: docker@ed8cb69` · `prd_version: 4.2`
 
 ## 0. 版本与维护约定
 
@@ -19,6 +19,7 @@
 
 | 版本 | 日期 | 对应提交 | 变更 |
 |---|---|---|---|
+| 0.1.14 | 2026-11-11 | 本次 HUD 与实时回放提交 | 恢复按源时钟跳过过期窗口，增加分阶段统计及全屏 rqt |
 | 0.1.13 | 2026-11-11 | 本次 GPU ROS 提交 | 接通 MFE、TF、LAC、LAD 的 CUDA 数据链，验证 1080p 全片和 Windows 原生预览 |
 | 0.1.12 | 2026-11-11 | 本次全片验证提交 | 完成 phantom30 1080p CUDA TF 对拍及现有 ROS 后端的桌面回放 |
 | 0.1.11 | 2026-11-11 | 本次 G3 对照提交 | 同步容器 TF 参考，比较 CUDA 分配库和并行 TF 原型，登记独立卡尔曼备选 |
@@ -342,6 +343,14 @@ Windows 原生预览通过 PowerShell 7 执行 `scripts/preview_ros_native.ps1`�
 
 1080p 全片在 rqt 打开时读取 1,498 帧，连续处理 1,496 个中心帧，其中 1,169 帧有检测。墙钟 122.792 秒，**12.18 fps**，平均计算耗时 67.71 ms。Windows 原生预览与 rqt 同时开启的 300 帧短测处理 298 帧，9.59 fps，两次运行的片段长度和预览负载不同。Nsight 短段报告有 CUDA runtime 事件，未采到 GPU memcpy 或 kernel activity 表，因此严格拷贝验收仍未完成。容器日志和 trace 位于 `outputs/g4_gpu_ros_phantom30_20261111/`。 [运行摘要](../outputs/tables/g4_gpu_ros_phantom30.json)
 
+#### 30 Hz 实时 GPU 回放、rqt HUD 与分段耗时
+
+v0.1.13 在同一循环内解码、检测和发布，处理速度限制取帧速度。v0.1.14 的 `track_gpu.launch` 默认 `realtime:=true`，按单调时钟和 `rate:=30` 为每帧定位播放时刻，过期窗口只解码并维护最近三帧，跳过检测。处理窗口的相邻帧保持连续，TF 继续按源视频帧号预测。此入口的预览随检测结果更新。使用 `realtime:=false` 可离线处理所有有效窗口。
+
+rqt ImageView 默认全屏，Escape 返回窗口模式，F11 全屏，`fullscreen:=false` 可用原窗口。实测 X11 客户区从 955×567 提高到当前 WSLg 输出上限 1440×810，ROS 图像维持原始 1920×1080。当前 WSLg 未提供 1920×1080 显示模式。HUD 在 ROS 预览支路下载图像后绘制，显示最近约 2 秒检测吞吐、源频率、处理与跳过计数、四阶段均值和最慢阶段。检测主链保持 CUDA。
+
+全片 49.968 秒，读 1,498 帧，处理 545 个有效窗口、跳过 951 个，平均 10.91 fps。阶段 CUDA 事件均值/p95（ms）为 MFE 40.49/44.14、TF 1.98/2.79、LAC 3.38/8.65、LAD 16.96/30.03。MFE 占四阶段平均时间约 64%。四阶段时间未包含源解码、预览绘制、ROS 发布及节流。运行日志和 1080p HUD 样图在容器 `outputs/g4_gpu_ros_hud_20261111/`。 [运行摘要](../outputs/tables/g4_gpu_ros_hud_phantom30.json)
+
 **G4 输出与稳定性**
 
 1. 实现 GPU 叠框，支持坐标、颜色、ID 和置信度。提交小体积检测结果给 ROS。预览从设备图像向主机输出支路独立传输，慢订阅者的丢帧单独计数。兼容预览保留时间戳、帧号和 BGR 编码语义。
@@ -367,6 +376,7 @@ Windows 原生预览通过 PowerShell 7 执行 `scripts/preview_ros_native.ps1`�
 
 | 日期 | 版本 | 改动与原因 | 验收与证据 |
 |---|---|---|---|
+| 2026-11-11 | 0.1.14 | 增加 HUD 和全屏 rqt，按 30 Hz 源时钟处理过期窗口 | 1080p 全片处理 545 个窗口，10.91 fps。MFE 平均 40.49 ms，为最慢阶段。 |
 | 2026-11-11 | 0.1.13 | 增加四阶段 CUDA ROS launch 和 Windows 原生 1080p 预览 | 全片处理 1,496 帧，12.18 fps。300 帧原生预览通过，正式评分、拷贝验收和 NVENC 待接入。 |
 | 2026-11-11 | 0.1.12 | 记录 phantom30 1080p 全片验证 | CUDA TF 的 1,496 个连续窗口逐帧一致。现有 ROS 后端发布 1,498 帧，NVENC 录像解码 1,491 帧。 |
 | 2026-11-11 | 0.1.11 | 同步容器 TF 参考，验证 CUDA 分配库及并行 TF，记录独立卡尔曼备选 | 631 矩阵对照与 326 帧回放完成。CUDA 分配库未达速度验收，并行 TF 原型继续用于设备串联。 |

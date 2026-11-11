@@ -1,0 +1,22 @@
+{
+  "video": "/data/videos/phantom30.mp4",
+  "source_hz": 30,
+  "source_width": 1920,
+  "source_height": 1080,
+  "rqt_width": 1440,
+  "rqt_height": 810,
+  "read_frames": 1498,
+  "processed_windows": 545,
+  "skipped_windows": 951,
+  "frames_with_detections": 407,
+  "wall_seconds": 49.968,
+  "processed_fps": 10.91,
+  "compute_mean_ms": 63.09,
+  "stage_ms": {
+    "MFE": {"mean": 40.49, "p95": 44.14},
+    "TF": {"mean": 1.98, "p95": 2.79},
+    "LAC": {"mean": 3.38, "p95": 8.65},
+    "LAD": {"mean": 16.96, "p95": 30.03}
+  },
+  "container_output": "outputs/g4_gpu_ros_hud_20261111/"
+}

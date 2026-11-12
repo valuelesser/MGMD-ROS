@@ -1,7 +1,9 @@
 """Bounded, ordered scheduling with one or two LAD streams."""
 
 from collections import deque
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
+from queue import Empty, Full, Queue
+from threading import Event
 
 import torch
 
@@ -79,6 +81,98 @@ class FourStream:
             if len(pending) == depth:
                 yield pending.popleft()
         yield from pending
+
+    def realtime_windows(self, source, dropped):
+        """Feed each stage independently, keeping the newest waiting window."""
+        queues = [Queue(maxsize=1) for _ in range(5)]
+        stop = Event()
+        done = object()
+        failures = Queue()
+
+        def put(index, item):
+            queue = queues[index]
+            if item is not done:
+                try:
+                    queue.put_nowait(item)
+                    return
+                except Full:
+                    try:
+                        _, _, _, ready = queue.get_nowait()
+                    except Empty:
+                        pass
+                    else:
+                        dropped[index] += 1
+                        if ready is not None:
+                            ready.synchronize()
+                queue.put_nowait(item)
+                return
+            while not stop.is_set():
+                try:
+                    queue.put(done, timeout=.05)
+                    return
+                except Full:
+                    continue
+
+        def guarded(work, *args):
+            try:
+                work(*args)
+            except Exception as error:
+                failures.put(error)
+                stop.set()
+
+        def feed():
+            for window, _, marks in source:
+                if stop.is_set():
+                    break
+                put(0, (window, marks, None, None))
+            put(0, done)
+
+        def consume(index, stage):
+            while not stop.is_set():
+                try:
+                    item = queues[index].get(timeout=.05)
+                except Empty:
+                    continue
+                if item is done:
+                    put(index + 1, done)
+                    return
+                window, marks, previous, _ = item
+                result = Future()
+                if index == 0:
+                    value = self._run(index, stage, window, marks)
+                    ready = value[4]
+                elif index == 3:
+                    value = self._run(index, stage, previous, self.pipe.lad)
+                    ready = None
+                else:
+                    value = self._run(index, stage, previous)
+                    ready = value[-1][-1]
+                result.set_result(value)
+                put(index + 1, (window, marks, result, ready))
+
+        with ThreadPoolExecutor(max_workers=1) as intake:
+            producer = intake.submit(guarded, feed)
+            workers = [worker.submit(guarded, consume, index, stage)
+                       for index, (worker, stage) in enumerate(zip(
+                           self.workers, (self.align, self.candidates, self.track, self.refine)))]
+            try:
+                while not stop.is_set():
+                    try:
+                        item = queues[-1].get(timeout=.05)
+                    except Empty:
+                        continue
+                    if item is done:
+                        break
+                    window, marks, result, _ = item
+                    yield window, result, marks
+                if not failures.empty():
+                    raise failures.get_nowait()
+            finally:
+                stop.set()
+                producer.result()
+                for worker in workers:
+                    worker.result()
+                torch.cuda.synchronize()
 
     @staticmethod
     def _stamp(marks, name):

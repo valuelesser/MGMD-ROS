@@ -124,6 +124,7 @@ def main():
     wall_bins = defaultdict(float) if get("~profile_wall", False) else None
     warp_backend = get("~warp_backend", "torch")
     mode = get("~pipeline_mode", "legacy")
+    decouple = get("~decouple_lad", False)
     four_stream_depth = get("~four_stream_depth", 4)
     reuse_gray = get("~reuse_gray", False)
     if mode not in ("legacy", "serial", "overlap", "four_stream", "five_stream"):
@@ -134,6 +135,8 @@ def main():
         raise ValueError("four_stream_depth must be 2, 3 or 4")
     if mode == "five_stream" and four_stream_depth != 4:
         raise ValueError("five_stream requires four_stream_depth=4")
+    if decouple and (mode != "four_stream" or not realtime):
+        raise ValueError("decouple_lad requires realtime four_stream")
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     decoder_backend = get("~decoder_backend", "libav")
@@ -149,6 +152,7 @@ def main():
     latency = []
     mfe_samples = defaultdict(list)
     split_samples = []
+    queue_drops = [0] * 5
     elapsed = 0.
     if decoder_backend == "opencv":
         from mgmd_onnx.cuda_opencv_decoder import OpenCvCudaDecoder
@@ -171,7 +175,7 @@ def main():
         with torch.cuda.stream(post_stream):
             pipe = CudaPipeline(get("~tf_library"), width, height, warp_backend=warp_backend,
                                 mfe_stream=mfe_stream, model_stream=post_stream, lad_stream=lad_stream,
-                                second_lad_stream=second_lad_stream)
+                                second_lad_stream=second_lad_stream, async_lad=decouple)
         four = None
         if lad_stream is not None:
             streams = (mfe_stream, torch.cuda.Stream(), post_stream, lad_stream)
@@ -185,9 +189,12 @@ def main():
         started = time.perf_counter()
         windows = ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
-                mfe_stream, executor, profile_mfe, counts, wall_bins, reuse_gray,
+                mfe_stream, executor, profile_mfe, counts, None if decouple else wall_bins, reuse_gray,
                 pipe.mfe.default_stream_lock if four else None)
-        if four:
+        if decouple:
+            windows = four.realtime_windows(windows, queue_drops)
+            stack.callback(windows.close)
+        elif four:
             windows = four.windows(windows, four_stream_depth)
         for (previous, center, following), job, mfe_timing in windows:
             begin = time.perf_counter()
@@ -307,6 +314,9 @@ def main():
             rospy.loginfo("GPU MFE split mean/p95 ms: align=%.2f/%.2f candidates=%.2f/%.2f",
                           *np.stack((np.mean(split_samples, axis=0),
                                      np.percentile(split_samples, 95, axis=0)), axis=1).flatten())
+        if decouple:
+            rospy.loginfo("GPU realtime queue drops: align=%d candidates=%d TF/LAC=%d LAD=%d publish=%d",
+                          *queue_drops)
         if four and four.spans:
             rospy.loginfo("GPU four-stage event overlap: %.2f ms", four_stage_overlap(four.spans))
             if second_lad_stream is not None:

@@ -13,7 +13,7 @@ from mgmd_onnx.cuda_models import CudaModel
 from mgmd_onnx.cuda_tf import CudaTf
 
 
-def cuda_model(path, stream=None, default_stream_lock=None):
+def cuda_model(path, stream=None, default_stream_lock=None, enqueue_only=False):
     import onnxruntime as ort
 
     options = ort.SessionOptions()
@@ -24,12 +24,17 @@ def cuda_model(path, stream=None, default_stream_lock=None):
                                "user_compute_stream": str(stream.cuda_stream)})
     session = ort.InferenceSession(str(path), options, providers=[provider])
     session.disable_fallback()
-    return CudaModel(session, default_stream_lock)
+    run_options = None
+    if enqueue_only:
+        run_options = ort.RunOptions()
+        run_options.add_run_config_entry("disable_synchronize_execution_providers", "1")
+    return CudaModel(session, default_stream_lock, run_options)
 
 
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
-                 warp_backend="torch", mfe_stream=None, model_stream=None, lad_stream=None):
+                 warp_backend="torch", mfe_stream=None, model_stream=None, lad_stream=None,
+                 second_lad_stream=None):
         # OpenCV CCL uses the default stream and cannot run during ORT capture.
         default_stream_lock = Lock() if mfe_stream is not None and model_stream is not None else None
         with torch.cuda.stream(mfe_stream):
@@ -39,7 +44,10 @@ class CudaPipeline:
         self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock)
         self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
                               lad_stream if lad_stream is not None else model_stream,
-                              default_stream_lock)
+                              default_stream_lock, enqueue_only=second_lad_stream is not None)
+        self.second_lad = (cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
+                                     second_lad_stream, default_stream_lock, enqueue_only=True)
+                           if second_lad_stream is not None else None)
         _inject_syspath(yolov5_dir())
         self.lac_threshold = lac_threshold
         self.lad_threshold = lad_threshold
@@ -62,14 +70,14 @@ class CudaPipeline:
         inputs = crops.round().div_(255).contiguous()
         return self.lac.run(inputs)[0].double().softmax(dim=1)[:, 1]
 
-    def _refine(self, image, box):
+    def _refine(self, image, box, model):
         from utils.general import non_max_suppression
 
         center = (box[:2] + box[2:]) * .5
         x = (center[0] - 160).round().long().clamp(0, self.width - 320)
         y = (center[1] - 160).round().long().clamp(0, self.height - 320)
         crop = image[:, :, y + self.lad_axis[:, None], x + self.lad_axis[None, :]]
-        raw = self.lad.run(crop.div(255).contiguous())[0]
+        raw = model.run(crop.div(255).contiguous())[0]
         det = non_max_suppression(raw, self.lad_threshold, .45)[0]
         if det.shape[0] == 0:
             return det.new_empty((0, 5))
@@ -108,10 +116,12 @@ class CudaPipeline:
             timing[3].record()
         return image, tracks, ids, result.status
 
-    def refine_tracks(self, image, tracks, ids):
+    def refine_tracks(self, image, tracks, ids, model=None):
+        if model is None:
+            model = self.lad
         detections = []
         for track, track_id in zip(tracks.unbind(), ids.unbind()):
-            box = self._refine(image, track)
+            box = self._refine(image, track, model)
             if box.shape[0]:
                 detections.append(torch.cat((box, track_id.reshape(1, 1)), dim=1))
         return torch.cat(detections) if detections else tracks.new_empty((0, 6))

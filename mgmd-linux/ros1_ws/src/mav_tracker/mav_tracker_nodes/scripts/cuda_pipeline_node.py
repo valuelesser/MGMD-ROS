@@ -18,7 +18,7 @@ import torch
 from detector_node import build_detection_array
 from mav_tracker_msgs.msg import DetectionArray
 from mgmd_onnx.cuda_frames import CudaDecoder
-from mgmd_onnx.cuda_four_stream import FourStream, four_stage_overlap
+from mgmd_onnx.cuda_four_stream import FourStream, four_stage_overlap, lad_overlap
 from mgmd_onnx.cuda_pipeline import CudaPipeline
 
 
@@ -64,7 +64,7 @@ def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, st
                     wall_bins["source_sleep"] += time.perf_counter() - now
         marks = [] if profile else None
         window = tuple(frames)
-        if mode in ("legacy", "four_stream"):
+        if mode in ("legacy", "four_stream", "five_stream"):
             yield window, None, marks
             continue
         job = executor.submit(extract_mfe, pipe, stream, window, marks, reuse_gray)
@@ -126,12 +126,14 @@ def main():
     mode = get("~pipeline_mode", "legacy")
     four_stream_depth = get("~four_stream_depth", 4)
     reuse_gray = get("~reuse_gray", False)
-    if mode not in ("legacy", "serial", "overlap", "four_stream"):
-        raise ValueError("pipeline_mode must be legacy, serial, overlap or four_stream")
+    if mode not in ("legacy", "serial", "overlap", "four_stream", "five_stream"):
+        raise ValueError("pipeline_mode must be legacy, serial, overlap, four_stream or five_stream")
     if reuse_gray and mode == "legacy":
         raise ValueError("reuse_gray requires a non-legacy pipeline mode")
     if mode == "four_stream" and four_stream_depth not in (2, 3, 4):
         raise ValueError("four_stream_depth must be 2, 3 or 4")
+    if mode == "five_stream" and four_stream_depth != 4:
+        raise ValueError("five_stream requires four_stream_depth=4")
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     decoder_backend = get("~decoder_backend", "libav")
@@ -164,13 +166,18 @@ def main():
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
         mfe_stream = torch.cuda.Stream() if mode != "legacy" else None
         post_stream = torch.cuda.Stream() if mode != "legacy" else None
-        lad_stream = torch.cuda.Stream() if mode == "four_stream" else None
+        lad_stream = torch.cuda.Stream() if mode in ("four_stream", "five_stream") else None
+        second_lad_stream = torch.cuda.Stream() if mode == "five_stream" else None
         with torch.cuda.stream(post_stream):
             pipe = CudaPipeline(get("~tf_library"), width, height, warp_backend=warp_backend,
-                                mfe_stream=mfe_stream, model_stream=post_stream, lad_stream=lad_stream)
-        four = (FourStream(pipe, (mfe_stream, torch.cuda.Stream(), post_stream, lad_stream),
-                           stack, reuse_gray, profile=wall_bins is not None)
-                if lad_stream is not None else None)
+                                mfe_stream=mfe_stream, model_stream=post_stream, lad_stream=lad_stream,
+                                second_lad_stream=second_lad_stream)
+        four = None
+        if lad_stream is not None:
+            streams = (mfe_stream, torch.cuda.Stream(), post_stream, lad_stream)
+            if second_lad_stream is not None:
+                streams += (second_lad_stream,)
+            four = FourStream(pipe, streams, stack, reuse_gray, profile=wall_bins is not None)
         torch.cuda.synchronize()
         rospy.loginfo("GPU path initialized: NVDEC, MFE, TF, LAC, LAD (%dx%d)", width, height)
         rospy.loginfo("MFE warp backend: %s; pipeline mode: %s", warp_backend, mode)
@@ -209,7 +216,7 @@ def main():
             compute_done = time.perf_counter()
             if wall_bins is not None:
                 if four:
-                    wall_bins["wait_four_stream"] += compute_done - begin
+                    wall_bins["wait_" + mode] += compute_done - begin
                 elif job is None:
                     wall_bins["legacy_compute"] += compute_done - begin
                 else:
@@ -302,6 +309,8 @@ def main():
                                      np.percentile(split_samples, 95, axis=0)), axis=1).flatten())
         if four and four.spans:
             rospy.loginfo("GPU four-stage event overlap: %.2f ms", four_stage_overlap(four.spans))
+            if second_lad_stream is not None:
+                rospy.loginfo("GPU two LAD stage event overlap: %.2f ms", lad_overlap(four.spans))
         for name, samples in sorted(mfe_samples.items(), key=lambda row: mean(row[1]), reverse=True):
             rospy.loginfo("MFE profile: %s n=%d mean=%.3f p50=%.3f p95=%.3f ms",
                           name, len(samples), mean(samples),

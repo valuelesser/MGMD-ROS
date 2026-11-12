@@ -1,4 +1,4 @@
-"""Bounded, ordered scheduling for the four-stream ROS experiment."""
+"""Bounded, ordered scheduling with one or two LAD streams."""
 
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -35,6 +35,19 @@ def four_stage_overlap(spans):
     return overlap
 
 
+def lad_overlap(spans):
+    edges = sorted((time, delta) for window in spans
+                   for time, delta in ((window[3][0], 1), (window[3][1], -1)))
+    active = 0
+    previous = overlap = 0.
+    for time, delta in edges:
+        if active > 1:
+            overlap += time - previous
+        active += delta
+        previous = time
+    return overlap
+
+
 class FourStream:
     def __init__(self, pipe, streams, stack, reuse_gray, profile=False):
         self.pipe = pipe
@@ -54,12 +67,15 @@ class FourStream:
 
     def windows(self, source, depth):
         pending = deque()
-        for window, _, marks in source:
+        for number, (window, _, marks) in enumerate(source):
             args = (window, marks)
-            for index, stage in enumerate((self.align, self.candidates,
-                                           self.track, self.refine)):
+            for index, stage in enumerate((self.align, self.candidates, self.track)):
                 args = (self.workers[index].submit(self._run, index, stage, *args),)
-            pending.append((window, args[0], marks))
+            lad_index = number % (len(self.workers) - 3)
+            worker = lad_index + 3
+            model = self.pipe.lad if lad_index == 0 else self.pipe.second_lad
+            result = self.workers[worker].submit(self._run, worker, self.refine, args[0], model)
+            pending.append((window, result, marks))
             if len(pending) == depth:
                 yield pending.popleft()
         yield from pending
@@ -106,11 +122,11 @@ class FourStream:
             center.image, boxes, scores, center.seq, timing)
         return image, tracks, ids, status, len(boxes), mfe, timing
 
-    def refine(self, previous):
+    def refine(self, previous, model):
         image, tracks, ids, status, count, mfe, timing = previous.result()
         handoff(timing[3], image, tracks, ids, status)
         begin = event()
-        output = self.pipe.refine_tracks(image, tracks, ids)
+        output = self.pipe.refine_tracks(image, tracks, ids, model)
         end = event()
         end.synchronize()
         if self.origin is not None:

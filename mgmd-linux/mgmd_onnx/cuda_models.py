@@ -11,11 +11,12 @@ from mgmd.lad import crop_region
 
 
 class CudaModel:
-    def __init__(self, session, default_stream_lock=None):
+    def __init__(self, session, default_stream_lock=None, enqueue_options=None):
         if session.get_providers()[0] != "CUDAExecutionProvider":
             raise ValueError("CUDAExecutionProvider is required")
         self.session = session
         self.default_stream_lock = default_stream_lock
+        self.enqueue_options = enqueue_options
         self.input, = session.get_inputs()
         self.outputs = session.get_outputs()
 
@@ -37,7 +38,15 @@ class CudaModel:
             output = torch.empty(shape, dtype=torch.float32, device=value.device)
             binding.bind_output(meta.name, "cuda", device, np.float32, shape, output.data_ptr())
             outputs.append(output)
-        torch.cuda.current_stream(value.device).synchronize()
+        stream = torch.cuda.current_stream(value.device)
+        if self.enqueue_options is not None:
+            # Device I/O Binding and the ORT user stream keep input and output ordered.
+            # Release the capture guard before waiting for the submitted GPU work.
+            with self.default_stream_lock:
+                self.session.run_with_iobinding(binding, self.enqueue_options)
+            stream.synchronize()
+            return outputs
+        stream.synchronize()
         # ORT can capture CUDA work during initialization of a new input shape.
         with self.default_stream_lock or nullcontext():
             self.session.run_with_iobinding(binding)

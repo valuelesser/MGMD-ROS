@@ -23,6 +23,11 @@ from mgmd_onnx.cuda_pipeline import CudaPipeline
 
 
 STAGES = ("MFE", "TF", "LAC", "LAD")
+MFE_HUD_GROUPS = (
+    (("gray", "Gray"), ("LK", "LK"), ("RANSAC", "RANSAC"), ("warp", "Warp")),
+    (("threshold_median", "Diff/threshold/median"), ("morphology", "Morph"),
+     ("CCL", "CCL"), ("region_stats", "Region stats")),
+)
 
 
 @torch.inference_mode()
@@ -98,16 +103,23 @@ def add_hud(image, playback, processed, skipped, recent, now):
     fps = (len(recent) - 1) / max(now - recent[0][0], 1e-6)
     stage = [mean(samples) for samples in zip(*(row[1] for row in recent))]
     slowest = int(np.argmax(stage))
-    text = (
+    text = [
         f"Processing {fps:.1f} FPS   {playback}   Processed {processed}   Skipped {skipped}",
-        "   ".join(f"{name} {ms:.1f} ms" for name, ms in zip(STAGES, stage))
+        "Mean (~2 s): " + "   ".join(f"{name} {ms:.1f} ms" for name, ms in zip(STAGES, stage))
         + f"   |   Slowest: {STAGES[slowest]}",
-    )
+    ]
+    if recent[-1][2]:
+        for group in MFE_HUD_GROUPS:
+            text.append("   ".join(
+                f"{label} {mean(row[2][key] for row in recent if key in row[2]):.1f} ms"
+                for key, label in group if key in recent[-1][2]))
     font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, .85, 2
     width = max(cv2.getTextSize(line, font, scale, thickness)[0][0] for line in text)
-    cv2.rectangle(image, (16, 16), (min(image.shape[1] - 1, width + 40), 95), (18, 18, 18), -1)
-    for y, line in zip((48, 80), text):
-        cv2.putText(image, line, (28, y), font, scale, (255, 255, 255), thickness, cv2.LINE_AA)
+    cv2.rectangle(image, (16, 16), (min(image.shape[1] - 1, width + 40), 63 + 32 * (len(text) - 1)),
+                  (18, 18, 18), -1)
+    for index, line in enumerate(text):
+        cv2.putText(image, line, (28, 48 + index * 32), font, scale, (255, 255, 255),
+                    thickness, cv2.LINE_AA)
 
 
 def main():
@@ -239,8 +251,8 @@ def main():
                 stage_ms = [a.elapsed_time(b) for a, b in zip(timing, timing[1:])]
                 if job is not None:
                     stage_ms[0] = mfe_start.elapsed_time(ready)
+            subtotals = defaultdict(float)
             if mfe_timing:
-                subtotals = defaultdict(float)
                 for (_, start), (name, end) in zip(mfe_timing, mfe_timing[1:]):
                     if name != "start":
                         subtotals[name] += start.elapsed_time(end)
@@ -249,7 +261,7 @@ def main():
             now = time.perf_counter()
             elapsed += now - begin
             stages.append(stage_ms)
-            recent.append((now, stage_ms))
+            recent.append((now, stage_ms, subtotals))
             while len(recent) > 1 and recent[1][0] < now - 2:
                 recent.popleft()
             header = Header(seq=center.seq, stamp=rospy.Time.now(), frame_id="camera")

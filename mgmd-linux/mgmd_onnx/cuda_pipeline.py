@@ -29,7 +29,7 @@ def cuda_model(path, stream=None, default_stream_lock=None):
 
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
-                 warp_backend="torch", mfe_stream=None, model_stream=None):
+                 warp_backend="torch", mfe_stream=None, model_stream=None, lad_stream=None):
         # OpenCV CCL uses the default stream and cannot run during ORT capture.
         default_stream_lock = Lock() if mfe_stream is not None and model_stream is not None else None
         with torch.cuda.stream(mfe_stream):
@@ -37,7 +37,8 @@ class CudaPipeline:
                                warp_backend=warp_backend, default_stream_lock=default_stream_lock)
         self.tf = CudaTf(library)
         self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock)
-        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx", model_stream,
+        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
+                              lad_stream if lad_stream is not None else model_stream,
                               default_stream_lock)
         _inject_syspath(yolov5_dir())
         self.lac_threshold = lac_threshold
@@ -86,6 +87,13 @@ class CudaPipeline:
         return self.finish(center, boxes, scores, seq, timing)
 
     def finish(self, center, boxes, scores, seq, timing=None):
+        image, tracks, ids, status = self.track_classify(center, boxes, scores, seq, timing)
+        output = self.refine_tracks(image, tracks, ids)
+        if timing:
+            timing[4].record()
+        return output, status, len(boxes), timing
+
+    def track_classify(self, center, boxes, scores, seq, timing=None):
         result = self.tf.step(boxes, scores, seq)
         rows = torch.arange(result.boxes.shape[0], device=center.device)
         valid = rows < result.count
@@ -98,12 +106,12 @@ class CudaPipeline:
             tracks, ids = tracks[selected], ids[selected]
         if timing:
             timing[3].record()
+        return image, tracks, ids, result.status
+
+    def refine_tracks(self, image, tracks, ids):
         detections = []
         for track, track_id in zip(tracks.unbind(), ids.unbind()):
             box = self._refine(image, track)
             if box.shape[0]:
                 detections.append(torch.cat((box, track_id.reshape(1, 1)), dim=1))
-        output = torch.cat(detections) if detections else tracks.new_empty((0, 6))
-        if timing:
-            timing[4].record()
-        return output, result.status, len(boxes), timing
+        return torch.cat(detections) if detections else tracks.new_empty((0, 6))

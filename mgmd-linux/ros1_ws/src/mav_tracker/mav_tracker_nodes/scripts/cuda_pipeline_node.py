@@ -3,6 +3,7 @@
 
 from collections import defaultdict, deque
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, nullcontext
 import json
 from statistics import mean
 import time
@@ -17,6 +18,7 @@ import torch
 from detector_node import build_detection_array
 from mav_tracker_msgs.msg import DetectionArray
 from mgmd_onnx.cuda_frames import CudaDecoder
+from mgmd_onnx.cuda_four_stream import FourStream
 from mgmd_onnx.cuda_pipeline import CudaPipeline
 
 
@@ -38,11 +40,12 @@ def extract_mfe(pipe, stream, window, profile, reuse_gray):
 
 
 def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, stream,
-                  executor, profile, counts, wall_bins, reuse_gray):
+                  executor, profile, counts, wall_bins, reuse_gray, decode_lock=None):
     frames = deque((first,), maxlen=3)
     pending = None
     while not rospy.is_shutdown() and (limit == 0 or counts["read"] < limit):
-        frame = decoder.read(wall_bins)
+        with decode_lock or nullcontext():
+            frame = decoder.read(wall_bins)
         if frame is None:
             break
         counts["read"] += 1
@@ -61,7 +64,7 @@ def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, st
                     wall_bins["source_sleep"] += time.perf_counter() - now
         marks = [] if profile else None
         window = tuple(frames)
-        if mode == "legacy":
+        if mode in ("legacy", "four_stream"):
             yield window, None, marks
             continue
         job = executor.submit(extract_mfe, pipe, stream, window, marks, reuse_gray)
@@ -121,11 +124,14 @@ def main():
     wall_bins = defaultdict(float) if get("~profile_wall", False) else None
     warp_backend = get("~warp_backend", "torch")
     mode = get("~pipeline_mode", "legacy")
+    four_stream_depth = get("~four_stream_depth", 2)
     reuse_gray = get("~reuse_gray", False)
-    if mode not in ("legacy", "serial", "overlap"):
-        raise ValueError("pipeline_mode must be legacy, serial or overlap")
+    if mode not in ("legacy", "serial", "overlap", "four_stream"):
+        raise ValueError("pipeline_mode must be legacy, serial, overlap or four_stream")
     if reuse_gray and mode == "legacy":
-        raise ValueError("reuse_gray requires pipeline_mode serial or overlap")
+        raise ValueError("reuse_gray requires a non-legacy pipeline mode")
+    if mode == "four_stream" and four_stream_depth not in (2, 3):
+        raise ValueError("four_stream_depth must be 2 or 3")
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     decoder_backend = get("~decoder_backend", "libav")
@@ -140,13 +146,15 @@ def main():
     stages = []
     latency = []
     mfe_samples = defaultdict(list)
+    split_samples = []
     elapsed = 0.
     if decoder_backend == "opencv":
         from mgmd_onnx.cuda_opencv_decoder import OpenCvCudaDecoder
         source = OpenCvCudaDecoder(video, get("~decoder_leading_frames", 0))
     else:
         source = CudaDecoder(get("~decoder_library"), video)
-    with torch.inference_mode(), source as decoder, ThreadPoolExecutor(max_workers=1) as executor:
+    with torch.inference_mode(), source as decoder, ExitStack() as stack:
+        executor = stack.enter_context(ThreadPoolExecutor(max_workers=1))
         first = decoder.read()
         if first is None:
             raise RuntimeError("Video has no decodable frames")
@@ -156,19 +164,30 @@ def main():
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
         mfe_stream = torch.cuda.Stream() if mode != "legacy" else None
         post_stream = torch.cuda.Stream() if mode != "legacy" else None
+        lad_stream = torch.cuda.Stream() if mode == "four_stream" else None
         with torch.cuda.stream(post_stream):
             pipe = CudaPipeline(get("~tf_library"), width, height, warp_backend=warp_backend,
-                                mfe_stream=mfe_stream, model_stream=post_stream)
+                                mfe_stream=mfe_stream, model_stream=post_stream, lad_stream=lad_stream)
+        four = (FourStream(pipe, (mfe_stream, torch.cuda.Stream(), post_stream, lad_stream),
+                           stack, reuse_gray)
+                if lad_stream is not None else None)
         torch.cuda.synchronize()
         rospy.loginfo("GPU path initialized: NVDEC, MFE, TF, LAC, LAD (%dx%d)", width, height)
         rospy.loginfo("MFE warp backend: %s; pipeline mode: %s", warp_backend, mode)
         rospy.loginfo("GPU decoder backend: %s", decoder_backend)
         started = time.perf_counter()
-        for (previous, center, following), job, mfe_timing in ready_windows(
+        windows = ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
-                mfe_stream, executor, profile_mfe, counts, wall_bins, reuse_gray):
+                mfe_stream, executor, profile_mfe, counts, wall_bins, reuse_gray,
+                pipe.mfe.default_stream_lock if four else None)
+        if four:
+            windows = four.windows(windows, four_stream_depth)
+        for (previous, center, following), job, mfe_timing in windows:
             begin = time.perf_counter()
-            if job is None:
+            if four:
+                boxes, status, candidates, stage_ms, split = job.result()
+                split_samples.append(split)
+            elif job is None:
                 boxes, status, candidates, timing = pipe.step(
                     previous.image, center.image, following.image, center.seq, mfe_timing)
             else:
@@ -189,7 +208,9 @@ def main():
                 timing[-1].synchronize()
             compute_done = time.perf_counter()
             if wall_bins is not None:
-                if job is None:
+                if four:
+                    wall_bins["wait_four_stream"] += compute_done - begin
+                elif job is None:
                     wall_bins["legacy_compute"] += compute_done - begin
                 else:
                     wall_bins["tf_lac_lad_and_gpu_wait"] += compute_done - mfe_done
@@ -200,13 +221,15 @@ def main():
             data = boxes.tolist()
             if wall_bins is not None:
                 wall_bins["detection_readback"] += time.perf_counter() - compute_done
-            stage_ms = [a.elapsed_time(b) for a, b in zip(timing, timing[1:])]
-            if job is not None:
-                stage_ms[0] = mfe_start.elapsed_time(ready)
+            if not four:
+                stage_ms = [a.elapsed_time(b) for a, b in zip(timing, timing[1:])]
+                if job is not None:
+                    stage_ms[0] = mfe_start.elapsed_time(ready)
             if mfe_timing:
                 subtotals = defaultdict(float)
                 for (_, start), (name, end) in zip(mfe_timing, mfe_timing[1:]):
-                    subtotals[name] += start.elapsed_time(end)
+                    if name != "start":
+                        subtotals[name] += start.elapsed_time(end)
                 for name, total in subtotals.items():
                     mfe_samples[name].append(total)
             now = time.perf_counter()
@@ -273,6 +296,10 @@ def main():
                           ", ".join(f"{name}={avg:.2f}/{tail:.2f}"
                                     for name, avg, tail in zip(STAGES, average, p95)),
                           STAGES[int(np.argmax(average))])
+        if split_samples:
+            rospy.loginfo("GPU MFE split mean/p95 ms: align=%.2f/%.2f candidates=%.2f/%.2f",
+                          *np.stack((np.mean(split_samples, axis=0),
+                                     np.percentile(split_samples, 95, axis=0)), axis=1).flatten())
         for name, samples in sorted(mfe_samples.items(), key=lambda row: mean(row[1]), reverse=True):
             rospy.loginfo("MFE profile: %s n=%d mean=%.3f p50=%.3f p95=%.3f ms",
                           name, len(samples), mean(samples),

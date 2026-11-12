@@ -105,6 +105,7 @@ class CudaMfe:
         self.pixel = torch.arange(width * height, dtype=torch.int32, device="cuda")
         self.width, self.height = width, height
         self._gray_cache = {}
+        self.candidate_cv_stream = self.cv_stream
 
     def _mat(self, value, kind):
         height, width = value.shape[:2]
@@ -168,12 +169,16 @@ class CudaMfe:
         cv.cuda.remap(self._mat(source, cv.CV_8UC1),
                       self._mat(sx, cv.CV_32FC1), self._mat(sy, cv.CV_32FC1),
                       cv.INTER_LINEAR, dst=dst, borderMode=cv.BORDER_CONSTANT,
-                      stream=self.cv_stream)
+                      stream=self.candidate_cv_stream)
         if dst.cudaPtr() != output.data_ptr():
             raise RuntimeError("OpenCV remap replaced the shared CUDA output")
         return output, valid
 
     def _direction(self, source, center, stamp):
+        h, tracked, status = self._estimate(source, center, stamp)
+        return self._motion(source, center, h, stamp)
+
+    def _estimate(self, source, center, stamp):
         cv = self.cv
         tracked, status, _ = self.lk.calc(
             self._mat(source, cv.CV_8UC1), self._mat(center, cv.CV_8UC1),
@@ -181,9 +186,12 @@ class CudaMfe:
         stamp("LK")
         h = self._homography(self._tensor(tracked, "<f4", 2), self._tensor(status, "|u1"))
         stamp("RANSAC")
+        return h, tracked, status
+
+    def _motion(self, source, center, h, stamp):
         aligned, valid = self._warp(source, h)
         # The Torch solver consumes OpenCV-owned buffers asynchronously.
-        self.stream.synchronize()
+        torch.cuda.current_stream().synchronize()
         stamp("warp")
         mask, _ = threshold_direction(center, aligned, valid, self.cfg)
         stamp("threshold_median")
@@ -192,12 +200,13 @@ class CudaMfe:
     def _boxes(self, mask, stamp):
         cv = self.cv
         pixels = mask.to(torch.uint8)
+        stream = torch.cuda.current_stream()
         # OpenCV 4.12 CCL has no stream argument.
-        if self.stream.cuda_stream:
-            self.stream.synchronize()
+        if stream.cuda_stream:
+            stream.synchronize()
         with self.default_stream_lock or nullcontext():
             labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
-            if self.stream.cuda_stream:
+            if stream.cuda_stream:
                 torch.cuda.default_stream().synchronize()
         stamp("CCL")
         ids = mask.flatten().nonzero().flatten()
@@ -239,7 +248,13 @@ class CudaMfe:
                 profile.append((name, event))
 
         stamp("start")
-        images = (previous, center, following)
+        frames = self.gray_frames((previous, center, following), frame_ids)
+        stamp("gray")
+        a = self._direction(frames[0], frames[1], stamp)
+        b = self._direction(frames[2], frames[1], stamp) if self.cfg.needs_next else None
+        return self.combine_candidates(a, b, stamp)
+
+    def gray_frames(self, images, frame_ids):
         if frame_ids is None:
             frames = [bgr_to_gray(frame) for frame in images]
         else:
@@ -250,9 +265,9 @@ class CudaMfe:
                 cache[seq] = bgr_to_gray(image) if gray is None else gray
             self._gray_cache = cache
             frames = [cache[seq] for seq in frame_ids]
-        stamp("gray")
-        a = self._direction(frames[0], frames[1], stamp)
-        b = self._direction(frames[2], frames[1], stamp) if self.cfg.needs_next else None
+        return frames
+
+    def combine_candidates(self, a, b, stamp):
         motion = combine_motion(a, b, self.cfg.mode)
         motion = morphology(motion, self.cfg.morph_size, self.cfg.open_iters, self.cfg.close_iters)
         stamp("morphology")

@@ -104,6 +104,7 @@ class CudaMfe:
         self.sample = torch.rand((hypotheses, 4), generator=generator, device="cuda")
         self.pixel = torch.arange(width * height, dtype=torch.int32, device="cuda")
         self.width, self.height = width, height
+        self._gray_cache = {}
 
     def _mat(self, value, kind):
         height, width = value.shape[:2]
@@ -228,7 +229,7 @@ class CudaMfe:
         stamp("region_stats")
         return boxes, scores
 
-    def candidates(self, previous, center, following, profile=None):
+    def candidates(self, previous, center, following, profile=None, *, frame_ids=None):
         if torch.cuda.current_stream() != self.stream:
             raise RuntimeError("CUDA MFE requires its creation stream")
         def stamp(name):
@@ -238,7 +239,17 @@ class CudaMfe:
                 profile.append((name, event))
 
         stamp("start")
-        frames = [bgr_to_gray(frame) for frame in (previous, center, following)]
+        images = (previous, center, following)
+        if frame_ids is None:
+            frames = [bgr_to_gray(frame) for frame in images]
+        else:
+            # The MFE worker owns this cache and consumes windows in source order.
+            cache = {}
+            for seq, image in zip(frame_ids, images):
+                gray = self._gray_cache.get(seq)
+                cache[seq] = bgr_to_gray(image) if gray is None else gray
+            self._gray_cache = cache
+            frames = [cache[seq] for seq in frame_ids]
         stamp("gray")
         a = self._direction(frames[0], frames[1], stamp)
         b = self._direction(frames[2], frames[1], stamp) if self.cfg.needs_next else None

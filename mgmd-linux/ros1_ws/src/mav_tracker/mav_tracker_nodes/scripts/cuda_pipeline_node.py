@@ -24,19 +24,21 @@ STAGES = ("MFE", "TF", "LAC", "LAD")
 
 
 @torch.inference_mode()
-def extract_mfe(pipe, stream, window, profile):
+def extract_mfe(pipe, stream, window, profile, reuse_gray):
     with torch.cuda.stream(stream):
         start, ready = (torch.cuda.Event(enable_timing=True) for _ in range(2))
         start.record()
         for frame in window:
             frame.image.record_stream(stream)
-        boxes, scores = pipe.mfe.candidates(*(frame.image for frame in window), profile)
+        frame_ids = tuple(frame.seq for frame in window) if reuse_gray else None
+        boxes, scores = pipe.mfe.candidates(*(frame.image for frame in window), profile,
+                                          frame_ids=frame_ids)
         ready.record()
         return boxes, scores, start, ready
 
 
 def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, stream,
-                  executor, profile, counts, wall_bins):
+                  executor, profile, counts, wall_bins, reuse_gray):
     frames = deque((first,), maxlen=3)
     pending = None
     while not rospy.is_shutdown() and (limit == 0 or counts["read"] < limit):
@@ -62,7 +64,7 @@ def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, st
         if mode == "legacy":
             yield window, None, marks
             continue
-        job = executor.submit(extract_mfe, pipe, stream, window, marks)
+        job = executor.submit(extract_mfe, pipe, stream, window, marks, reuse_gray)
         if mode == "serial":
             yield window, job, marks
         else:
@@ -119,8 +121,11 @@ def main():
     wall_bins = defaultdict(float) if get("~profile_wall", False) else None
     warp_backend = get("~warp_backend", "torch")
     mode = get("~pipeline_mode", "legacy")
+    reuse_gray = get("~reuse_gray", False)
     if mode not in ("legacy", "serial", "overlap"):
         raise ValueError("pipeline_mode must be legacy, serial or overlap")
+    if reuse_gray and mode == "legacy":
+        raise ValueError("reuse_gray requires pipeline_mode serial or overlap")
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     decoder_backend = get("~decoder_backend", "libav")
@@ -161,7 +166,7 @@ def main():
         started = time.perf_counter()
         for (previous, center, following), job, mfe_timing in ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
-                mfe_stream, executor, profile_mfe, counts, wall_bins):
+                mfe_stream, executor, profile_mfe, counts, wall_bins, reuse_gray):
             begin = time.perf_counter()
             if job is None:
                 boxes, status, candidates, timing = pipe.step(

@@ -7,6 +7,7 @@
   <arg name="rate" default="30"/>
   <arg name="realtime" default="true"/>
   <arg name="profile_mfe" default="false"/>
+  <arg name="reuse_gray" default="false"/>
   <arg name="profile_wall" default="false"/>
   <arg name="warp_backend" default="torch"/>
   <arg name="pipeline_mode" default="legacy"/>
@@ -24,6 +25,7 @@
     <param name="rate" value="$(arg rate)"/>
     <param name="realtime" value="$(arg realtime)"/>
     <param name="profile_mfe" value="$(arg profile_mfe)"/>
+    <param name="reuse_gray" value="$(arg reuse_gray)"/>
     <param name="profile_wall" value="$(arg profile_wall)"/>
     <param name="warp_backend" value="$(arg warp_backend)"/>
     <param name="pipeline_mode" value="$(arg pipeline_mode)"/>

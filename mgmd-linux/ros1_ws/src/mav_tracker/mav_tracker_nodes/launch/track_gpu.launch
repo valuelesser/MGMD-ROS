@@ -11,7 +11,7 @@
   <arg name="profile_wall" default="false"/>
   <arg name="warp_backend" default="torch"/>
   <arg name="pipeline_mode" default="legacy"/>
-  <arg name="four_stream_depth" default="2"/>
+  <arg name="four_stream_depth" default="4"/>
   <arg name="limit" default="0"/>
   <arg name="preview" default="true"/>
   <arg name="rqt" default="true"/>

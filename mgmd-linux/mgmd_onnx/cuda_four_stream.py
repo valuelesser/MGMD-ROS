@@ -19,11 +19,29 @@ def handoff(ready, *tensors):
         tensor.record_stream(stream)
 
 
+def four_stage_overlap(spans):
+    """Milliseconds with distinct windows inside all four stage event intervals."""
+    edges = sorted((time, delta, stage)
+                   for window in spans
+                   for stage, (start, end) in enumerate(window)
+                   for time, delta in ((start, 1), (end, -1)))
+    active = [0] * 4
+    previous = overlap = 0.
+    for time, delta, stage in edges:
+        if all(active):
+            overlap += time - previous
+        active[stage] += delta
+        previous = time
+    return overlap
+
+
 class FourStream:
-    def __init__(self, pipe, streams, stack, reuse_gray):
+    def __init__(self, pipe, streams, stack, reuse_gray, profile=False):
         self.pipe = pipe
         self.streams = streams
         self.reuse_gray = reuse_gray
+        self.origin = event() if profile else None
+        self.spans = []
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
                         for _ in streams]
         self.pipe.mfe.candidate_cv_stream = self.pipe.mfe.cv.cuda.wrapStream(
@@ -34,7 +52,7 @@ class FourStream:
         with torch.cuda.stream(self.streams[index]):
             return stage(*args)
 
-    def windows(self, source, depth=3):
+    def windows(self, source, depth):
         pending = deque()
         for window, _, marks in source:
             args = (window, marks)
@@ -95,6 +113,11 @@ class FourStream:
         output = self.pipe.refine_tracks(image, tracks, ids)
         end = event()
         end.synchronize()
+        if self.origin is not None:
+            boundaries = ((mfe[0], mfe[1]), (mfe[2], mfe[3]),
+                          (timing[1], timing[3]), (begin, end))
+            self.spans.append([(self.origin.elapsed_time(a), self.origin.elapsed_time(b))
+                               for a, b in boundaries])
         first = mfe[0].elapsed_time(mfe[1])
         second = mfe[2].elapsed_time(mfe[3])
         return (output, status, count,

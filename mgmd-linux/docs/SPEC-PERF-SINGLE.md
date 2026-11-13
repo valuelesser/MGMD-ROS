@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.7` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.8` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -111,6 +111,19 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 1080p、30 Hz、rqt/HUD 全片，两组均读取 1,498 帧。保留锁和解除锁分别处理 957 / 1,068 窗口，19.15 / 21.37 FPS，发布 p95 为 178.21 / 156.91 ms。LAD 均值为 29.90 / 24.58 ms。每组各一轮，选帧随吞吐变化。另以相同的 120 个窗口对拍，源帧顺序、候选数量、检测数量、ID 和框坐标一致，置信度最大绝对差 0.00064844。运行证据为容器 `outputs/buf_unlocked_20261113/{false,true}.log`。此 A/B 同时改变应用锁和 ORT 完成同步方式，尚未通过 GPU trace 验证内核重叠。
 
+### 1.9 BUF 无共享锁双路 GPU 采样
+
+沿用 §1.8 的无锁配置，1080p、30 Hz、OpenCV 解码与 warp、灰度复用、rqt/HUD。按 200 ms 采集 NVIDIA 整卡数据，从路径初始化到全片汇总纳入 247 个样本。下表峰值是采样最大值。
+
+| 指标 | 均值 | p95 | 峰值 |
+|---|---:|---:|---:|
+| GPU 利用率 | 64.28% | 73% | 79% |
+| 显存活动率 | 41.21% | 48% | 50% |
+| NVDEC 利用率 | 6.25% | 8% | 74% |
+| 整卡显存用量（共 4,096 MiB） | 1,449 MiB | 1,458 MiB | 2,920 MiB |
+
+复测读取 1,498 帧，处理 1,105，跳过 391，49.954 s 达到 22.12 FPS，源帧到发布延迟 p50/p95 为 124.91/156.38 ms。显存峰值可能包含初始化活动。GPU 采样为整卡活跃时间指标，不能据此求两条流的 kernel 并行时长。单流 §1.2 GPU 平均利用率为 51.28%，跨轮次对照。容器证据 `outputs/buf_gpu_util_GpZ2Se/{launch.log,gpu.csv}`。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -119,6 +132,7 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.8 | 补录无共享锁 BUF 双路 GPU 占用，纯文档修订 | 1080p 全片 22.12 FPS，GPU 247 个样本。 |
 | 2026-11-13 | 0.1.7 | 增加 BUF 双路无共享锁试验 | 1080p 全片 19.15 → 21.37 FPS，120 个固定窗口见 §1.8。 |
 | 2026-11-13 | 0.1.6 | 双路增加显式流 BUF 连通域实验 | 120 个掩膜对拍一致，全片 19.00 → 19.93 FPS。 |
 | 2026-11-13 | 0.1.5 | 验证指定流 NPP CCL 和去除共享锁 | 无锁配置完成全片，16.06 FPS，候选对拍未通过，见 §1.6。 |

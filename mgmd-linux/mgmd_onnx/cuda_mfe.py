@@ -106,6 +106,7 @@ class CudaMfe:
         self.width, self.height = width, height
         self._gray_cache = {}
         self.npp_ccl = None
+        self.buf_ccl = None
         self.candidate_cv_stream = self.cv_stream
 
     def _mat(self, value, kind):
@@ -202,7 +203,9 @@ class CudaMfe:
         cv = self.cv
         pixels = mask.to(torch.uint8)
         stream = torch.cuda.current_stream()
-        if self.npp_ccl is not None:
+        if self.buf_ccl is not None:
+            labels_image = self.buf_ccl(pixels.contiguous())
+        elif self.npp_ccl is not None:
             labels_image = self.npp_ccl(pixels)
         else:
             # OpenCV 4.12 CCL has no stream argument.

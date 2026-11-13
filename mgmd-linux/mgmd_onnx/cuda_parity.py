@@ -8,6 +8,7 @@ from threading import Lock
 import torch
 
 from mgmd_onnx.cuda_four_stream import event, handoff
+from mgmd_onnx.cuda_buf_ccl import BufCcl
 from mgmd_onnx.cuda_pipeline import CudaPipeline
 from mgmd_onnx.cuda_npp_ccl import NppCcl
 from mgmd_onnx.cuda_tf import CudaTf
@@ -15,7 +16,7 @@ from mgmd_onnx.cuda_tf import CudaTf
 
 class ParityPipeline:
     def __init__(self, library, width, height, warp, reuse_gray, stack, npp=False,
-                 unlocked=False):
+                 unlocked=False, buf_library=""):
         self.reuse_gray = reuse_gray
         self.streams = [torch.cuda.Stream(), torch.cuda.Stream()]
         self.tracker_stream = torch.cuda.Stream()
@@ -31,6 +32,8 @@ class ParityPipeline:
                                                async_lad=unlocked))
                 if npp:
                     self.pipes[-1].mfe.npp_ccl = NppCcl(width, height, stream)
+                if buf_library:
+                    self.pipes[-1].mfe.buf_ccl = BufCcl(buf_library, width, height, stream)
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
                         for _ in self.streams]
         self.tracker_worker = stack.enter_context(ThreadPoolExecutor(max_workers=1))

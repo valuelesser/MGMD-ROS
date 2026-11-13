@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.5` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.6` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -91,6 +91,20 @@ MFE 子阶段均值分别为灰度 4.47、LK 3.23、RANSAC 9.38、warp 4.49、�
 
 均读取 1,498 帧。日志在容器 `outputs/npp_ccl_final_20261113/{false-false,true-false}.log` 与 `outputs/npp_ccl_20261113/unlocked_stream_sync.log`。
 
+### 1.7 显式流 BUF 连通域
+
+实验仅替换双路 CCL。独立 CUDA 实现采用 [BUF 的 2×2 分块思想](https://iris.unimore.it/handle/11380/1179642)，每块内部的前景像素在八连通下属于同一分区。通过跨块邻边合并分区，最后生成背景为 0 的标签图。每路预分配父节点和标签缓冲，三个 kernel 都提交到本路流，区域统计依靠流内顺序读取。解码和 ORT 保留保护锁。
+
+```bash
+/usr/local/cuda/bin/nvcc -O3 -arch=sm_86 -shared -Xcompiler -fPIC \
+  mgmd_onnx/cuda_buf_ccl.cu -o /tmp/mgmd-buf-ccl.so
+roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
+  buf_ccl_library:=/tmp/mgmd-buf-ccl.so warp_backend:=opencv \
+  decoder_backend:=opencv decoder_leading_frames:=25 profile_wall:=true
+```
+
+同条件 1080p、30 Hz、rqt/HUD 各跑一轮，均读 1,498 帧。OpenCV / BUF 分别处理 950 / 996 个窗口，19.00 / 19.93 FPS，发布延迟 p95 175.15 / 170.41 ms，CCL 事件区间均值/p95 为 2.80/6.44 和 0.88/1.31 ms。该区间含同步与等待。120 个真实掩膜的前景八连通分区和有序候选框、分数完全一致。各跑一轮，实时选帧不同，尚未用 trace 确认 CCL 与 LAD 内核重叠。容器日志 `outputs/buf_ccl_20261113/{opencv,buf}.log`。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -99,6 +113,7 @@ MFE 子阶段均值分别为灰度 4.47、LK 3.23、RANSAC 9.38、warp 4.49、�
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.6 | 双路增加显式流 BUF 连通域实验 | 120 个掩膜对拍一致，全片 19.00 → 19.93 FPS。 |
 | 2026-11-13 | 0.1.5 | 验证指定流 NPP CCL 和去除共享锁 | 无锁配置完成全片，16.06 FPS，候选对拍未通过，见 §1.6。 |
 | 2026-11-13 | 0.1.4 | 按接纳顺序交替分配双路 | 1080p 全片 20.85 FPS，见 §1.5。 |
 | 2026-11-13 | 0.1.3 | 增加奇偶两路、共享灰度和有序 TF 实验 | 全片 20.36 FPS，71 个固定窗口顺序、计数和 ID 一致。 |

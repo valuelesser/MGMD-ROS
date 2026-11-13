@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.11` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.12` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -149,6 +149,19 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 无锁 BUF 双路可加 `defer_lad_sync:=true`，默认关闭。每目标仍执行原有 ORT 调用和 NMS，取消 ORT 提交后显式流同步，保留该帧输入、输出和绑定到帧末事件完成。动态后处理仍可能产生隐式等待。CUDA 全片对照与坐标、分数对拍尚未执行，Docker Desktop 处于手动暂停。
 
+#### 1.12.1 两段视频全帧复测
+
+同一容器，无锁 BUF 双路、OpenCV 解码与 warp、灰度复用、预热 12 窗口、rqt/HUD。用 `realtime:=false profile_wall:=true`，每个视频先关闭后开启 `defer_lad_sync`，各跑一轮，无跳帧。旧视频使用原 25 帧片头偏移。工作区 `cam2/cam2.mp4` 为 1920×1080、MPEG-4、50 Hz，设置 `rate:=50 decoder_leading_frames:=0`，SHA-256 为 `6deb650e7b837e0d3974322d745dd13d4db89b2d617d7a9e03dd126722b2083b`。
+
+| 视频 | 已处理窗口 | 关闭 / 开启 FPS | LAD 均值关闭 / 开启 ms | LAD p95 关闭 / 开启 ms | 有检测窗口关闭 / 开启 |
+|---|---:|---:|---:|---:|---:|
+| phantom30 | 1496 | 21.82 / 22.23 | 22.89 / 22.18 | 50.14 / 49.96 | 1183 / 1183 |
+| cam2 | 8014 | 32.16 / 32.31 | 1.98 / 2.03 | 13.14 / 13.35 | 793 / 793 |
+
+旧视频首 240 个窗口逐帧对照，候选数、检测数和跟踪 ID 一致。228 个有检测窗口的最大边坐标差 1 px，最大置信度绝对差 0.001008。新视频首 240 个窗口候选数量一致，但无最终检测。新视频的低 LAD 负载下未观察到 LAD 提速。全片 A/B 各一轮，吞吐小幅变化尚未通过重复测量隔离，实验开关默认关闭。容器日志为 `outputs/lad_defer_20261113/{false,true}.log` 和 `outputs/lad_defer_cam2/{false,true}.log`。
+
+新视频另取 654 个分布于全片的固定窗口，检测数量一致。88 个有检测窗口的跟踪 ID 和框坐标一致，最大置信度绝对差 0.000276。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -157,6 +170,7 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.12 | 补录 LAD 帧末同步的两段视频复测，纯文档修订 | 旧视频 21.82 / 22.23 FPS，新视频 32.16 / 32.31 FPS，见 §1.12.1。 |
 | 2026-11-13 | 0.1.11 | 增加可选 LAD 帧末同步实验 | 宿主机检查，GPU 对照待运行。 |
 | 2026-11-13 | 0.1.10 | 增加播放前预热与启动计时 | 无锁 BUF 双路首 3 秒发布 2 → 58 个窗口，见 §1.11。 |
 | 2026-11-13 | 0.1.9 | 增加无锁 BUF 三路实验 | 实时 22.66 FPS，全帧 21.95 FPS，见 §1.10。 |

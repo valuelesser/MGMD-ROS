@@ -1,4 +1,4 @@
-"""Odd/even compute streams with an ordered shared tracker."""
+"""Two compute lanes with an ordered shared tracker."""
 
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -36,8 +36,8 @@ class ParityPipeline:
 
     def windows(self, source):
         pending = deque()
-        for window, _, marks in source:
-            lane = window[1].seq % 2
+        for accepted, (window, _, marks) in enumerate(source):
+            lane = accepted % len(self.streams)
             with self.lock:
                 start = event()
                 gray = self.pipes[0].mfe.gray_frames(

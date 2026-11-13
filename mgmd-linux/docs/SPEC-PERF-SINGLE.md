@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.12` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.13` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -162,6 +162,12 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 新视频另取 654 个分布于全片的固定窗口，检测数量一致。88 个有检测窗口的跟踪 ID 和框坐标一致，最大置信度绝对差 0.000276。
 
+### 1.13 去除 warp 后的显式同步
+
+LK 输出的 OpenCV 缓冲由 MFE 持有，RANSAC 提交后记录 CUDA event，后续查询事件完成再释放。warp 与差分按流内顺序执行。设 `MGMD_SYNC_MFE_WARP=1` 可恢复 warp 后的显式等待用于对照。
+
+仅使用旧视频 `phantom30`。无锁 BUF 双路、OpenCV 解码和 warp、预热 12 窗口、rqt/HUD、不限速，独立 ROS master 下先开启同步再关闭，各一轮。两组均处理 1,496 个窗口，无跳帧，有检测窗口均为 1,183。处理速率 20.49 → 23.53 FPS，warp 均值/p95 6.40/10.85 → 5.64/9.20 ms，MFE 均值/p95 42.57/55.18 → 38.19/47.83 ms。各阶段耗时含等待，单轮对照不能隔离运行波动。另以旧视频 130 个固定窗口对拍，有序候选框及分数逐元素一致。容器全片日志为 `outputs/warp_no_sync_isolated_20261113/{1,0}.log`。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -170,6 +176,7 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.13 | 用 CUDA event 管理 LK 缓冲寿命，移除 warp 后默认显式等待 | 旧视频全片 20.49 → 23.53 FPS，130 窗口候选一致。 |
 | 2026-11-13 | 0.1.12 | 补录 LAD 帧末同步的两段视频复测，纯文档修订 | 旧视频 21.82 / 22.23 FPS，新视频 32.16 / 32.31 FPS，见 §1.12.1。 |
 | 2026-11-13 | 0.1.11 | 增加可选 LAD 帧末同步实验 | 宿主机检查，GPU 对照待运行。 |
 | 2026-11-13 | 0.1.10 | 增加播放前预热与启动计时 | 无锁 BUF 双路首 3 秒发布 2 → 58 个窗口，见 §1.11。 |

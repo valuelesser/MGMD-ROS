@@ -1,6 +1,8 @@
 """Device image operations and CUDA candidate extraction for MFE."""
 
+from collections import deque
 from contextlib import nullcontext
+import os
 
 import torch
 from torch.nn.functional import avg_pool2d, grid_sample, max_pool2d, pad
@@ -105,6 +107,8 @@ class CudaMfe:
         self.pixel = torch.arange(width * height, dtype=torch.int32, device="cuda")
         self.width, self.height = width, height
         self._gray_cache = {}
+        self._lk_owners = deque()
+        self._sync_warp = os.getenv("MGMD_SYNC_MFE_WARP") == "1"
         self.npp_ccl = None
         self.buf_ccl = None
         self.candidate_cv_stream = self.cv_stream
@@ -182,18 +186,26 @@ class CudaMfe:
 
     def _estimate(self, source, center, stamp):
         cv = self.cv
-        tracked, status, _ = self.lk.calc(
+        while self._lk_owners and self._lk_owners[0][0].query():
+            self._lk_owners.popleft()
+        tracked, status, error = self.lk.calc(
             self._mat(source, cv.CV_8UC1), self._mat(center, cv.CV_8UC1),
             self._mat(self.points, cv.CV_32FC2), None, stream=self.cv_stream)
         stamp("LK")
-        h = self._homography(self._tensor(tracked, "<f4", 2), self._tensor(status, "|u1"))
+        try:
+            h = self._homography(self._tensor(tracked, "<f4", 2), self._tensor(status, "|u1"))
+        finally:
+            # OpenCV owns these buffers. Keep them alive until Torch has read them.
+            consumed = torch.cuda.Event()
+            consumed.record(self.stream)
+            self._lk_owners.append((consumed, tracked, status, error))
         stamp("RANSAC")
         return h, tracked, status
 
     def _motion(self, source, center, h, stamp):
         aligned, valid = self._warp(source, h)
-        # The Torch solver consumes OpenCV-owned buffers asynchronously.
-        torch.cuda.current_stream().synchronize()
+        if self._sync_warp:
+            torch.cuda.current_stream().synchronize()
         stamp("warp")
         mask, _ = threshold_direction(center, aligned, valid, self.cfg)
         stamp("threshold_median")

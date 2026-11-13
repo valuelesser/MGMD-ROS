@@ -10,7 +10,7 @@
   <arg name="reuse_gray" default="false"/>
   <arg name="profile_wall" default="false"/>
   <arg name="warp_backend" default="torch"/>
-  <arg name="pipeline_mode" default="overlap"/>
+  <arg name="pipeline_mode" default="legacy"/>
   <arg name="four_stream_depth" default="4"/>
   <arg name="decouple_lad" default="false"/>
   <arg name="limit" default="0"/>

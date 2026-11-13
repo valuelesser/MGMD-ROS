@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.6` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.7` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -105,6 +105,12 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 同条件 1080p、30 Hz、rqt/HUD 各跑一轮，均读 1,498 帧。OpenCV / BUF 分别处理 950 / 996 个窗口，19.00 / 19.93 FPS，发布延迟 p95 175.15 / 170.41 ms，CCL 事件区间均值/p95 为 2.80/6.44 和 0.88/1.31 ms。该区间含同步与等待。120 个真实掩膜的前景八连通分区和有序候选框、分数完全一致。各跑一轮，实时选帧不同，尚未用 trace 确认 CCL 与 LAD 内核重叠。容器日志 `outputs/buf_ccl_20261113/{opencv,buf}.log`。
 
+### 1.8 BUF 双路解除共享锁
+
+在 §1.7 命令加 `buf_unlocked:=true`。解码、共享灰度准备和 ORT 提交跳过应用层共享互斥。解码与灰度准备由同一派发线程推进，跨流依赖继续用 CUDA event。LAC/LAD 沿用设备 I/O Binding，关闭 ORT 执行提供器结束同步，在各自的 CUDA 流上等待输出。该开关默认关闭。
+
+1080p、30 Hz、rqt/HUD 全片，两组均读取 1,498 帧。保留锁和解除锁分别处理 957 / 1,068 窗口，19.15 / 21.37 FPS，发布 p95 为 178.21 / 156.91 ms。LAD 均值为 29.90 / 24.58 ms。每组各一轮，选帧随吞吐变化。另以相同的 120 个窗口对拍，源帧顺序、候选数量、检测数量、ID 和框坐标一致，置信度最大绝对差 0.00064844。运行证据为容器 `outputs/buf_unlocked_20261113/{false,true}.log`。此 A/B 同时改变应用锁和 ORT 完成同步方式，尚未通过 GPU trace 验证内核重叠。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -113,6 +119,7 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.7 | 增加 BUF 双路无共享锁试验 | 1080p 全片 19.15 → 21.37 FPS，120 个固定窗口见 §1.8。 |
 | 2026-11-13 | 0.1.6 | 双路增加显式流 BUF 连通域实验 | 120 个掩膜对拍一致，全片 19.00 → 19.93 FPS。 |
 | 2026-11-13 | 0.1.5 | 验证指定流 NPP CCL 和去除共享锁 | 无锁配置完成全片，16.06 FPS，候选对拍未通过，见 §1.6。 |
 | 2026-11-13 | 0.1.4 | 按接纳顺序交替分配双路 | 1080p 全片 20.85 FPS，见 §1.5。 |

@@ -246,6 +246,12 @@ Docker 验收覆盖文件回放、检测跟踪、实时桌面预览和录制。�
 
 ---
 
+#### 2.4.2 Windows 有 rqt 窗口但看不到画面（2026-11-13）
+
+故障定位在 WSLg 将 Linux 窗口呈现到 Windows 桌面的链路，尚未确定是 WSLg 服务端还是 Windows 客户端的具体故障。容器中的 ROS 回放读完 1,498 帧，订阅 `/mav/debug_image` 可录到含检测框和 HUD 的 1080p 画面。普通和全屏 rqt 都能创建窗口，X11 报告窗口位置为 `(-32768, -32768)`，Windows 窗口标题带 `[WARN:COPY MODE]`。一个独立 Qt 测试窗口也能在 Qt 内部抓到正确图像，但无法在 Windows 前台显示，因而排除了 rqt 订阅和检测流水线作为本次故障的必要条件。窗口坐标及标题是现场现象，不能单独判定根因。
+
+单独重启 Docker Desktop 后仍复现。确认测试结束后执行 `wsl --shutdown`，等 Docker 后端恢复，再执行 `docker start mgmd-ros mgmd-ros-display`。该命令会停止所有运行中的 WSL 发行版，应先确认其中的任务已结束。用 `phantom30` 重开原全屏 rqt 后，Windows 桌面实测可见视频、绿色检测框和耗时 HUD，标题的 COPY MODE 警告消失。本次未修改代码或系统显示配置。
+
 ## 3. 实施阶段划分
 
 PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行按"**能否离线完成**"切分：
@@ -377,6 +383,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
+| 2026-11-13 | 2.0.4（纯文档） | §2.4.2 记录 WSLg 窗口显示故障与恢复步骤 | Docker 重启未恢复，重启整个 WSL 会话后恢复 | 用 `phantom30` 核对 Windows rqt 实时画面、检测框和 HUD |
 | 2026-11-10 | 2.0.4 | §2.4.1 记录 roslaunch 桌面入口、WSLg 转接和 `importlib-metadata` 兼容版本 | 验证 Windows 桌面实时预览 | Docker 端 `/mav/debug_image` 与 rqt 桌面显示 |
 | 2026-11-10 | 2.0.3 | §2.4 记录 Docker 容器的 Catkin 软链接、项目用户依赖、CUDA 配置、启动入口和回放结果 | 验证已迁移的 `mgmd-ros` 容器 | Docker 视频回放、检测话题、可视化话题和录制 |
 | 2026-11-05 | 2.0.2 | 当前环境从原生 Ubuntu 更新为 WSL2 Ubuntu 20.04；补齐 Python 3.8/ORT CUDA/CPU torch、路径、Qt/CPU 编码、重跑命令与收尾限制；一并保留 `.dsh-run/29_rerun_verify.sh` 与两份部署/运行记录，在根 AGENTS.md 固化维护与提交约定 | 用户要求只更新 SPEC 环境部分、PRD 不改，并要求及时按 SPEC 维护与提交 | 环境与运行说明；脚本增加 Qt 退出等待与兜底清理；记录本机回放证据，不新增精度或实机验收结论 |

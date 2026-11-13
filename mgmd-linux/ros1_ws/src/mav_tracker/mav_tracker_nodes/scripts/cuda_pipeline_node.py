@@ -140,6 +140,12 @@ def main():
     decouple = get("~decouple_lad", False)
     four_stream_depth = get("~four_stream_depth", 4)
     reuse_gray = get("~reuse_gray", False)
+    npp_ccl = get("~npp_ccl", False)
+    npp_unlocked = get("~npp_unlocked", False)
+    if npp_ccl and mode != "parity":
+        raise ValueError("npp_ccl requires pipeline_mode=parity")
+    if npp_unlocked and not npp_ccl:
+        raise ValueError("npp_unlocked requires npp_ccl")
     if mode not in ("legacy", "serial", "overlap", "four_stream", "five_stream", "parity"):
         raise ValueError("Invalid pipeline_mode: {}".format(mode))
     if mode == "four_stream" and four_stream_depth not in (2, 3, 4):
@@ -179,7 +185,8 @@ def main():
         height, width = first.image.shape[:2]
         if min(height, width) < 320:
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
-        parity = (ParityPipeline(get("~tf_library"), width, height, warp_backend, reuse_gray, stack)
+        parity = (ParityPipeline(get("~tf_library"), width, height, warp_backend, reuse_gray, stack,
+                                 npp=npp_ccl, unlocked=npp_unlocked)
                   if mode == "parity" else None)
         mfe_stream = torch.cuda.Stream() if mode not in ("legacy", "parity") else None
         post_stream = torch.cuda.Stream() if mfe_stream is not None else None

@@ -2,21 +2,24 @@
 
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from threading import Lock
 
 import torch
 
 from mgmd_onnx.cuda_four_stream import event, handoff
 from mgmd_onnx.cuda_pipeline import CudaPipeline
+from mgmd_onnx.cuda_npp_ccl import NppCcl
 from mgmd_onnx.cuda_tf import CudaTf
 
 
 class ParityPipeline:
-    def __init__(self, library, width, height, warp, reuse_gray, stack):
+    def __init__(self, library, width, height, warp, reuse_gray, stack, npp=False,
+                 unlocked=False):
         self.reuse_gray = reuse_gray
         self.streams = [torch.cuda.Stream(), torch.cuda.Stream()]
         self.tracker_stream = torch.cuda.Stream()
-        self.lock = Lock()
+        self.lock = nullcontext() if unlocked else Lock()
         with torch.cuda.stream(self.tracker_stream):
             tracker = CudaTf(library)
         self.pipes = []
@@ -24,7 +27,10 @@ class ParityPipeline:
             with torch.cuda.stream(stream):
                 self.pipes.append(CudaPipeline(library, width, height, warp_backend=warp,
                                                mfe_stream=stream, model_stream=stream,
-                                               tracker=tracker, shared_lock=self.lock))
+                                               tracker=tracker, shared_lock=self.lock,
+                                               async_lad=unlocked))
+                if npp:
+                    self.pipes[-1].mfe.npp_ccl = NppCcl(width, height, stream)
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
                         for _ in self.streams]
         self.tracker_worker = stack.enter_context(ThreadPoolExecutor(max_workers=1))

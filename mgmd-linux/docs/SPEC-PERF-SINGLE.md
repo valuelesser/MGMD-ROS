@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.4` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.5` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -77,6 +77,20 @@ MFE 子阶段均值分别为灰度 4.47、LK 3.23、RANSAC 9.38、warp 4.49、�
 
 同 §1.4 条件全片复测，读 1,498 帧、处理 1,042、跳过 454，20.85 FPS，发布延迟 p50/p95 为 128.97/162.13 ms。旧奇偶策略为 20.36 FPS，本次为独立单轮，尚未通过重复 A/B 隔离小幅收益。容器日志为 `outputs/parity_round_robin_20261113/launch.log`。
 
+### 1.6 NPP 连通域与去锁实验
+
+在双路入口可用 `npp_ccl:=true` 试 CUDA 12 NPP 八连通标记，每路绑定自己的 CUDA 流与工作缓冲。容器需将 `/usr/local/cuda/lib64` 加入库搜索路径。NPP 给所有同值连通区域编号，含背景，也可能给前景编号 0；读取前景标签后偏移 1，再走原区域统计。固定 120 个窗口仍有 47 个窗口的有序候选框或分数不同，未达到等价验收。
+
+直接移除保护锁曾触发 ORT `cudaDeviceSynchronize` 的 CUDA 900。最终 `npp_unlocked:=true` 同时将 LAC/LAD 改为各自 CUDA 流同步，一轮全片完成。该结果未证明其他序列或重复运行下无捕获冲突。默认继续用 OpenCV CCL 与保护锁。
+
+| 1080p、30 Hz、rqt/HUD、双路 | 处理 / 跳过 | FPS | CCL 均值 / p95（ms） | 发布 p95（ms） |
+|---|---:|---:|---:|---:|
+| OpenCV，有锁 | 1019 / 477 | 20.39 | 2.52 / 5.35 | 163.19 |
+| NPP，其余操作保留锁 | 779 / 717 | 15.58 | 14.23 / 15.36 | 195.84 |
+| NPP，无共享锁、各流同步 | 803 / 693 | 16.06 | 14.20 / 15.31 | 184.37 |
+
+均读取 1,498 帧。日志在容器 `outputs/npp_ccl_final_20261113/{false-false,true-false}.log` 与 `outputs/npp_ccl_20261113/unlocked_stream_sync.log`。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -85,6 +99,7 @@ MFE 子阶段均值分别为灰度 4.47、LK 3.23、RANSAC 9.38、warp 4.49、�
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.5 | 验证指定流 NPP CCL 和去除共享锁 | 无锁配置完成全片，16.06 FPS，候选对拍未通过，见 §1.6。 |
 | 2026-11-13 | 0.1.4 | 按接纳顺序交替分配双路 | 1080p 全片 20.85 FPS，见 §1.5。 |
 | 2026-11-13 | 0.1.3 | 增加奇偶两路、共享灰度和有序 TF 实验 | 全片 20.36 FPS，71 个固定窗口顺序、计数和 ID 一致。 |
 | 2026-11-13 | 0.1.2 | 单流启用跨窗口灰度缓存 | 130 个固定窗口候选一致，1080p 全片 15.75 → 17.39 FPS。 |

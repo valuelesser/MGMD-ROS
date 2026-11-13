@@ -105,6 +105,7 @@ class CudaMfe:
         self.pixel = torch.arange(width * height, dtype=torch.int32, device="cuda")
         self.width, self.height = width, height
         self._gray_cache = {}
+        self.npp_ccl = None
         self.candidate_cv_stream = self.cv_stream
 
     def _mat(self, value, kind):
@@ -201,16 +202,23 @@ class CudaMfe:
         cv = self.cv
         pixels = mask.to(torch.uint8)
         stream = torch.cuda.current_stream()
-        # OpenCV 4.12 CCL has no stream argument.
-        if stream.cuda_stream:
-            stream.synchronize()
-        with self.default_stream_lock or nullcontext():
-            labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
+        if self.npp_ccl is not None:
+            labels_image = self.npp_ccl(pixels)
+        else:
+            # OpenCV 4.12 CCL has no stream argument.
             if stream.cuda_stream:
-                torch.cuda.default_stream().synchronize()
+                stream.synchronize()
+            with self.default_stream_lock or nullcontext():
+                labels_mat = cv.cuda.connectedComponents(self._mat(pixels, cv.CV_8UC1), connectivity=8)
+                if stream.cuda_stream:
+                    torch.cuda.default_stream().synchronize()
+            labels_image = self._tensor(labels_mat, "<i4")
         stamp("CCL")
         ids = mask.flatten().nonzero().flatten()
-        labels = self._tensor(labels_mat, "<i4").reshape(-1)[ids].long()
+        labels = labels_image.reshape(-1)[ids].long()
+        if self.npp_ccl is not None:
+            # NPP may assign label zero to a foreground component.
+            labels += 1
         pixel = self.pixel[ids]
         size = mask.numel() + 1
         area = torch.zeros(size, dtype=torch.int32, device=labels.device)

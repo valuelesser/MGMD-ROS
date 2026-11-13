@@ -20,7 +20,9 @@ class CudaModel:
         self.input, = session.get_inputs()
         self.outputs = session.get_outputs()
 
-    def run(self, value):
+    def run(self, value, *, pending=None):
+        if pending is not None and self.enqueue_options is None:
+            raise ValueError("Deferred synchronization requires stream-local ORT execution")
         if not value.is_cuda or value.dtype != torch.float32 or not value.is_contiguous():
             raise ValueError("Expected a contiguous CUDA float32 input")
         device = value.device.index
@@ -42,9 +44,12 @@ class CudaModel:
         if self.enqueue_options is not None:
             # Device I/O Binding and the ORT user stream keep input and output ordered.
             # Release the capture guard before waiting for the submitted GPU work.
+            if pending is not None:
+                pending.append((value, binding, outputs))
             with self.default_stream_lock:
                 self.session.run_with_iobinding(binding, self.enqueue_options)
-            stream.synchronize()
+            if pending is None:
+                stream.synchronize()
             return outputs
         stream.synchronize()
         # ORT can capture CUDA work during initialization of a new input shape.

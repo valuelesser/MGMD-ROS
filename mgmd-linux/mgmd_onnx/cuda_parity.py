@@ -16,7 +16,8 @@ from mgmd_onnx.cuda_tf import CudaTf
 
 class ParityPipeline:
     def __init__(self, library, width, height, warp, reuse_gray, stack, npp=False,
-                 unlocked=False, buf_library="", lanes=2):
+                 unlocked=False, buf_library="", lanes=2, defer_lad_sync=False):
+        self.defer_lad_sync = defer_lad_sync
         self.reuse_gray = reuse_gray
         self.streams = [torch.cuda.Stream() for _ in range(lanes)]
         self.tracker_stream = torch.cuda.Stream()
@@ -102,9 +103,15 @@ class ParityPipeline:
             pipe = self.pipes[lane]
             image, tracks, ids = pipe.classify_tracks(center.image, tracks, ids)
             classified = event()
-            output = pipe.refine_tracks(image, tracks, ids)
-            end = event()
-            end.synchronize()
+            pending = [] if self.defer_lad_sync else None
+            try:
+                output = pipe.refine_tracks(image, tracks, ids, pending=pending)
+                end = event()
+                end.synchronize()
+            except Exception:
+                if pending:
+                    self.streams[lane].synchronize()
+                raise
         stages = [gray_start.elapsed_time(gray_ready) + mfe_start.elapsed_time(mfe_end),
                   tf_start.elapsed_time(tf_end), start.elapsed_time(classified),
                   classified.elapsed_time(end)]

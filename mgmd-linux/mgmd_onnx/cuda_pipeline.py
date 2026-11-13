@@ -74,14 +74,14 @@ class CudaPipeline:
         inputs = crops.round().div_(255).contiguous()
         return self.lac.run(inputs)[0].double().softmax(dim=1)[:, 1]
 
-    def _refine(self, image, box, model):
+    def _refine(self, image, box, model, pending):
         from utils.general import non_max_suppression
 
         center = (box[:2] + box[2:]) * .5
         x = (center[0] - 160).round().long().clamp(0, self.width - 320)
         y = (center[1] - 160).round().long().clamp(0, self.height - 320)
         crop = image[:, :, y + self.lad_axis[:, None], x + self.lad_axis[None, :]]
-        raw = model.run(crop.div(255).contiguous())[0]
+        raw = model.run(crop.div(255).contiguous(), pending=pending)[0]
         det = non_max_suppression(raw, self.lad_threshold, .45)[0]
         if det.shape[0] == 0:
             return det.new_empty((0, 5))
@@ -128,12 +128,12 @@ class CudaPipeline:
             tracks, ids = tracks[selected], ids[selected]
         return image, tracks, ids
 
-    def refine_tracks(self, image, tracks, ids, model=None):
+    def refine_tracks(self, image, tracks, ids, model=None, *, pending=None):
         if model is None:
             model = self.lad
         detections = []
         for track, track_id in zip(tracks.unbind(), ids.unbind()):
-            box = self._refine(image, track, model)
+            box = self._refine(image, track, model, pending)
             if box.shape[0]:
                 detections.append(torch.cat((box, track_id.reshape(1, 1)), dim=1))
         return torch.cat(detections) if detections else tracks.new_empty((0, 6))

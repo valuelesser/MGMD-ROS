@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.10` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.11` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -145,6 +145,10 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 无锁 BUF 双路以 1080p、30 Hz、rqt/HUD 各跑一轮，均正式读取 1,498 帧。预热耗时 4.165 s。自播放时钟启动到首次发布由 739.32 降为 124.91 ms，前 3 秒发布由 2 增为 58 个窗口，全片为 18.94 / 19.96 FPS，发布延迟 p95 为 173.98 / 186.85 ms。预热主要改善播放开头，首次画面需加上播放前的预热等待。容器日志为 `outputs/warmup_20261113/{0,12}.log`。
 
+### 1.12 LAD 延后显式同步
+
+无锁 BUF 双路可加 `defer_lad_sync:=true`，默认关闭。每目标仍执行原有 ORT 调用和 NMS，取消 ORT 提交后显式流同步，保留该帧输入、输出和绑定到帧末事件完成。动态后处理仍可能产生隐式等待。CUDA 全片对照与坐标、分数对拍尚未执行，Docker Desktop 处于手动暂停。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -153,6 +157,7 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.11 | 增加可选 LAD 帧末同步实验 | 宿主机检查，GPU 对照待运行。 |
 | 2026-11-13 | 0.1.10 | 增加播放前预热与启动计时 | 无锁 BUF 双路首 3 秒发布 2 → 58 个窗口，见 §1.11。 |
 | 2026-11-13 | 0.1.9 | 增加无锁 BUF 三路实验 | 实时 22.66 FPS，全帧 21.95 FPS，见 §1.10。 |
 | 2026-11-13 | 0.1.8 | 补录无共享锁 BUF 双路 GPU 占用，纯文档修订 | 1080p 全片 22.12 FPS，GPU 247 个样本。 |

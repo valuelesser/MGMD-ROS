@@ -150,6 +150,9 @@ def main():
     npp_ccl = get("~npp_ccl", False)
     buf_library = get("~buf_ccl_library", "")
     buf_unlocked = get("~buf_unlocked", False)
+    defer_lad_sync = get("~defer_lad_sync", False)
+    if defer_lad_sync and not (mode == "parity" and buf_unlocked):
+        raise ValueError("defer_lad_sync requires unlocked BUF parity")
     parity_lanes = get("~parity_lanes", 2)
     if parity_lanes != 2 and not (parity_lanes == 3 and mode == "parity" and buf_unlocked):
         raise ValueError("parity_lanes=3 requires parity with unlocked BUF")
@@ -203,6 +206,7 @@ def main():
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
         parity = (ParityPipeline(get("~tf_library"), width, height, warp_backend, reuse_gray, stack,
                                  npp=npp_ccl, unlocked=npp_unlocked or buf_unlocked,
+                                 defer_lad_sync=defer_lad_sync,
                                  buf_library=buf_library, lanes=parity_lanes)
                   if mode == "parity" else None)
         mfe_stream = torch.cuda.Stream() if mode not in ("legacy", "parity") else None

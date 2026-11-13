@@ -64,6 +64,11 @@ class ParityPipeline:
                 yield pending.popleft()
         yield from pending
 
+    def reset_after_warmup(self):
+        with torch.cuda.stream(self.tracker_stream):
+            self.pipes[0].tf.reset()
+        self.pipes[0].mfe.clear_gray_cache()
+
     @torch.inference_mode()
     def mfe(self, lane, gray, ready, marks):
         with torch.cuda.stream(self.streams[lane]):

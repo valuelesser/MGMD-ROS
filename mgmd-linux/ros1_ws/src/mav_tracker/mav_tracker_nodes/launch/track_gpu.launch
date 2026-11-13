@@ -8,6 +8,7 @@
   <arg name="realtime" default="true"/>
   <arg name="profile_mfe" default="true"/>
   <arg name="reuse_gray" default="true"/>
+  <arg name="warmup_frames" default="0"/>
   <arg name="npp_ccl" default="false"/>
   <arg name="buf_ccl_library" default=""/>
   <arg name="buf_unlocked" default="false"/>
@@ -33,6 +34,7 @@
     <param name="realtime" value="$(arg realtime)"/>
     <param name="profile_mfe" value="$(arg profile_mfe)"/>
     <param name="reuse_gray" value="$(arg reuse_gray)"/>
+    <param name="warmup_frames" value="$(arg warmup_frames)" type="int"/>
     <param name="npp_ccl" value="$(arg npp_ccl)" type="bool"/>
     <param name="buf_ccl_library" value="$(arg buf_ccl_library)" type="str"/>
     <param name="buf_unlocked" value="$(arg buf_unlocked)" type="bool"/>

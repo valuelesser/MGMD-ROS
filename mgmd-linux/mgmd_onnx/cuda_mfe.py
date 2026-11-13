@@ -268,6 +268,9 @@ class CudaMfe:
         b = self._direction(frames[2], frames[1], stamp) if self.cfg.needs_next else None
         return self.combine_candidates(a, b, stamp)
 
+    def clear_gray_cache(self):
+        self._gray_cache.clear()
+
     def gray_frames(self, images, frame_ids):
         if frame_ids is None:
             frames = [bgr_to_gray(frame) for frame in images]

@@ -1,6 +1,6 @@
 # SPEC-PERF-SINGLE · ROS GPU 单流优化
 
-`spec_version: 0.1.9` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
+`spec_version: 0.1.10` · `branch: perf-single-stream` · `base: perf-optimization@bd0da6b`
 
 ## 1. 范围与基线
 
@@ -139,6 +139,12 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 不限速两路到三路的阶段均值（ms）为 MFE 40.60 → 57.56、TF 3.11 → 4.14、LAC 6.33 → 10.21、LAD 25.72 → 39.29。阶段区间含等待，不能相加换算吞吐。全帧吞吐仅增长约 1.2%，显存采样峰值升至 3,856 / 4,096 MiB。完整视频中有检测的窗口数为 1,183 / 1,182，尚未逐帧对拍差异。容器日志及采样在 `outputs/buf_three_lanes_20261113/`。
 
+### 1.11 播放前预热
+
+在单流或双路启动命令加 `warmup_frames:=12`，默认 0。启动播放时钟前预读最多 14 张源图像，用前 12 个窗口走实际 MFE、TF、LAC 和 LAD 路径。预热不发布 ROS 消息。完成后重置 TF、清空预热灰度缓存，再将预读帧按原序交给正式回放。原有实时跳帧判断照常执行。预热只能覆盖这些窗口遇到的 LAC 形状。
+
+无锁 BUF 双路以 1080p、30 Hz、rqt/HUD 各跑一轮，均正式读取 1,498 帧。预热耗时 4.165 s。自播放时钟启动到首次发布由 739.32 降为 124.91 ms，前 3 秒发布由 2 增为 58 个窗口，全片为 18.94 / 19.96 FPS，发布延迟 p95 为 173.98 / 186.85 ms。预热主要改善播放开头，首次画面需加上播放前的预热等待。容器日志为 `outputs/warmup_20261113/{0,12}.log`。
+
 ## 2. 维护约定
 
 继承 [SPEC-PERF §0](SPEC-PERF.md) 和 [仓库维护约定](../../AGENTS.md)。每轮改动同步更新本文版本、修正记录、验证证据，并与代码同次提交。失败实验也记录条件和结果。提交前核查 `git diff --check` 和暂存清单，提交后核对 `git show --stat HEAD`，每次推送到 `origin/perf-single-stream` 并核对远程提交。视频、模型和构建产物留在本地。涉及原 ROS 契约的修改同步维护对应规格。
@@ -147,6 +153,7 @@ roslaunch mav_tracker_nodes track_gpu.launch pipeline_mode:=parity \
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-13 | 0.1.10 | 增加播放前预热与启动计时 | 无锁 BUF 双路首 3 秒发布 2 → 58 个窗口，见 §1.11。 |
 | 2026-11-13 | 0.1.9 | 增加无锁 BUF 三路实验 | 实时 22.66 FPS，全帧 21.95 FPS，见 §1.10。 |
 | 2026-11-13 | 0.1.8 | 补录无共享锁 BUF 双路 GPU 占用，纯文档修订 | 1080p 全片 22.12 FPS，GPU 247 个样本。 |
 | 2026-11-13 | 0.1.7 | 增加 BUF 双路无共享锁试验 | 1080p 全片 19.15 → 21.37 FPS，120 个固定窗口见 §1.8。 |

@@ -46,12 +46,16 @@ def extract_mfe(pipe, stream, window, profile, reuse_gray):
 
 
 def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, stream,
-                  executor, profile, counts, wall_bins, reuse_gray, decode_lock=None):
+                  executor, profile, counts, wall_bins, reuse_gray, decode_lock=None,
+                  prefetched=None):
     frames = deque((first,), maxlen=3)
     pending = None
     while not rospy.is_shutdown() and (limit == 0 or counts["read"] < limit):
-        with decode_lock or nullcontext():
-            frame = decoder.read(wall_bins)
+        if prefetched:
+            frame = prefetched.popleft()
+        else:
+            with decode_lock or nullcontext():
+                frame = decoder.read(wall_bins)
         if frame is None:
             break
         counts["read"] += 1
@@ -137,6 +141,9 @@ def main():
     wall_bins = defaultdict(float) if get("~profile_wall", False) else None
     warp_backend = get("~warp_backend", "torch")
     mode = get("~pipeline_mode", "legacy")
+    warmup_frames = get("~warmup_frames", 0)
+    if warmup_frames < 0 or (warmup_frames and mode not in ("legacy", "parity")):
+        raise ValueError("warmup_frames requires legacy or parity and a nonnegative count")
     decouple = get("~decouple_lad", False)
     four_stream_depth = get("~four_stream_depth", 4)
     reuse_gray = get("~reuse_gray", False)
@@ -218,11 +225,45 @@ def main():
         rospy.loginfo("GPU path initialized: NVDEC, MFE, TF, LAC, LAD (%dx%d)", width, height)
         rospy.loginfo("MFE warp backend: %s; pipeline mode: %s", warp_backend, mode)
         rospy.loginfo("GPU decoder backend: %s", decoder_backend)
+        prefetched = deque()
+        if warmup_frames:
+            warm_started = time.perf_counter()
+            frames = [first]
+            target = warmup_frames + 2
+            for _ in range(1, min(target, limit) if limit else target):
+                frame = decoder.read()
+                if frame is None:
+                    break
+                frames.append(frame)
+            prefetched.extend(frames[1:])
+            samples = ((tuple(frames[i:i + 3]), None, None)
+                       for i in range(len(frames) - 2))
+            warmed = 0
+            if parity:
+                for _, job, _ in parity.windows(samples):
+                    _, status, _, _, _ = job.result()
+                    if status.item():
+                        raise RuntimeError("CUDA TF failed during warmup")
+                    warmed += 1
+                parity.reset_after_warmup()
+            else:
+                for (a, b, c), _, _ in samples:
+                    _, status, _, _ = pipe.step(a.image, b.image, c.image, b.seq)
+                    if status.item():
+                        raise RuntimeError("CUDA TF failed during warmup")
+                    warmed += 1
+                pipe.tf.reset()
+            torch.cuda.synchronize()
+            rospy.loginfo("GPU warmup: %d windows in %.3fs", warmed,
+                          time.perf_counter() - warm_started)
         started = time.perf_counter()
+        startup_processed = 0
+        first_publish_ms = None
         windows = ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
                 mfe_stream, executor, profile_mfe, counts, None if decouple else wall_bins, reuse_gray,
-                parity.lock if parity else pipe.mfe.default_stream_lock if four else None)
+                parity.lock if parity else pipe.mfe.default_stream_lock if four else None,
+                prefetched)
         if parity:
             windows = parity.windows(windows)
         elif decouple:
@@ -317,6 +358,10 @@ def main():
                 if wall_bins is not None:
                     wall_bins["preview_publish"] += time.perf_counter() - image_publish_started
             processed += 1
+            since_start = time.perf_counter() - started
+            if first_publish_ms is None:
+                first_publish_ms = 1000 * since_start
+            startup_processed += since_start <= 3
             detected += bool(data)
             if realtime:
                 latency.append(1000 * (time.perf_counter() - started - center.seq / source_rate))
@@ -324,6 +369,9 @@ def main():
                 rospy.loginfo("GPU progress: %d frames, %.2f fps", processed,
                               processed / (time.perf_counter() - started))
         wall = time.perf_counter() - started
+        if first_publish_ms is not None:
+            rospy.loginfo("GPU playback startup: first_publish=%.2fms windows_first_3s=%d",
+                          first_publish_ms, startup_processed)
         if wall_bins is not None and processed:
             wall_bins["other"] = wall - sum(wall_bins.values())
             rospy.loginfo("GPU wall ledger: %s", json.dumps({

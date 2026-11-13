@@ -20,6 +20,7 @@ from mav_tracker_msgs.msg import DetectionArray
 from mgmd_onnx.cuda_frames import CudaDecoder
 from mgmd_onnx.cuda_four_stream import FourStream, four_stage_overlap, lad_overlap
 from mgmd_onnx.cuda_pipeline import CudaPipeline
+from mgmd_onnx.cuda_parity import ParityPipeline
 
 
 STAGES = ("MFE", "TF", "LAC", "LAD")
@@ -69,7 +70,7 @@ def ready_windows(decoder, first, limit, started, rate, realtime, mode, pipe, st
                     wall_bins["source_sleep"] += time.perf_counter() - now
         marks = [] if profile else None
         window = tuple(frames)
-        if mode in ("legacy", "four_stream", "five_stream"):
+        if mode in ("legacy", "four_stream", "five_stream", "parity"):
             yield window, None, marks
             continue
         job = executor.submit(extract_mfe, pipe, stream, window, marks, reuse_gray)
@@ -139,8 +140,8 @@ def main():
     decouple = get("~decouple_lad", False)
     four_stream_depth = get("~four_stream_depth", 4)
     reuse_gray = get("~reuse_gray", False)
-    if mode not in ("legacy", "serial", "overlap", "four_stream", "five_stream"):
-        raise ValueError("pipeline_mode must be legacy, serial, overlap, four_stream or five_stream")
+    if mode not in ("legacy", "serial", "overlap", "four_stream", "five_stream", "parity"):
+        raise ValueError("Invalid pipeline_mode: {}".format(mode))
     if mode == "four_stream" and four_stream_depth not in (2, 3, 4):
         raise ValueError("four_stream_depth must be 2, 3 or 4")
     if mode == "five_stream" and four_stream_depth != 4:
@@ -178,14 +179,18 @@ def main():
         height, width = first.image.shape[:2]
         if min(height, width) < 320:
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
-        mfe_stream = torch.cuda.Stream() if mode != "legacy" else None
-        post_stream = torch.cuda.Stream() if mode != "legacy" else None
+        parity = (ParityPipeline(get("~tf_library"), width, height, warp_backend, reuse_gray, stack)
+                  if mode == "parity" else None)
+        mfe_stream = torch.cuda.Stream() if mode not in ("legacy", "parity") else None
+        post_stream = torch.cuda.Stream() if mfe_stream is not None else None
         lad_stream = torch.cuda.Stream() if mode in ("four_stream", "five_stream") else None
         second_lad_stream = torch.cuda.Stream() if mode == "five_stream" else None
-        with torch.cuda.stream(post_stream):
-            pipe = CudaPipeline(get("~tf_library"), width, height, warp_backend=warp_backend,
-                                mfe_stream=mfe_stream, model_stream=post_stream, lad_stream=lad_stream,
-                                second_lad_stream=second_lad_stream, async_lad=decouple)
+        pipe = None
+        if parity is None:
+            with torch.cuda.stream(post_stream):
+                pipe = CudaPipeline(get("~tf_library"), width, height, warp_backend=warp_backend,
+                                    mfe_stream=mfe_stream, model_stream=post_stream, lad_stream=lad_stream,
+                                    second_lad_stream=second_lad_stream, async_lad=decouple)
         four = None
         if lad_stream is not None:
             streams = (mfe_stream, torch.cuda.Stream(), post_stream, lad_stream)
@@ -200,17 +205,20 @@ def main():
         windows = ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
                 mfe_stream, executor, profile_mfe, counts, None if decouple else wall_bins, reuse_gray,
-                pipe.mfe.default_stream_lock if four else None)
-        if decouple:
+                parity.lock if parity else pipe.mfe.default_stream_lock if four else None)
+        if parity:
+            windows = parity.windows(windows)
+        elif decouple:
             windows = four.realtime_windows(windows, queue_drops)
             stack.callback(windows.close)
         elif four:
             windows = four.windows(windows, four_stream_depth)
         for (previous, center, following), job, mfe_timing in windows:
             begin = time.perf_counter()
-            if four:
+            if four or parity:
                 boxes, status, candidates, stage_ms, split = job.result()
-                split_samples.append(split)
+                if split is not None:
+                    split_samples.append(split)
             elif job is None:
                 frame_ids = (previous.seq, center.seq, following.seq) if reuse_gray else None
                 boxes, status, candidates, timing = pipe.step(
@@ -234,7 +242,7 @@ def main():
                 timing[-1].synchronize()
             compute_done = time.perf_counter()
             if wall_bins is not None:
-                if four:
+                if four or parity:
                     wall_bins["wait_" + mode] += compute_done - begin
                 elif job is None:
                     wall_bins["legacy_compute"] += compute_done - begin
@@ -247,7 +255,7 @@ def main():
             data = boxes.tolist()
             if wall_bins is not None:
                 wall_bins["detection_readback"] += time.perf_counter() - compute_done
-            if not four:
+            if not (four or parity):
                 stage_ms = [a.elapsed_time(b) for a, b in zip(timing, timing[1:])]
                 if job is not None:
                     stage_ms[0] = mfe_start.elapsed_time(ready)

@@ -250,6 +250,9 @@ class CudaMfe:
         stamp("start")
         frames = self.gray_frames((previous, center, following), frame_ids)
         stamp("gray")
+        return self.candidates_from_gray(frames, stamp)
+
+    def candidates_from_gray(self, frames, stamp):
         a = self._direction(frames[0], frames[1], stamp)
         b = self._direction(frames[2], frames[1], stamp) if self.cfg.needs_next else None
         return self.combine_candidates(a, b, stamp)

@@ -34,13 +34,15 @@ def cuda_model(path, stream=None, default_stream_lock=None, enqueue_only=False):
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
                  warp_backend="torch", mfe_stream=None, model_stream=None, lad_stream=None,
-                 second_lad_stream=None, async_lad=False):
+                 second_lad_stream=None, async_lad=False, tracker=None, shared_lock=None):
         # OpenCV CCL uses the default stream and cannot run during ORT capture.
-        default_stream_lock = Lock() if mfe_stream is not None and model_stream is not None else None
+        default_stream_lock = shared_lock
+        if default_stream_lock is None and mfe_stream is not None and model_stream is not None:
+            default_stream_lock = Lock()
         with torch.cuda.stream(mfe_stream):
             self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
                                warp_backend=warp_backend, default_stream_lock=default_stream_lock)
-        self.tf = CudaTf(library)
+        self.tf = CudaTf(library) if tracker is None else tracker
         self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock,
                               enqueue_only=async_lad)
         self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
@@ -105,19 +107,26 @@ class CudaPipeline:
         return output, status, len(boxes), timing
 
     def track_classify(self, center, boxes, scores, seq, timing=None):
-        result = self.tf.step(boxes, scores, seq)
-        rows = torch.arange(result.boxes.shape[0], device=center.device)
-        valid = rows < result.count
-        tracks, ids = result.boxes[valid], result.ids[valid]
+        tracks, ids, status = self.track(boxes, scores, seq)
         if timing:
             timing[2].record()
+        image, tracks, ids = self.classify_tracks(center, tracks, ids)
+        if timing:
+            timing[3].record()
+        return image, tracks, ids, status
+
+    def track(self, boxes, scores, seq):
+        result = self.tf.step(boxes, scores, seq)
+        rows = torch.arange(result.boxes.shape[0], device=boxes.device)
+        valid = rows < result.count
+        return result.boxes[valid], result.ids[valid], result.status
+
+    def classify_tracks(self, center, tracks, ids):
         image = center.permute(2, 0, 1).flip(0).unsqueeze(0).float()
         if tracks.shape[0]:
             selected = self._classify(image, tracks) >= self.lac_threshold
             tracks, ids = tracks[selected], ids[selected]
-        if timing:
-            timing[3].record()
-        return image, tracks, ids, result.status
+        return image, tracks, ids
 
     def refine_tracks(self, image, tracks, ids, model=None):
         if model is None:

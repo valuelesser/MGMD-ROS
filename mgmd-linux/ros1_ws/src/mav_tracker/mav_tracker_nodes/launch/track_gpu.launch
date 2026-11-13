@@ -11,6 +11,7 @@
   <arg name="npp_ccl" default="false"/>
   <arg name="buf_ccl_library" default=""/>
   <arg name="buf_unlocked" default="false"/>
+  <arg name="parity_lanes" default="2"/>
   <arg name="npp_unlocked" default="false"/>
   <arg name="profile_wall" default="false"/>
   <arg name="warp_backend" default="torch"/>
@@ -35,6 +36,7 @@
     <param name="npp_ccl" value="$(arg npp_ccl)" type="bool"/>
     <param name="buf_ccl_library" value="$(arg buf_ccl_library)" type="str"/>
     <param name="buf_unlocked" value="$(arg buf_unlocked)" type="bool"/>
+    <param name="parity_lanes" value="$(arg parity_lanes)" type="int"/>
     <param name="npp_unlocked" value="$(arg npp_unlocked)" type="bool"/>
     <param name="profile_wall" value="$(arg profile_wall)"/>
     <param name="warp_backend" value="$(arg warp_backend)"/>

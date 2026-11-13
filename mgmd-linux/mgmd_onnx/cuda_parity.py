@@ -1,4 +1,4 @@
-"""Two compute lanes with an ordered shared tracker."""
+"""Compute lanes with an ordered shared tracker."""
 
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -16,9 +16,9 @@ from mgmd_onnx.cuda_tf import CudaTf
 
 class ParityPipeline:
     def __init__(self, library, width, height, warp, reuse_gray, stack, npp=False,
-                 unlocked=False, buf_library=""):
+                 unlocked=False, buf_library="", lanes=2):
         self.reuse_gray = reuse_gray
-        self.streams = [torch.cuda.Stream(), torch.cuda.Stream()]
+        self.streams = [torch.cuda.Stream() for _ in range(lanes)]
         self.tracker_stream = torch.cuda.Stream()
         self.lock = nullcontext() if unlocked else Lock()
         with torch.cuda.stream(self.tracker_stream):
@@ -60,7 +60,7 @@ class ParityPipeline:
             tracks = self.tracker_worker.submit(self.track, lane, candidates, window[1].seq)
             result = worker.submit(self.detect, lane, window[1], tracks, start, ready)
             pending.append((window, result, marks))
-            if len(pending) == 2:
+            if len(pending) == len(self.streams):
                 yield pending.popleft()
         yield from pending
 

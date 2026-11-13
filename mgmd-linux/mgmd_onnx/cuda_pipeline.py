@@ -89,10 +89,11 @@ class CudaPipeline:
         coords = coords.index_select(0, nearest) + torch.stack((x, y, x, y))
         return torch.cat((coords, det.index_select(0, nearest)[:, 4:5]), dim=1)
 
-    def step(self, previous, center, following, seq, mfe_profile=None):
+    def step(self, previous, center, following, seq, mfe_profile=None, *, frame_ids=None):
         timing = [torch.cuda.Event(enable_timing=True) for _ in range(5)]
         timing[0].record()
-        boxes, scores = self.mfe.candidates(previous, center, following, mfe_profile)
+        boxes, scores = self.mfe.candidates(previous, center, following, mfe_profile,
+                                           frame_ids=frame_ids)
         timing[1].record()
         return self.finish(center, boxes, scores, seq, timing)
 

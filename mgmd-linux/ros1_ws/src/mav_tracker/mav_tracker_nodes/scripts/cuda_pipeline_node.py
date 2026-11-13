@@ -141,8 +141,6 @@ def main():
     reuse_gray = get("~reuse_gray", False)
     if mode not in ("legacy", "serial", "overlap", "four_stream", "five_stream"):
         raise ValueError("pipeline_mode must be legacy, serial, overlap, four_stream or five_stream")
-    if reuse_gray and mode == "legacy":
-        raise ValueError("reuse_gray requires a non-legacy pipeline mode")
     if mode == "four_stream" and four_stream_depth not in (2, 3, 4):
         raise ValueError("four_stream_depth must be 2, 3 or 4")
     if mode == "five_stream" and four_stream_depth != 4:
@@ -214,8 +212,10 @@ def main():
                 boxes, status, candidates, stage_ms, split = job.result()
                 split_samples.append(split)
             elif job is None:
+                frame_ids = (previous.seq, center.seq, following.seq) if reuse_gray else None
                 boxes, status, candidates, timing = pipe.step(
-                    previous.image, center.image, following.image, center.seq, mfe_timing)
+                    previous.image, center.image, following.image, center.seq, mfe_timing,
+                    frame_ids=frame_ids)
             else:
                 candidates_gpu, scores, mfe_start, ready = job.result()
                 mfe_done = time.perf_counter()

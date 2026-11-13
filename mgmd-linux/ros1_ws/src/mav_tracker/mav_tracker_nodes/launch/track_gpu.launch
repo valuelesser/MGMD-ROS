@@ -7,7 +7,7 @@
   <arg name="rate" default="30"/>
   <arg name="realtime" default="true"/>
   <arg name="profile_mfe" default="true"/>
-  <arg name="reuse_gray" default="false"/>
+  <arg name="reuse_gray" default="true"/>
   <arg name="profile_wall" default="false"/>
   <arg name="warp_backend" default="torch"/>
   <arg name="pipeline_mode" default="legacy"/>

@@ -175,6 +175,9 @@ def main():
     mode = get("~pipeline_mode", "legacy")
     profile_wait = get("~profile_wait", False)
     prefetch_decode = get("~prefetch_decode", False)
+    dispatch_idle = get("~dispatch_idle", False)
+    if dispatch_idle and (mode != "parity" or not get("~buf_unlocked", False) or prefetch_decode):
+        raise ValueError("dispatch_idle requires unlocked BUF parity without prefetch_decode")
     if profile_wait and mode != "parity":
         raise ValueError("profile_wait requires pipeline_mode=parity")
     if prefetch_decode and not (mode == "parity" and get("~buf_unlocked", False)):
@@ -299,16 +302,21 @@ def main():
             rospy.loginfo("GPU warmup: %d windows in %.3fs", warmed,
                           time.perf_counter() - warm_started)
         started = time.perf_counter()
+        dispatch_stats = defaultdict(float)
+        source_bins = defaultdict(float) if dispatch_idle and wall_bins is not None else wall_bins
         if parity and profile_wait:
             parity.wait_trace = {}
         startup_processed = 0
         first_publish_ms = None
         windows = ready_windows(
                 decoder, first, limit, started, source_rate, realtime, mode, pipe,
-                mfe_stream, executor, profile_mfe, counts, None if decouple else wall_bins, reuse_gray,
+                mfe_stream, executor, profile_mfe, counts, None if decouple else source_bins, reuse_gray,
                 parity.lock if parity else pipe.mfe.default_stream_lock if four else None,
                 prefetched)
-        if parity:
+        if dispatch_idle:
+            windows = parity.available_windows(windows, dispatch_stats)
+            stack.callback(windows.close)
+        elif parity:
             windows = parity.windows(windows)
         elif decouple:
             windows = four.realtime_windows(windows, queue_drops)
@@ -414,6 +422,8 @@ def main():
                     wall_bins["preview_publish"] += time.perf_counter() - image_publish_started
             processed += 1
             since_start = time.perf_counter() - started
+            if trace is not None:
+                trace["published"] = started + since_start
             if first_publish_ms is None:
                 first_publish_ms = 1000 * since_start
             startup_processed += since_start <= 3
@@ -426,6 +436,16 @@ def main():
         wall = time.perf_counter() - started
         if parity and profile_wait and processed:
             report_parity_wait(parity.wait_trace)
+            publish_lags = [1000 * (row["published"] - row["gpu_done"])
+                            for row in parity.wait_trace.values() if "published" in row]
+            rospy.loginfo("GPU completion-to-publish ms (p50/p95/max): %.2f/%.2f/%.2f",
+                          *np.percentile(publish_lags, (50, 95, 100)))
+        if dispatch_idle and processed:
+            rospy.loginfo("GPU idle dispatch: queued_peak=%d wait_for_lane_ms_per_window=%.3f "
+                          "source_ms_per_window=%s", dispatch_stats["queued_peak"],
+                          1000 * dispatch_stats["wait_for_lane"] / processed,
+                          json.dumps({name: round(1000 * value / processed, 3)
+                                      for name, value in (source_bins or {}).items()}))
         if first_publish_ms is not None:
             rospy.loginfo("GPU playback startup: first_publish=%.2fms windows_first_3s=%d",
                           first_publish_ms, startup_processed)

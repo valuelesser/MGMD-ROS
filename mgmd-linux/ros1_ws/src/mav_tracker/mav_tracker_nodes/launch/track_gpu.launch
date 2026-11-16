@@ -1,0 +1,47 @@
+<launch>
+  <arg name="video" default="/data/videos/phantom30.mp4"/>
+  <arg name="decoder_library" default="/tmp/mgmd-cuda-decoder.so"/>
+  <arg name="decoder_backend" default="opencv"/>
+  <arg name="decoder_leading_frames" default="0"/>
+  <arg name="tf_library" default="/tmp/mgmd-tf-g3.so"/>
+  <arg name="rate" default="30"/>
+  <arg name="realtime" default="true"/>
+  <arg name="profile_mfe" default="true"/>
+  <arg name="reuse_gray" default="true"/>
+  <arg name="warmup_frames" default="0"/>
+  <arg name="buf_ccl_library" default="/tmp/mgmd-buf-ccl.so"/>
+  <arg name="profile_wall" default="false"/>
+  <arg name="warp_backend" default="opencv"/>
+  <arg name="pipeline_mode" default="parity"/>
+  <arg name="limit" default="0"/>
+  <arg name="preview" default="true"/>
+  <arg name="rqt" default="true"/>
+  <arg name="fullscreen" default="true"/>
+  <node pkg="mav_tracker_nodes" type="cuda_pipeline_node.py" name="cuda_pipeline"
+        output="screen" required="true">
+    <param name="video" value="$(arg video)"/>
+    <param name="decoder_library" value="$(arg decoder_library)"/>
+    <param name="decoder_backend" value="$(arg decoder_backend)"/>
+    <param name="decoder_leading_frames" value="$(arg decoder_leading_frames)"/>
+    <param name="tf_library" value="$(arg tf_library)"/>
+    <param name="rate" value="$(arg rate)"/>
+    <param name="realtime" value="$(arg realtime)"/>
+    <param name="profile_mfe" value="$(arg profile_mfe)"/>
+    <param name="reuse_gray" value="$(arg reuse_gray)"/>
+    <param name="warmup_frames" value="$(arg warmup_frames)" type="int"/>
+    <param name="buf_ccl_library" value="$(arg buf_ccl_library)" type="str"/>
+    <param name="profile_wall" value="$(arg profile_wall)"/>
+    <param name="warp_backend" value="$(arg warp_backend)"/>
+    <param name="pipeline_mode" value="$(arg pipeline_mode)"/>
+    <param name="limit" value="$(arg limit)"/>
+    <param name="preview" value="$(arg preview)"/>
+  </node>
+  <group if="$(arg preview)">
+    <group if="$(arg rqt)">
+      <node if="$(arg fullscreen)" pkg="mav_tracker_nodes" type="rqt_fullscreen.py"
+            name="gpu_viewer" args="/mav/debug_image" output="screen"/>
+      <node unless="$(arg fullscreen)" pkg="rqt_image_view" type="rqt_image_view"
+            name="gpu_viewer" args="/mav/debug_image" output="screen"/>
+    </group>
+  </group>
+</launch>

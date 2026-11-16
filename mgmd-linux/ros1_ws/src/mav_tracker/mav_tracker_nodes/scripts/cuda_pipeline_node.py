@@ -127,6 +127,38 @@ def add_hud(image, playback, processed, skipped, recent, now):
                     thickness, cv2.LINE_AA)
 
 
+def report_parity_wait(traces):
+    traces = [trace for trace in traces.values() if "wait_ended" in trace]
+    stages = ("submitted", "mfe_submitted", "tf_submitted", "lac_submitted",
+              "lad_submitted", "gpu_done")
+    names = ("mfe", "tf", "lac", "lad", "frame_sync")
+    bins = defaultdict(float)
+    overtakes = 0
+    overtaken_seconds = 0.
+    latest_done = 0.
+    prefetch_calls = 0
+    for trace in traces:
+        left, right = trace["wait_started"], trace["wait_ended"]
+        for name, start, end in zip(names, stages, stages[1:]):
+            bins[name] += max(0., min(right, trace[end]) - max(left, trace[start]))
+        bins["future_return"] += max(0., right - max(left, trace["gpu_done"]))
+        if trace["gpu_done"] < latest_done:
+            overtakes += 1
+            overtaken_seconds += latest_done - trace["gpu_done"]
+        latest_done = max(latest_done, trace["gpu_done"])
+        if "prefetch" in trace:
+            start, end = trace["prefetch"]
+            prefetch_calls += 1
+            bins["prefetch"] += end - start
+            bins["prefetch_before_gpu_done"] += max(0., min(end, trace["gpu_done"]) - start)
+    rospy.loginfo("GPU parity wait profile: %s", json.dumps({
+        "windows": len(traces), "overtakes": overtakes, "prefetch_calls": prefetch_calls,
+        "overtaken_ms": round(1000 * overtaken_seconds, 3),
+        "ms_per_window": {name: round(1000 * value / len(traces), 3)
+                          for name, value in bins.items()},
+    }, sort_keys=True))
+
+
 def main():
     rospy.init_node("cuda_pipeline")
     if not torch.cuda.is_available():
@@ -141,6 +173,12 @@ def main():
     wall_bins = defaultdict(float) if get("~profile_wall", False) else None
     warp_backend = get("~warp_backend", "torch")
     mode = get("~pipeline_mode", "legacy")
+    profile_wait = get("~profile_wait", False)
+    prefetch_decode = get("~prefetch_decode", False)
+    if profile_wait and mode != "parity":
+        raise ValueError("profile_wait requires pipeline_mode=parity")
+    if prefetch_decode and not (mode == "parity" and get("~buf_unlocked", False)):
+        raise ValueError("prefetch_decode requires unlocked BUF parity")
     warmup_frames = get("~warmup_frames", 0)
     if warmup_frames < 0 or (warmup_frames and mode not in ("legacy", "parity")):
         raise ValueError("warmup_frames requires legacy or parity and a nonnegative count")
@@ -261,6 +299,8 @@ def main():
             rospy.loginfo("GPU warmup: %d windows in %.3fs", warmed,
                           time.perf_counter() - warm_started)
         started = time.perf_counter()
+        if parity and profile_wait:
+            parity.wait_trace = {}
         startup_processed = 0
         first_publish_ms = None
         windows = ready_windows(
@@ -276,7 +316,16 @@ def main():
         elif four:
             windows = four.windows(windows, four_stream_depth)
         for (previous, center, following), job, mfe_timing in windows:
+            trace = parity.wait_trace[center.seq] if parity and profile_wait else None
+            if (prefetch_decode and not job.done() and not prefetched
+                    and (limit == 0 or counts["read"] < limit)):
+                prefetch_started = time.perf_counter()
+                prefetched.append(decoder.read(wall_bins))
+                if trace is not None:
+                    trace["prefetch"] = (prefetch_started, time.perf_counter())
             begin = time.perf_counter()
+            if trace is not None:
+                trace["wait_started"] = begin
             if four or parity:
                 boxes, status, candidates, stage_ms, split = job.result()
                 if split is not None:
@@ -303,6 +352,8 @@ def main():
                 # Complete the post stream before the ROS output boundary reads its buffers.
                 timing[-1].synchronize()
             compute_done = time.perf_counter()
+            if trace is not None:
+                trace["wait_ended"] = compute_done
             if wall_bins is not None:
                 if four or parity:
                     wall_bins["wait_" + mode] += compute_done - begin
@@ -373,6 +424,8 @@ def main():
                 rospy.loginfo("GPU progress: %d frames, %.2f fps", processed,
                               processed / (time.perf_counter() - started))
         wall = time.perf_counter() - started
+        if parity and profile_wait and processed:
+            report_parity_wait(parity.wait_trace)
         if first_publish_ms is not None:
             rospy.loginfo("GPU playback startup: first_publish=%.2fms windows_first_3s=%d",
                           first_publish_ms, startup_processed)

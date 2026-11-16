@@ -16,6 +16,8 @@
   <arg name="parity_lanes" default="2"/>
   <arg name="npp_unlocked" default="false"/>
   <arg name="profile_wall" default="false"/>
+  <arg name="profile_wait" default="false"/>
+  <arg name="prefetch_decode" default="false"/>
   <arg name="warp_backend" default="torch"/>
   <arg name="pipeline_mode" default="legacy"/>
   <arg name="four_stream_depth" default="4"/>
@@ -43,6 +45,8 @@
     <param name="parity_lanes" value="$(arg parity_lanes)" type="int"/>
     <param name="npp_unlocked" value="$(arg npp_unlocked)" type="bool"/>
     <param name="profile_wall" value="$(arg profile_wall)"/>
+    <param name="profile_wait" value="$(arg profile_wait)" type="bool"/>
+    <param name="prefetch_decode" value="$(arg prefetch_decode)" type="bool"/>
     <param name="warp_backend" value="$(arg warp_backend)"/>
     <param name="pipeline_mode" value="$(arg pipeline_mode)"/>
     <param name="four_stream_depth" value="$(arg four_stream_depth)" type="int"/>

@@ -4,6 +4,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from threading import Lock
+from time import perf_counter
 
 import torch
 
@@ -19,6 +20,7 @@ class ParityPipeline:
                  unlocked=False, buf_library="", lanes=2, defer_lad_sync=False):
         self.defer_lad_sync = defer_lad_sync
         self.reuse_gray = reuse_gray
+        self.wait_trace = None
         self.streams = [torch.cuda.Stream() for _ in range(lanes)]
         self.tracker_stream = torch.cuda.Stream()
         self.lock = nullcontext() if unlocked else Lock()
@@ -57,9 +59,14 @@ class ParityPipeline:
             if marks is not None:
                 marks.extend((("start", start), ("gray", ready)))
             worker = self.workers[lane]
-            candidates = worker.submit(self.mfe, lane, gray, ready, marks)
-            tracks = self.tracker_worker.submit(self.track, lane, candidates, window[1].seq)
-            result = worker.submit(self.detect, lane, window[1], tracks, start, ready)
+            seq = window[1].seq
+            trace = None
+            if self.wait_trace is not None:
+                trace = {"submitted": perf_counter()}
+                self.wait_trace[seq] = trace
+            candidates = worker.submit(self.mfe, lane, gray, ready, marks, trace)
+            tracks = self.tracker_worker.submit(self.track, lane, candidates, seq, trace)
+            result = worker.submit(self.detect, lane, window[1], tracks, start, ready, trace)
             pending.append((window, result, marks))
             if len(pending) == len(self.streams):
                 yield pending.popleft()
@@ -71,7 +78,7 @@ class ParityPipeline:
         self.pipes[0].mfe.clear_gray_cache()
 
     @torch.inference_mode()
-    def mfe(self, lane, gray, ready, marks):
+    def mfe(self, lane, gray, ready, marks, trace=None):
         with torch.cuda.stream(self.streams[lane]):
             handoff(ready, *gray)
             start = event()
@@ -83,19 +90,23 @@ class ParityPipeline:
                     marks.append((name, event()))
 
             boxes, scores = self.pipes[lane].mfe.candidates_from_gray(gray, stamp)
+            if trace is not None:
+                trace["mfe_submitted"] = perf_counter()
             return boxes, scores, start, event()
 
     @torch.inference_mode()
-    def track(self, lane, previous, seq):
+    def track(self, lane, previous, seq, trace=None):
         boxes, scores, mfe_start, ready = previous.result()
         with torch.cuda.stream(self.tracker_stream):
             handoff(ready, boxes, scores)
             start = event()
             tracks, ids, status = self.pipes[lane].track(boxes, scores, seq)
+            if trace is not None:
+                trace["tf_submitted"] = perf_counter()
             return tracks, ids, status, len(boxes), mfe_start, ready, start, event()
 
     @torch.inference_mode()
-    def detect(self, lane, center, previous, gray_start, gray_ready):
+    def detect(self, lane, center, previous, gray_start, gray_ready, trace=None):
         tracks, ids, status, count, mfe_start, mfe_end, tf_start, tf_end = previous.result()
         with torch.cuda.stream(self.streams[lane]):
             handoff(tf_end, center.image, tracks, ids, status)
@@ -103,11 +114,17 @@ class ParityPipeline:
             pipe = self.pipes[lane]
             image, tracks, ids = pipe.classify_tracks(center.image, tracks, ids)
             classified = event()
+            if trace is not None:
+                trace["lac_submitted"] = perf_counter()
             pending = [] if self.defer_lad_sync else None
             try:
                 output = pipe.refine_tracks(image, tracks, ids, pending=pending)
+                if trace is not None:
+                    trace["lad_submitted"] = perf_counter()
                 end = event()
                 end.synchronize()
+                if trace is not None:
+                    trace["gpu_done"] = perf_counter()
             except Exception:
                 if pending:
                     self.streams[lane].synchronize()

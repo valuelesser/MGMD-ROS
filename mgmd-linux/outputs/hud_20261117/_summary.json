@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-17",
+  "configuration": "SPEC-PERF-SINGLE 1.16 CUDA preview, phantom30 at 1920x1080, ROS/rqt, full-frame playback",
+  "pixels": {
+    "old_panel_size": [1418, 144],
+    "new_ink_bounds": [1252, 108],
+    "old_modified_count": 204192,
+    "new_modified_count": 29113,
+    "checks": "Transparent spaces and blank rows preserve input exactly, no clipped printable ASCII glyphs, green detection border visible under transparent HUD."
+  },
+  "ros_preview": {"encoding": "bgr8", "width": 1920, "height": 1080, "hud_lines": 4, "captured_frame": 1233},
+  "run": {"read": 1498, "processed": 1496, "skipped": 0, "detection_frames": 1183, "wall_s": 61.202, "fps": 24.44},
+  "preview_ms_per_window": {"overlay_enqueue": 1.716, "download_and_gpu_wait": 1.504, "pack": 0.588, "publish": 1.774, "total": 5.582},
+  "gpu_util_pct": {"samples_after_warmup": 303, "sample_period_ms": 200, "mean": 66.04, "peak": 77},
+  "container_evidence": "outputs/hud_20261117/{launch.log,gpu.csv,pixels.log,topic.log,ros-preview.png}"
+}

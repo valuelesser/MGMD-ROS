@@ -122,13 +122,11 @@ def hud_lines(playback, processed, skipped, recent, now):
 
 
 def add_hud(image, text):
-    font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, .85, 2
-    width = max(cv2.getTextSize(line, font, scale, thickness)[0][0] for line in text)
-    cv2.rectangle(image, (16, 16), (min(image.shape[1] - 1, width + 40), 63 + 32 * (len(text) - 1)),
-                  (18, 18, 18), -1)
+    font, scale = cv2.FONT_HERSHEY_SIMPLEX, .68
     for index, line in enumerate(text):
-        cv2.putText(image, line, (28, 48 + index * 32), font, scale, (255, 255, 255),
-                    thickness, cv2.LINE_AA)
+        origin = (14, 30 + index * 28)
+        cv2.putText(image, line, origin, font, scale, (0, 0, 0), 4, cv2.LINE_AA)
+        cv2.putText(image, line, origin, font, scale, (255, 255, 255), 2, cv2.LINE_AA)
 
 
 def report_parity_wait(traces):

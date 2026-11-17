@@ -3,6 +3,9 @@
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+from queue import Empty, Queue
+from threading import Event
+from time import perf_counter
 
 import torch
 
@@ -53,22 +56,68 @@ class ParityPipeline:
         pending = deque()
         for accepted, (window, _, marks) in enumerate(source):
             lane = accepted % len(self.streams)
-            with self.lock:
-                start = event()
-                gray = self.pipes[0].mfe.gray_frames(
-                    tuple(frame.image for frame in window),
-                    tuple(frame.seq for frame in window) if self.reuse_gray else None)
-                ready = event()
-            if marks is not None:
-                marks.extend((("start", start), ("gray", ready)))
-            worker = self.workers[lane]
-            candidates = worker.submit(self.mfe, lane, gray, ready, marks)
-            tracks = self.tracker_worker.submit(self.track, lane, candidates, window[1].seq)
-            result = worker.submit(self.detect, lane, window[1], tracks, start, ready)
-            pending.append((window, result, marks))
+            pending.append(self.submit(lane, window, marks))
             if len(pending) == len(self.streams):
                 yield pending.popleft()
         yield from pending
+
+    def submit(self, lane, window, marks):
+        start = event()
+        gray = self.pipes[0].mfe.gray_frames(
+            tuple(frame.image for frame in window),
+            tuple(frame.seq for frame in window) if self.reuse_gray else None)
+        ready = event()
+        if marks is not None:
+            marks.extend((("start", start), ("gray", ready)))
+        worker = self.workers[lane]
+        candidates = worker.submit(self.mfe, lane, gray, ready, marks)
+        tracks = self.tracker_worker.submit(self.track, lane, candidates, window[1].seq)
+        result = worker.submit(self.detect, lane, window[1], tracks, start, ready)
+        return window, result, marks
+
+    def available_windows(self, source, stats):
+        """Refill finished lanes independently of the ordered publisher."""
+        idle, ordered = Queue(), Queue()
+        stop = Event()
+        eof = object()
+        for lane in range(len(self.streams)):
+            idle.put(lane)
+
+        @torch.inference_mode()
+        def dispatch():
+            try:
+                while not stop.is_set():
+                    started = perf_counter()
+                    try:
+                        lane = idle.get(timeout=.05)
+                    except Empty:
+                        stats["wait_for_lane"] += perf_counter() - started
+                        continue
+                    stats["wait_for_lane"] += perf_counter() - started
+                    if stop.is_set():
+                        return
+                    item = next(source, None)
+                    if item is None:
+                        return
+                    window, _, marks = item
+                    entry = self.submit(lane, window, marks)
+                    ordered.put(entry)
+                    stats["queued_peak"] = max(stats["queued_peak"], ordered.qsize())
+                    entry[1].add_done_callback(lambda _, lane=lane: idle.put(lane))
+            finally:
+                ordered.put(eof)
+
+        with ThreadPoolExecutor(max_workers=1) as thread:
+            producer = thread.submit(dispatch)
+            try:
+                while True:
+                    entry = ordered.get()
+                    if entry is eof:
+                        producer.result()
+                        return
+                    yield entry
+            finally:
+                stop.set()
 
     def reset_after_warmup(self):
         with torch.cuda.stream(self.tracker_stream):

@@ -198,9 +198,15 @@ def main():
         started = time.perf_counter()
         startup_processed = 0
         first_publish_ms = None
+        dispatch_idle = parity is not None and get("~dispatch_idle", True)
+        dispatch_stats = defaultdict(float)
+        source_bins = (defaultdict(float) if wall_bins is not None else None) if dispatch_idle else wall_bins
         windows = ready_windows(decoder, first, limit, started, source_rate, realtime,
-                                profile_mfe, counts, wall_bins, prefetched)
-        if parity:
+                                profile_mfe, counts, source_bins, prefetched)
+        if dispatch_idle:
+            windows = parity.available_windows(windows, dispatch_stats)
+            stack.callback(windows.close)
+        elif parity:
             windows = parity.windows(windows)
         for (previous, center, following), job, mfe_timing in windows:
             begin = time.perf_counter()
@@ -284,6 +290,12 @@ def main():
         if first_publish_ms is not None:
             rospy.loginfo("GPU playback startup: first_publish=%.2fms windows_first_3s=%d",
                           first_publish_ms, startup_processed)
+        if dispatch_idle and processed:
+            rospy.loginfo("GPU idle dispatch: queued_peak=%d wait_for_lane_ms_per_window=%.3f "
+                          "source_ms_per_window=%s", dispatch_stats["queued_peak"],
+                          1000 * dispatch_stats["wait_for_lane"] / processed,
+                          json.dumps({name: round(1000 * value / processed, 3)
+                                      for name, value in (source_bins or {}).items()}))
         if wall_bins is not None and processed:
             wall_bins["other"] = wall - sum(wall_bins.values())
             rospy.loginfo("GPU wall ledger: %s", json.dumps({

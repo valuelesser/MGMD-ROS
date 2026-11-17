@@ -1,0 +1,20 @@
+{
+  "date": "2026-11-17",
+  "baseline_commit": "d88dfaa",
+  "video": "phantom30.mp4 1920x1080",
+  "source_fps": "30000/1001",
+  "config": "ROS parity, realtime, OpenCV hardware decode and warp, 12 warmup windows, CUDA HUD and Windows FFplay",
+  "round_robin": {
+    "dispatch_idle": false, "read": 1498, "processed": 1044, "skipped": 452, "detections": 797, "wall_s": 50.060, "fps": 20.85,
+    "source_to_ros_publish_ms": {"p50": 128.20, "p95": 196.51},
+    "stage_mean_ms": {"MFE": 40.53, "TF": 3.31, "LAC": 7.10, "LAD": 25.43}
+  },
+  "idle": {
+    "dispatch_idle": true, "read": 1498, "processed": 1101, "skipped": 395, "detections": 838, "wall_s": 50.090, "fps": 21.98,
+    "source_to_ros_publish_ms": {"p50": 132.59, "p95": 207.51},
+    "stage_mean_ms": {"MFE": 40.98, "TF": 3.34, "LAC": 7.37, "LAD": 28.77},
+    "queued_peak": 4,
+    "source_ms_per_window": {"decode_opencv_bgr": 4.558, "source_sleep": 2.441, "wait_for_lane": 35.442}
+  },
+  "windows_temp_logs": ["mgmd-master-wheel-ab-run.log", "mgmd-master-idle-ab-run.log"]
+}

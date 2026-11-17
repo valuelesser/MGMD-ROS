@@ -1,7 +1,8 @@
 # Run on Windows while track_gpu.launch is publishing its 1080p preview.
 param(
     [string] $Container = 'mgmd-ros',
-    [int] $MasterPort = 11331
+    [int] $MasterPort = 11331,
+    [string] $FrameRate = '30'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,7 +42,7 @@ $playerInfo.UseShellExecute = $false
 $playerInfo.RedirectStandardInput = $true
 foreach ($arg in @('-loglevel','warning','-fflags','nobuffer','-framedrop',
         '-f','rawvideo','-pixel_format','bgr24','-video_size','1920x1080',
-        '-framerate','30','-x','1920','-y','1080','-autoexit',
+        '-framerate',$FrameRate,'-x','1920','-y','1080','-autoexit',
         '-window_title','MGMD ROS 1080p native preview','-i','-')) {
     $playerInfo.ArgumentList.Add($arg)
 }

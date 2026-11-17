@@ -11,6 +11,7 @@ import torch
 
 from mgmd_onnx.cuda_four_stream import event, handoff
 from mgmd_onnx.cuda_buf_ccl import BufCcl
+from mgmd_onnx.cuda_mfe import CudaMfe
 from mgmd_onnx.cuda_pipeline import CudaPipeline
 from mgmd_onnx.cuda_npp_ccl import NppCcl
 from mgmd_onnx.cuda_tf import CudaTf
@@ -18,31 +19,47 @@ from mgmd_onnx.cuda_tf import CudaTf
 
 class ParityPipeline:
     def __init__(self, library, width, height, warp, reuse_gray, stack, npp=False,
-                 unlocked=False, buf_library="", lanes=2, defer_lad_sync=False):
+                 unlocked=False, buf_library="", lanes=2, defer_lad_sync=False,
+                 extra_mfe_lane=False):
         self.defer_lad_sync = defer_lad_sync
         self.reuse_gray = reuse_gray
+        self.extra_mfe_lane = extra_mfe_lane
         self.wait_trace = None
         self.streams = [torch.cuda.Stream() for _ in range(lanes)]
+        self.mfe_streams = ([torch.cuda.Stream() for _ in range(lanes + 1)]
+                            if extra_mfe_lane else self.streams)
         self.tracker_stream = torch.cuda.Stream()
         self.lock = nullcontext() if unlocked else Lock()
         with torch.cuda.stream(self.tracker_stream):
             tracker = CudaTf(library)
         self.pipes = []
-        for stream in self.streams:
+        for stream, mfe_stream in zip(self.streams, self.mfe_streams):
             with torch.cuda.stream(stream):
                 self.pipes.append(CudaPipeline(library, width, height, warp_backend=warp,
-                                               mfe_stream=stream, model_stream=stream,
+                                               mfe_stream=mfe_stream, model_stream=stream,
                                                tracker=tracker, shared_lock=self.lock,
                                                async_lad=unlocked))
+            with torch.cuda.stream(mfe_stream):
                 if npp:
-                    self.pipes[-1].mfe.npp_ccl = NppCcl(width, height, stream)
+                    self.pipes[-1].mfe.npp_ccl = NppCcl(width, height, mfe_stream)
                 if buf_library:
-                    self.pipes[-1].mfe.buf_ccl = BufCcl(buf_library, width, height, stream)
+                    self.pipes[-1].mfe.buf_ccl = BufCcl(buf_library, width, height, mfe_stream)
+        self.extractors = [pipe.mfe for pipe in self.pipes]
+        if extra_mfe_lane:
+            stream = self.mfe_streams[-1]
+            with torch.cuda.stream(stream):
+                extractor = CudaMfe(self.extractors[0].cfg, width, height, warp_backend=warp)
+                extractor.buf_ccl = BufCcl(buf_library, width, height, stream)
+                self.extractors.append(extractor)
+            self.post_pool = stack.enter_context(ThreadPoolExecutor(max_workers=lanes))
+            self.idle_post = Queue()
+            for lane in range(lanes):
+                self.idle_post.put(lane)
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
-                        for _ in self.streams]
+                        for _ in self.mfe_streams]
         self.tracker_worker = stack.enter_context(ThreadPoolExecutor(max_workers=1))
         # Initialize Torch's lazy CUDA linear algebra backend before either lane uses it.
-        with torch.cuda.stream(self.streams[0]):
+        with torch.cuda.stream(self.mfe_streams[0]):
             matrix = torch.eye(8, dtype=torch.float64, device="cuda")
             torch.linalg.solve_ex(matrix.expand(256, -1, -1).contiguous(),
                                   matrix[:1].T.expand(256, -1, -1).contiguous())
@@ -51,7 +68,8 @@ class ParityPipeline:
         pending = deque()
         for accepted, (window, _, marks) in enumerate(source):
             lane = accepted % len(self.streams)
-            pending.append(self.submit(lane, window, marks))
+            entry, _ = self.submit(lane, window, marks)
+            pending.append(entry)
             if len(pending) == len(self.streams):
                 yield pending.popleft()
         yield from pending
@@ -59,7 +77,7 @@ class ParityPipeline:
     def submit(self, lane, window, marks):
         with self.lock:
             start = event()
-            gray = self.pipes[0].mfe.gray_frames(
+            gray = self.extractors[0].gray_frames(
                 tuple(frame.image for frame in window),
                 tuple(frame.seq for frame in window) if self.reuse_gray else None)
             ready = event()
@@ -72,16 +90,28 @@ class ParityPipeline:
             trace = {"submitted": perf_counter()}
             self.wait_trace[seq] = trace
         candidates = worker.submit(self.mfe, lane, gray, ready, marks, trace)
-        tracks = self.tracker_worker.submit(self.track, lane, candidates, seq, trace)
-        result = worker.submit(self.detect, lane, window[1], tracks, start, ready, trace)
-        return window, result, marks
+        tracks = self.tracker_worker.submit(self.track, candidates, seq, trace)
+        args = window[1], tracks, start, ready, trace
+        if self.extra_mfe_lane:
+            result = self.post_pool.submit(self.detect_on_idle_lane, *args)
+            return (window, result, marks), candidates
+        result = worker.submit(self.detect, lane, *args)
+        return (window, result, marks), result
+
+    def detect_on_idle_lane(self, *args):
+        # The pool has exactly one worker per model lane. Each call owns its lane until done.
+        lane = self.idle_post.get_nowait()
+        try:
+            return self.detect(lane, *args)
+        finally:
+            self.idle_post.put(lane)
 
     def available_windows(self, source, dispatch_stats):
         """Refill finished lanes independently of the ordered publisher."""
         idle, ordered = Queue(), Queue()
         stop = Event()
         eof = object()
-        for lane in range(len(self.streams)):
+        for lane in range(len(self.mfe_streams)):
             idle.put(lane)
 
         @torch.inference_mode()
@@ -101,8 +131,9 @@ class ParityPipeline:
                     if item is None:
                         return
                     window, _, marks = item
-                    entry = self.submit(lane, window, marks)
-                    entry[1].add_done_callback(lambda _, lane=lane: idle.put(lane))
+                    entry, reusable = self.submit(lane, window, marks)
+                    reusable.add_done_callback(lambda _, lane=lane: idle.put(lane))
+                    dispatch_stats[f"lane_{lane}_windows"] += 1
                     ordered.put(entry)
                     dispatch_stats["queued_peak"] = max(dispatch_stats["queued_peak"],
                                                          ordered.qsize())
@@ -124,11 +155,11 @@ class ParityPipeline:
     def reset_after_warmup(self):
         with torch.cuda.stream(self.tracker_stream):
             self.pipes[0].tf.reset()
-        self.pipes[0].mfe.clear_gray_cache()
+        self.extractors[0].clear_gray_cache()
 
     @torch.inference_mode()
     def mfe(self, lane, gray, ready, marks, trace=None):
-        with torch.cuda.stream(self.streams[lane]):
+        with torch.cuda.stream(self.mfe_streams[lane]):
             handoff(ready, *gray)
             start = event()
             if marks is not None:
@@ -138,18 +169,18 @@ class ParityPipeline:
                 if marks is not None:
                     marks.append((name, event()))
 
-            boxes, scores = self.pipes[lane].mfe.candidates_from_gray(gray, stamp)
+            boxes, scores = self.extractors[lane].candidates_from_gray(gray, stamp)
             if trace is not None:
                 trace["mfe_submitted"] = perf_counter()
             return boxes, scores, start, event()
 
     @torch.inference_mode()
-    def track(self, lane, previous, seq, trace=None):
+    def track(self, previous, seq, trace=None):
         boxes, scores, mfe_start, ready = previous.result()
         with torch.cuda.stream(self.tracker_stream):
             handoff(ready, boxes, scores)
             start = event()
-            tracks, ids, status = self.pipes[lane].track(boxes, scores, seq)
+            tracks, ids, status = self.pipes[0].track(boxes, scores, seq)
             if trace is not None:
                 trace["tf_submitted"] = perf_counter()
             return tracks, ids, status, len(boxes), mfe_start, ready, start, event()
@@ -157,6 +188,8 @@ class ParityPipeline:
     @torch.inference_mode()
     def detect(self, lane, center, previous, gray_start, gray_ready, trace=None):
         tracks, ids, status, count, mfe_start, mfe_end, tf_start, tf_end = previous.result()
+        if trace is not None and self.extra_mfe_lane:
+            trace["post_started"] = perf_counter()
         with torch.cuda.stream(self.streams[lane]):
             handoff(tf_end, center.image, tracks, ids, status)
             start = event()

@@ -4,7 +4,7 @@
 > 派生自：`paper/prd_mgmd_reproduction.md`（v4.2, 2026-10-28）§11
 > 当前运行环境：Windows 宿主机上的 WSL2 `Ubuntu-20.04`（Ubuntu 20.04.6 LTS）
 > WSL 工程根：`/home/gaodu/毕业设计/mgmd-linux/`
-> 最后更新：2026-11-17（补充 Docker ROS 的 CUDA 预览，PRD v4.2）
+> 最后更新：2026-11-17（记录 Windows 原生 FFplay 默认演示方式，PRD v4.2）
 > WSL2 启动方式见 §2.3，Docker 启动方式见 §2.4。后续章节保留原生 Ubuntu 环境的历史记录。
 
 ---
@@ -272,6 +272,18 @@ CUDA 读取设备端原分辨率 BGR 帧，在输出图像上合成检测框与�
 
 因此全屏 rqt 的图像绘制区也至多为 `1440×810`（工具条还占一部分），1080p 图像在这一段至少缩小到每轴 75%，随后呈现在高 DPI 的 Windows 屏幕上。放大窗口或增加 ROS 发布尺寸无法补回在此处丢失的细节。需要保持 rqt 时，可暂时把该屏幕的 Windows 缩放设为 100% 并重新打开 rqt，用 `xrandr` 确认 WSLg 模式已更新，再比较画质；需要保留 Windows 200% 缩放时，可用 `scripts/preview_ros_native.ps1` 将同一 ROS 话题以原始 BGR 送到 Windows 原生 FFplay，绕开 WSLg。此次只定位瓶颈，未改系统缩放、预览代码或检测逻辑，未做两种绕行方式的实机画质 A/B。
 
+#### 2.4.5 Windows 原生 FFplay 默认演示方式（2026-11-17）
+
+Windows 上演示 Docker ROS GPU 流水线时，默认使用 Windows 原生 FFplay，回放沿用旧视频 `phantom30`。在容器里照常启动 `track_gpu.launch`，使用 `rqt:=false`，并确认 `/mav/debug_image` 已发布。然后在安装了 `ffplay.exe` 的 Windows 上，从 `mgmd-linux` 目录用 PowerShell 7 运行：
+
+```powershell
+./scripts/preview_ros_native.ps1 -Container mgmd-ros -MasterPort 11331
+```
+
+`-MasterPort` 应与容器内本次 launch 的 `ROS_MASTER_URI` 端口一致。脚本通过 `docker exec` 在容器内订阅 `/mav/debug_image`，将原始 `1920×1080 bgr8` 帧送到 Windows 的 `MGMD ROS 1080p native preview` 窗口。窗口包含 ROS 图像原有的检测框和 HUD，关闭 FFplay 后可在 ROS 启动终端按 Ctrl+C 结束回放。
+
+实机验收使用 `phantom30` 和 CUDA HUD。Windows 保持 200% 缩放（192 DPI），FFplay 实测客户区为 `1920×1080` 物理像素，用户确认显示效果可用。抽查时 GPU 流水线处理约 21.4 FPS，显示帧率和发布到显示的延迟尚未测量。
+
 ## 3. 实施阶段划分
 
 PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行按"**能否离线完成**"切分：
@@ -403,6 +415,7 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 | 日期 | 版本 | 改动 | 原因 | 影响验收项 |
 |---|---|---|---|---|
+| 2026-11-17 | 2.0.6（纯文档） | §2.4.5 确定 Windows 原生 FFplay 为默认演示方式 | 保留 1080p 预览细节 | `phantom30` 实机回放，Windows 200% 缩放下实测 1920×1080 客户区，用户确认画质 |
 | 2026-11-17 | 2.0.6（纯文档） | §2.4.4 记录 Windows rqt 预览清晰度瓶颈 | WSLg 缩放使 X11 全屏低于 ROS 图像分辨率 | `phantom30`、ROS 图像元数据、Weston 日志和 X11 窗口尺寸核对 |
 | 2026-11-17 | 2.0.6 | §2.4.3 提高 HUD 清晰度、减少覆盖并去掉底板 | 便于观察预览细节 | 验证透明像素及实际 ROS 1080p 图像，旧视频全片通过 |
 | 2026-11-17 | 2.0.5 | §2.4.3 增加可选 CUDA 叠框与 HUD | 降低预览开销，沿用 ROS 图像和检测话题 | `phantom30` 全片 ROS/rqt 回放、像素对拍及实际 ROS 1080p 图像验证 |

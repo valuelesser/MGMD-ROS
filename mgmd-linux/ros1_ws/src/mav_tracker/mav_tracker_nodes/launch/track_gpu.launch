@@ -25,6 +25,7 @@
   <arg name="decouple_lad" default="false"/>
   <arg name="limit" default="0"/>
   <arg name="preview" default="true"/>
+  <arg name="preview_library" default=""/>
   <arg name="rqt" default="true"/>
   <arg name="fullscreen" default="true"/>
   <node pkg="mav_tracker_nodes" type="cuda_pipeline_node.py" name="cuda_pipeline"
@@ -55,6 +56,7 @@
     <param name="decouple_lad" value="$(arg decouple_lad)" type="bool"/>
     <param name="limit" value="$(arg limit)"/>
     <param name="preview" value="$(arg preview)"/>
+    <param name="preview_library" value="$(arg preview_library)" type="str"/>
   </node>
   <group if="$(arg preview)">
     <group if="$(arg rqt)">

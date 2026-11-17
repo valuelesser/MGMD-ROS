@@ -1,0 +1,46 @@
+{
+  "date": "2026-11-17",
+  "video": "phantom30.mp4",
+  "input_bgr": [1920, 1080],
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "launch": "track_gpu.launch",
+  "common_args": "warp_backend:=opencv decoder_backend:=opencv decoder_leading_frames:=25 profile_wall:=true profile_wait:=true pipeline_mode:=parity buf_ccl_library:=/tmp/mgmd-buf-ccl.so buf_unlocked:=true warmup_frames:=12 realtime:=false dispatch_idle:=true",
+  "cuda_arg": "preview_library:=/tmp/mgmd-cuda-preview.so",
+  "display": "fullscreen rqt with HUD and MFE profile",
+  "gpu_sample_ms": 200,
+  "gpu_sample_window": "ROS warmup completion to GPU summary",
+  "each_run": {"read": 1498, "processed": 1496, "skipped": 0, "detection_frames": 1183},
+  "legacy": {
+    "wall_s": 64.184,
+    "fps": 23.31,
+    "preview_ms_per_window": {"total": 12.759, "overlay_enqueue": 5.195, "download_and_gpu_wait": 1.293, "hud_and_pack": 4.534, "publish": 1.737},
+    "result_wait_ms_per_window": 27.324,
+    "stage_mean_ms": {"MFE": 45.95, "TF": 3.38, "LAC": 6.30, "LAD": 26.04},
+    "gpu_done_to_ros_publish_ms": {"p50": 15.63, "p95": 53.07, "max": 102.99},
+    "queued_peak": 5,
+    "gpu_samples": 317,
+    "gpu_util_pct": {"mean": 64.84, "p95": 73.2, "peak": 76},
+    "memory_util_pct": {"mean": 41.72, "p95": 49, "peak": 52},
+    "decoder_util_pct": {"mean": 4.86, "p95": 7, "peak": 8},
+    "vram_mib": {"mean": 1349.23, "p95": 1357, "peak": 1558}
+  },
+  "cuda": {
+    "wall_s": 60.631,
+    "fps": 24.67,
+    "preview_ms_per_window": {"total": 5.118, "overlay_enqueue_includes_hud_text": 1.480, "download_and_gpu_wait": 1.305, "pack": 0.590, "publish": 1.743},
+    "result_wait_ms_per_window": 32.656,
+    "stage_mean_ms": {"MFE": 40.83, "TF": 3.26, "LAC": 6.54, "LAD": 25.25},
+    "gpu_done_to_ros_publish_ms": {"p50": 7.23, "p95": 41.44, "max": 110.97},
+    "queued_peak": 4,
+    "gpu_samples": 300,
+    "gpu_util_pct": {"mean": 67.31, "p95": 74, "peak": 80},
+    "memory_util_pct": {"mean": 43.27, "p95": 49, "peak": 54},
+    "decoder_util_pct": {"mean": 5.07, "p95": 7, "peak": 9},
+    "vram_mib": {"mean": 1333.21, "p95": 1444, "peak": 1460}
+  },
+  "validation": {
+    "pixel_test": "Exact legacy border pixel match outside the HUD; pitched BGR, clipped and overlapping boxes, empty boxes, float32 and float64 detection rows, four HUD lines, unchanged input image.",
+    "preview_topic_test": "Observed seq=3 on /mav/debug_image: 1920x1080 bgr8, stride 5760, 6220800-byte payload, HUD and green overlay.",
+    "raw_evidence_in_container": "outputs/gpu_preview_20261117/{legacy.log,legacy.csv,cuda.log,cuda.csv,topic.log}"
+  }
+}

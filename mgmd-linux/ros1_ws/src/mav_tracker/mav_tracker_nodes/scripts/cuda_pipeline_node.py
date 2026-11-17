@@ -104,7 +104,7 @@ def preview_image(frame, boxes):
     return image
 
 
-def add_hud(image, playback, processed, skipped, recent, now):
+def hud_lines(playback, processed, skipped, recent, now):
     fps = (len(recent) - 1) / max(now - recent[0][0], 1e-6)
     stage = [mean(samples) for samples in zip(*(row[1] for row in recent))]
     slowest = int(np.argmax(stage))
@@ -118,6 +118,10 @@ def add_hud(image, playback, processed, skipped, recent, now):
             text.append("   ".join(
                 f"{label} {mean(row[2][key] for row in recent if key in row[2]):.1f} ms"
                 for key, label in group if key in recent[-1][2]))
+    return text
+
+
+def add_hud(image, text):
     font, scale, thickness = cv2.FONT_HERSHEY_SIMPLEX, .85, 2
     width = max(cv2.getTextSize(line, font, scale, thickness)[0][0] for line in text)
     cv2.rectangle(image, (16, 16), (min(image.shape[1] - 1, width + 40), 63 + 32 * (len(text) - 1)),
@@ -222,6 +226,7 @@ def main():
     detections = rospy.Publisher("/mav/detections", DetectionArray, queue_size=10)
     debug = (rospy.Publisher("/mav/debug_image", Image, queue_size=1)
              if get("~preview", True) else None)
+    preview_library = get("~preview_library", "")
     counts = {"read": 0, "skipped": 0}
     processed = detected = 0
     recent = deque()
@@ -243,6 +248,11 @@ def main():
             raise RuntimeError("Video has no decodable frames")
         counts["read"] = 1
         height, width = first.image.shape[:2]
+        gpu_preview = None
+        if debug is not None and preview_library:
+            from mgmd_onnx.cuda_preview import CudaPreview
+            gpu_preview = CudaPreview(preview_library, first.image)
+            rospy.loginfo("GPU preview compositor: %dx%d with CUDA boxes and HUD", width, height)
         if min(height, width) < 320:
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
         parity = (ParityPipeline(get("~tf_library"), width, height, warp_backend, reuse_gray, stack,
@@ -403,15 +413,20 @@ def main():
                 preview_started = time.perf_counter()
                 wall_bins["detection_publish"] += preview_started - publish_started
             if debug is not None:
-                preview = preview_image(center.image, boxes)
+                if gpu_preview is None:
+                    preview = preview_image(center.image, boxes)
+                else:
+                    gpu_preview.draw(center.image, boxes, hud_lines(
+                        playback, processed + 1, counts["skipped"], recent, now))
                 if wall_bins is not None:
                     download_started = time.perf_counter()
                     wall_bins["preview_overlay_enqueue"] += download_started - preview_started
-                image = preview.cpu().numpy()
+                image = preview.cpu().numpy() if gpu_preview is None else gpu_preview.download()
                 if wall_bins is not None:
                     hud_started = time.perf_counter()
                     wall_bins["preview_download_and_gpu_wait"] += hud_started - download_started
-                add_hud(image, playback, processed + 1, counts["skipped"], recent, now)
+                if gpu_preview is None:
+                    add_hud(image, hud_lines(playback, processed + 1, counts["skipped"], recent, now))
                 payload = image.tobytes()
                 if wall_bins is not None:
                     image_publish_started = time.perf_counter()

@@ -1,0 +1,269 @@
+{
+  "date": "2026-11-17",
+  "video": "phantom30.mp4",
+  "resolution": "1920x1080",
+  "source_fps": "30000/1001",
+  "realtime": true,
+  "display": "Windows native FFplay and CUDA HUD",
+  "common_args": "warp_backend:=opencv decoder_backend:=opencv decoder_leading_frames:=25 profile_wall:=true profile_wait:=true pipeline_mode:=parity buf_ccl_library:=/tmp/mgmd-buf-ccl.so buf_unlocked:=true warmup_frames:=12 realtime:=true rate:=29.97002997002997 dispatch_idle:=true preview_library:=/tmp/mgmd-cuda-preview.so rqt:=false",
+  "gpu_sample_ms": 200,
+  "runs": {
+    "0": {
+      "run_label": "lad-0-1",
+      "lad_lanes_arg": 0,
+      "read": 1498,
+      "processed": 1001,
+      "skipped": 495,
+      "detection_frames": 770,
+      "wall_s": 50.067,
+      "fps": 19.99,
+      "source_to_ros_publish_ms": {
+        "p50": 142.92,
+        "p95": 217.09
+      },
+      "gpu_done_to_ros_publish_ms": {
+        "p50": 7.69,
+        "p95": 40.05,
+        "max": 162.33
+      },
+      "stage_ms": {
+        "MFE": {
+          "mean": 45.63,
+          "p95": 76.08
+        },
+        "TF": {
+          "mean": 3.43,
+          "p95": 6.59
+        },
+        "LAC": {
+          "mean": 8.27,
+          "p95": 22.51
+        },
+        "LAD": {
+          "mean": 30.16,
+          "p95": 69.2
+        }
+      },
+      "ransac_ms": {
+        "mean": 16.219,
+        "p95": 34.748
+      },
+      "queued_peak": 3,
+      "wait_for_upstream_lane_ms_per_window": 38.248,
+      "wall_ms_per_window": {
+        "detection_publish": 0.053,
+        "detection_readback": 0.825,
+        "other": 2.884,
+        "preview_download_and_gpu_wait": 1.265,
+        "preview_hud_and_pack": 0.646,
+        "preview_overlay_enqueue": 1.815,
+        "preview_publish": 1.927,
+        "wait_parity": 40.602
+      },
+      "source_ms_per_window": {
+        "source_sleep": 2.401,
+        "decode_opencv_bgr": 6.054
+      },
+      "wait_profile": {
+        "ms_per_window": {
+          "frame_sync": 0.152,
+          "future_return": 0.609,
+          "lac": 4.51,
+          "lad": 22.688,
+          "mfe": 10.679,
+          "tf": 1.965
+        },
+        "overtaken_ms": 2841.539,
+        "overtakes": 126,
+        "prefetch_calls": 0,
+        "windows": 1001
+      },
+      "gpu_sample_count": 247,
+      "gpu_util_pct_mean": 55.63,
+      "gpu_util_pct_peak": 77,
+      "controller_pct_mean": 36.11,
+      "vram_playback_peak_mib": 1492,
+      "vram_full_run_peak_mib": 2348
+    },
+    "2": {
+      "run_label": "lad-2-1",
+      "lad_lanes_arg": 2,
+      "read": 1498,
+      "processed": 1069,
+      "skipped": 427,
+      "detection_frames": 839,
+      "wall_s": 50.047,
+      "fps": 21.36,
+      "source_to_ros_publish_ms": {
+        "p50": 185.4,
+        "p95": 294.35
+      },
+      "gpu_done_to_ros_publish_ms": {
+        "p50": 7.69,
+        "p95": 48.16,
+        "max": 111.08
+      },
+      "stage_ms": {
+        "MFE": {
+          "mean": 67.11,
+          "p95": 114.52
+        },
+        "TF": {
+          "mean": 4.4,
+          "p95": 8.25
+        },
+        "LAC": {
+          "mean": 10.51,
+          "p95": 27.99
+        },
+        "LAD": {
+          "mean": 50.21,
+          "p95": 117.63
+        }
+      },
+      "ransac_ms": {
+        "mean": 26.972,
+        "p95": 54.008
+      },
+      "queued_peak": 5,
+      "wait_for_upstream_lane_ms_per_window": 35.568,
+      "wall_ms_per_window": {
+        "detection_publish": 0.057,
+        "detection_readback": 0.611,
+        "other": 2.629,
+        "preview_download_and_gpu_wait": 1.058,
+        "preview_hud_and_pack": 0.609,
+        "preview_overlay_enqueue": 2.094,
+        "preview_publish": 1.842,
+        "wait_parity": 37.917
+      },
+      "source_ms_per_window": {
+        "source_sleep": 3.017,
+        "decode_opencv_bgr": 4.083
+      },
+      "wait_profile": {
+        "ms_per_window": {
+          "frame_sync": 0.202,
+          "future_return": 0.914,
+          "lac": 2.544,
+          "lad": 29.722,
+          "lad_queue": 0.243,
+          "mfe": 3.187,
+          "tf": 1.105
+        },
+        "overtaken_ms": 3906.807,
+        "overtakes": 172,
+        "prefetch_calls": 0,
+        "windows": 1069
+      },
+      "gpu_sample_count": 247,
+      "gpu_util_pct_mean": 58.64,
+      "gpu_util_pct_peak": 78,
+      "controller_pct_mean": 38.9,
+      "vram_playback_peak_mib": 1766,
+      "vram_full_run_peak_mib": 2718,
+      "lad_windows_per_stream": [
+        538,
+        531
+      ],
+      "lac_to_lad_host_wait_ms": {
+        "mean": 2.37,
+        "p95": 10.05,
+        "max": 83.96
+      }
+    },
+    "3": {
+      "run_label": "lad-3-1",
+      "lad_lanes_arg": 3,
+      "read": 1498,
+      "processed": 1088,
+      "skipped": 408,
+      "detection_frames": 842,
+      "wall_s": 50.067,
+      "fps": 21.73,
+      "source_to_ros_publish_ms": {
+        "p50": 183.61,
+        "p95": 293.81
+      },
+      "gpu_done_to_ros_publish_ms": {
+        "p50": 7.57,
+        "p95": 47.39,
+        "max": 134.32
+      },
+      "stage_ms": {
+        "MFE": {
+          "mean": 65.45,
+          "p95": 110.06
+        },
+        "TF": {
+          "mean": 4.19,
+          "p95": 7.51
+        },
+        "LAC": {
+          "mean": 10.52,
+          "p95": 28.23
+        },
+        "LAD": {
+          "mean": 50.33,
+          "p95": 117.09
+        }
+      },
+      "ransac_ms": {
+        "mean": 26.114,
+        "p95": 52.297
+      },
+      "queued_peak": 5,
+      "wait_for_upstream_lane_ms_per_window": 34.519,
+      "wall_ms_per_window": {
+        "detection_publish": 0.052,
+        "detection_readback": 0.625,
+        "other": 2.574,
+        "preview_download_and_gpu_wait": 1.051,
+        "preview_hud_and_pack": 0.61,
+        "preview_overlay_enqueue": 2.004,
+        "preview_publish": 1.763,
+        "wait_parity": 37.337
+      },
+      "source_ms_per_window": {
+        "source_sleep": 3.488,
+        "decode_opencv_bgr": 3.961
+      },
+      "wait_profile": {
+        "ms_per_window": {
+          "frame_sync": 0.201,
+          "future_return": 0.839,
+          "lac": 2.434,
+          "lad": 29.532,
+          "lad_queue": 0.238,
+          "mfe": 3.05,
+          "tf": 1.044
+        },
+        "overtaken_ms": 4198.535,
+        "overtakes": 178,
+        "prefetch_calls": 0,
+        "windows": 1088
+      },
+      "gpu_sample_count": 248,
+      "gpu_util_pct_mean": 60.19,
+      "gpu_util_pct_peak": 81,
+      "controller_pct_mean": 40.04,
+      "vram_playback_peak_mib": 1705,
+      "vram_full_run_peak_mib": 3370,
+      "lad_windows_per_stream": [
+        360,
+        363,
+        365
+      ],
+      "lac_to_lad_host_wait_ms": {
+        "mean": 0.84,
+        "p95": 2.19,
+        "max": 23.74
+      }
+    }
+  },
+  "container_evidence": [
+    "outputs/lad_only_20261117/lad-0-1.{log,csv}",
+    "outputs/lad_only_20261117/lad-2-1.{log,csv}",
+    "outputs/lad_only_20261117/lad-3-1.{log,csv}"
+  ]
+}

@@ -137,6 +137,12 @@ def report_parity_wait(traces):
     if traces and "post_started" in traces[0]:
         stages = stages[:3] + ("post_started",) + stages[3:]
         names = names[:2] + ("post_queue",) + names[2:]
+    if traces and "lad_started" in traces[0]:
+        stages = stages[:4] + ("lad_started",) + stages[4:]
+        names = names[:3] + ("lad_queue",) + names[3:]
+        queue_ms = [1000 * (trace["lad_started"] - trace["lac_submitted"]) for trace in traces]
+        rospy.loginfo("GPU LAC-to-LAD host wait ms (mean/p95/max): %.2f/%.2f/%.2f",
+                      mean(queue_ms), *np.percentile(queue_ms, (95, 100)))
     bins = defaultdict(float)
     overtakes = 0
     overtaken_seconds = 0.
@@ -205,6 +211,9 @@ def main():
     extra_mfe_lane = get("~extra_mfe_lane", False)
     if extra_mfe_lane and (not dispatch_idle or parity_lanes != 2):
         raise ValueError("extra_mfe_lane requires dispatch_idle with two parity lanes")
+    lad_lanes = get("~lad_lanes", 0)
+    if lad_lanes and (lad_lanes not in (2, 3) or not dispatch_idle or parity_lanes != 2 or extra_mfe_lane):
+        raise ValueError("lad_lanes requires 2 or 3 LAD lanes, dispatch_idle and two parity lanes")
     if buf_unlocked and not buf_library:
         raise ValueError("buf_unlocked requires buf_ccl_library")
     if buf_library and (mode != "parity" or npp_ccl):
@@ -263,7 +272,7 @@ def main():
                                  npp=npp_ccl, unlocked=npp_unlocked or buf_unlocked,
                                  defer_lad_sync=defer_lad_sync,
                                  buf_library=buf_library, lanes=parity_lanes,
-                                 extra_mfe_lane=extra_mfe_lane)
+                                 extra_mfe_lane=extra_mfe_lane, lad_lanes=lad_lanes)
                   if mode == "parity" else None)
         mfe_stream = torch.cuda.Stream() if mode not in ("legacy", "parity") else None
         post_stream = torch.cuda.Stream() if mfe_stream is not None else None
@@ -287,6 +296,8 @@ def main():
         rospy.loginfo("GPU decoder backend: %s", decoder_backend)
         if extra_mfe_lane:
             rospy.loginfo("GPU topology: 3 MFE streams, 1 shared TF stream, 2 LAC/LAD streams")
+        if lad_lanes:
+            rospy.loginfo("GPU topology: 2 MFE/LAC streams, 1 shared TF stream, %d LAD streams", lad_lanes)
         prefetched = deque()
         if warmup_frames:
             warm_started = time.perf_counter()
@@ -303,7 +314,7 @@ def main():
             warmed = 0
             if parity:
                 warm_windows = (parity.available_windows(samples, defaultdict(float))
-                                if extra_mfe_lane else parity.windows(samples))
+                                if extra_mfe_lane or lad_lanes else parity.windows(samples))
                 for _, job, _ in warm_windows:
                     _, status, _, _, _ = job.result()
                     if status.item():
@@ -473,6 +484,8 @@ def main():
         if extra_mfe_lane and processed:
             rospy.loginfo("GPU MFE windows per stream: %s",
                           [dispatch_stats[f"lane_{lane}_windows"] for lane in range(3)])
+        if lad_lanes and processed:
+            rospy.loginfo("GPU LAD windows per stream: %s", parity.lad_counts)
         if first_publish_ms is not None:
             rospy.loginfo("GPU playback startup: first_publish=%.2fms windows_first_3s=%d",
                           first_publish_ms, startup_processed)

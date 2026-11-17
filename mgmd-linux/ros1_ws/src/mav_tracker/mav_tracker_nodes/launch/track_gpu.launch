@@ -15,6 +15,7 @@
   <arg name="defer_lad_sync" default="false"/>
   <arg name="parity_lanes" default="2"/>
   <arg name="extra_mfe_lane" default="false"/>
+  <arg name="lad_lanes" default="0"/>
   <arg name="npp_unlocked" default="false"/>
   <arg name="profile_wall" default="false"/>
   <arg name="profile_wait" default="false"/>
@@ -47,6 +48,7 @@
     <param name="defer_lad_sync" value="$(arg defer_lad_sync)" type="bool"/>
     <param name="parity_lanes" value="$(arg parity_lanes)" type="int"/>
     <param name="extra_mfe_lane" value="$(arg extra_mfe_lane)" type="bool"/>
+    <param name="lad_lanes" value="$(arg lad_lanes)" type="int"/>
     <param name="npp_unlocked" value="$(arg npp_unlocked)" type="bool"/>
     <param name="profile_wall" value="$(arg profile_wall)"/>
     <param name="profile_wait" value="$(arg profile_wait)" type="bool"/>

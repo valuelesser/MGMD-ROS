@@ -1,0 +1,250 @@
+{
+  "date": "2026-11-17",
+  "video": "phantom30.mp4 at 1920x1080",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU (4096 MiB)",
+  "common_args": "warp_backend:=opencv decoder_backend:=opencv decoder_leading_frames:=25 profile_wall:=true profile_wait:=true pipeline_mode:=parity buf_ccl_library:=/tmp/mgmd-buf-ccl.so buf_unlocked:=true warmup_frames:=12 realtime:=false dispatch_idle:=true preview_library:=/tmp/mgmd-cuda-preview.so",
+  "display": "fullscreen rqt with transparent CUDA HUD",
+  "gpu_sample_ms": 200,
+  "gpu_sample_window": "ROS warmup completion to GPU summary",
+  "lanes_2": {
+    "read": 1498,
+    "processed": 1496,
+    "skipped": 0,
+    "detection_frames": 1183,
+    "wall_s": 60.7,
+    "fps": 24.65,
+    "warmup_s": 4.032,
+    "first_publish_ms": 60.48,
+    "windows_first_3s": 63,
+    "ms_per_window": {
+      "detection_publish": 0.048,
+      "detection_readback": 0.779,
+      "other": 1.973,
+      "preview_download_and_gpu_wait": 1.612,
+      "preview_hud_and_pack": 0.592,
+      "preview_overlay_enqueue": 1.656,
+      "preview_publish": 1.704,
+      "wait_parity": 32.21
+    },
+    "preview_ms_per_window": 5.564,
+    "stage_ms": {
+      "MFE": {
+        "mean": 41.38,
+        "p95": 56.28
+      },
+      "TF": {
+        "mean": 3.28,
+        "p95": 6.09
+      },
+      "LAC": {
+        "mean": 6.52,
+        "p95": 17.83
+      },
+      "LAD": {
+        "mean": 24.69,
+        "p95": 54.31
+      }
+    },
+    "mfe_ms": {
+      "RANSAC": {
+        "mean": 14.391,
+        "p95": 25.54
+      },
+      "warp": {
+        "mean": 5.467,
+        "p95": 9.636
+      },
+      "region_stats": {
+        "mean": 5.463,
+        "p95": 10.792
+      },
+      "morphology": {
+        "mean": 4.768,
+        "p95": 7.597
+      },
+      "LK": {
+        "mean": 3.925,
+        "p95": 6.685
+      },
+      "threshold_median": {
+        "mean": 3.378,
+        "p95": 5.381
+      },
+      "gray": {
+        "mean": 2.917,
+        "p95": 5.19
+      },
+      "CCL": {
+        "mean": 0.937,
+        "p95": 1.532
+      }
+    },
+    "wait": {
+      "ms_per_window": {
+        "frame_sync": 0.125,
+        "future_return": 0.6,
+        "lac": 3.345,
+        "lad": 18.009,
+        "mfe": 8.277,
+        "tf": 1.853
+      },
+      "overtaken_ms": 4307.753,
+      "overtakes": 236,
+      "prefetch_calls": 0,
+      "windows": 1496
+    },
+    "queued_peak": 5,
+    "wait_for_lane_ms_per_window": 35.82,
+    "decode_ms_per_window": 2.438,
+    "gpu_done_to_ros_publish_ms": {
+      "p50": 7.67,
+      "p95": 41.77,
+      "max": 123.29
+    },
+    "gpu_samples_after_warmup": 300,
+    "gpu": {
+      "util_pct": {
+        "mean": 70.19,
+        "p95": 76.0,
+        "peak": 80
+      },
+      "controller_pct": {
+        "mean": 43.12,
+        "p95": 49.0,
+        "peak": 52
+      },
+      "decoder_pct": {
+        "mean": 5.13,
+        "p95": 7.0,
+        "peak": 9
+      },
+      "vram_mib": {
+        "mean": 1388.29,
+        "p95": 1507.05,
+        "peak": 1599
+      }
+    },
+    "vram_mib_peak_including_warmup": 2534
+  },
+  "lanes_3": {
+    "read": 1498,
+    "processed": 1496,
+    "skipped": 0,
+    "detection_frames": 1184,
+    "wall_s": 60.743,
+    "fps": 24.63,
+    "warmup_s": 6.463,
+    "first_publish_ms": 114.93,
+    "windows_first_3s": 54,
+    "ms_per_window": {
+      "detection_publish": 0.054,
+      "detection_readback": 0.921,
+      "other": 3.181,
+      "preview_download_and_gpu_wait": 1.351,
+      "preview_hud_and_pack": 0.616,
+      "preview_overlay_enqueue": 2.145,
+      "preview_publish": 1.803,
+      "wait_parity": 30.532
+    },
+    "preview_ms_per_window": 5.915,
+    "stage_ms": {
+      "MFE": {
+        "mean": 63.67,
+        "p95": 87.13
+      },
+      "TF": {
+        "mean": 4.41,
+        "p95": 8.47
+      },
+      "LAC": {
+        "mean": 10.58,
+        "p95": 27.15
+      },
+      "LAD": {
+        "mean": 34.93,
+        "p95": 78.79
+      }
+    },
+    "mfe_ms": {
+      "RANSAC": {
+        "mean": 26.178,
+        "p95": 43.127
+      },
+      "warp": {
+        "mean": 8.373,
+        "p95": 16.902
+      },
+      "region_stats": {
+        "mean": 8.156,
+        "p95": 15.74
+      },
+      "morphology": {
+        "mean": 5.7,
+        "p95": 9.296
+      },
+      "LK": {
+        "mean": 5.113,
+        "p95": 8.683
+      },
+      "threshold_median": {
+        "mean": 4.565,
+        "p95": 8.191
+      },
+      "gray": {
+        "mean": 4.197,
+        "p95": 7.894
+      },
+      "CCL": {
+        "mean": 1.079,
+        "p95": 1.827
+      }
+    },
+    "wait": {
+      "ms_per_window": {
+        "frame_sync": 0.15,
+        "future_return": 0.915,
+        "lac": 3.153,
+        "lad": 19.247,
+        "mfe": 5.561,
+        "tf": 1.506
+      },
+      "overtaken_ms": 7341.868,
+      "overtakes": 348,
+      "prefetch_calls": 0,
+      "windows": 1496
+    },
+    "queued_peak": 5,
+    "wait_for_lane_ms_per_window": 33.308,
+    "decode_ms_per_window": 3.11,
+    "gpu_done_to_ros_publish_ms": {
+      "p50": 9.02,
+      "p95": 55.6,
+      "max": 123.81
+    },
+    "gpu_samples_after_warmup": 301,
+    "gpu": {
+      "util_pct": {
+        "mean": 67.98,
+        "p95": 75.0,
+        "peak": 80
+      },
+      "controller_pct": {
+        "mean": 43.33,
+        "p95": 50.0,
+        "peak": 54
+      },
+      "decoder_pct": {
+        "mean": 5.04,
+        "p95": 7.0,
+        "peak": 9
+      },
+      "vram_mib": {
+        "mean": 1701.82,
+        "p95": 1820.0,
+        "peak": 1867
+      }
+    },
+    "vram_mib_peak_including_warmup": 3857
+  },
+  "raw_evidence_in_container": "outputs/parity_idle_3lane_20261117/lanes-{2,3}.{log,csv}"
+}

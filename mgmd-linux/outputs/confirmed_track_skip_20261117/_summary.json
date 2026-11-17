@@ -1,0 +1,23 @@
+{
+  "date": "2026-11-17",
+  "base_commit": "5b61607",
+  "video": "phantom30.mp4",
+  "resolution": [1920, 1080],
+  "source_fps": "30000/1001",
+  "configuration": "Realtime ROS parity with idle dispatch, Windows native FFplay, OpenCV CUDA decode and warp, transparent CUDA HUD, 12 warmup windows",
+  "baseline": {
+    "confirm_frames": 0, "read": 1498, "processed": 914, "skipped": 582, "windows_with_results": 698, "wall_s": 50.012, "fps": 18.28,
+    "source_to_ros_publish_ms": {"p50": 151.99, "p95": 236.02},
+    "stage_mean_ms": {"MFE": 48.75, "TF": 3.56, "LAC": 8.67, "LAD": 35.01},
+    "stage_p95_ms": {"MFE": 80.99, "TF": 6.67, "LAC": 23.65, "LAD": 85.09},
+    "tf_track_rows": 64576, "reused_rows": 0, "windows_with_reuse": 0, "queued_peak": 3
+  },
+  "experiment": {
+    "confirm_frames": 3, "read": 1498, "processed": 1165, "skipped": 331, "windows_with_results": 936, "wall_s": 49.993, "fps": 23.30,
+    "source_to_ros_publish_ms": {"p50": 127.58, "p95": 197.22},
+    "stage_mean_ms": {"MFE": 43.28, "TF": 3.42, "LAC": 9.35, "LAD": 18.69},
+    "stage_p95_ms": {"MFE": 75.98, "TF": 6.56, "LAC": 24.21, "LAD": 56.78},
+    "tf_track_rows": 84737, "reused_rows": 802, "windows_with_reuse": 802, "queued_peak": 4
+  },
+  "windows_temp_logs": ["mgmd-track-skip-base-run.log", "mgmd-track-skip-optimized-run.log"]
+}

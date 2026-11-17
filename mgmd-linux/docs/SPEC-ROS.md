@@ -21,12 +21,13 @@
 | **V8** | 阶段一 SPEC（`docs/SPEC.md`）**冻结在 1.0.0**，阶段二如需引用只读不改 |
 | **V9** | **后续项目修改在满足 SPEC、完成相应检查并提交后，必须推送到远程 `origin`（`git@github.com:valuelesser/MGMD-ROS.git`）的对应分支；当前开发主线为 `master`。推送后核对远程分支与本地提交一致。若推送失败，明确报告“已提交、未推送”及原因，不得宣称已完成远程同步；不得未经授权强制覆盖远程历史。** |
 
-`spec_version: 2.4.5` | `prd_version: 4.2` | `stage1_spec: 1.0.1`（§10.13 补记）
+`spec_version: 2.4.6` | `prd_version: 4.2` | `stage1_spec: 1.0.1`（§10.13 补记）
 
 ### 0.1 版本记录
 
 | spec_version | 日期 | commit | 变更摘要 |
 |---|---|---|---|
+| 2.4.6 | 2026-11-17 | 本次提交 | 实验分支支持确认后的 TF 框直接发布，`source=tf` |
 | 2.4.5 | 2026-11-17 | 本次提交 | 主分支 GPU 双路默认使用空闲接帧调度；见 SPEC-PERF-GPU 0.1.2 |
 | 2.4.4 | 2026-11-17 | 本次提交 | 主分支 GPU 双路采用 CUDA 透明 HUD 预览；见 SPEC-PERF-GPU 0.1.1 |
 | **0.1.0** | **2026-10-29** | 本轮 | 建立本文件；继承 PRD §11 全部决策；登记阶段二基线 |
@@ -260,6 +261,8 @@ PRD §11.7 给了 32 天总工时（含 8 天多目标扩展）。实际执行�
 
 ## 8. 修正记录（每轮必填）
 
+2026-11-17（2.4.6）：在实验分支增加 `confirm_frames`。同一轨迹通过连续源帧模型验证后，可发布 `source=tf` 和上次 LAD 置信度。默认 `confirm_frames:=0`。实时回放成绩及规则见 [SPEC-PERF-CONFIRMED-TRACK](SPEC-PERF-CONFIRMED-TRACK.md)。
+
 2026-11-17（2.4.5）：GPU 双路文件回放由独立派发线程为空闲流补帧，TF、检测和图像发布继续保持帧序。`dispatch_idle:=false` 可用于原轮转对照。验证方式和实测见 [SPEC-PERF-GPU](SPEC-PERF-GPU.md)。
 
 2026-11-17（2.4.4）：GPU 文件回放发布原生 `bgr8` 检测预览，检测框和透明 HUD 在 CUDA 上合成。Windows FFplay 复测覆盖 1080p 原视频的全片实时回放。运行方式和结果见 [SPEC-PERF-GPU](SPEC-PERF-GPU.md)。
@@ -382,7 +385,7 @@ float32 y2
 float32 cx
 float32 cy
 float32 confidence        # [0,1]
-string source             # mfe / lac / lad
+string source             # mfe / lac / lad / tf（确认轨迹实验）
 int32 track_id            # -1 未关联
 ```
 

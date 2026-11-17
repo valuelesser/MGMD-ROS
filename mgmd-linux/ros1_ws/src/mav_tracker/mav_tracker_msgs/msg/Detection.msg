@@ -11,10 +11,10 @@ float32 y2
 float32 cx
 float32 cy
 
-# 置信度 [0,1]：LAD 的 conf，或 LAC 的 P(MAV)
+# 置信度 [0,1]：LAD 的 conf，或 LAC 的 P(MAV)；来源为 tf 时沿用上次 LAD conf
 float32 confidence
 
-# 来源模块：mfe / lac / lad
+# 来源模块：mfe / lac / lad / tf
 string source
 
 # 该检测关联的轨迹 ID，-1 表示未关联

@@ -118,6 +118,10 @@ def main():
     buf_library = get("~buf_ccl_library", "/tmp/mgmd-buf-ccl.so")
     if mode not in ("legacy", "parity"):
         raise ValueError("Expected legacy or parity")
+    confirm_frames = get("~confirm_frames", 0)
+    if confirm_frames < 0 or (confirm_frames and (mode != "parity" or confirm_frames < 2)):
+        raise ValueError("confirm_frames must be 0 (disabled) or at least 2 in parity mode")
+    tracked_total = reused_total = reused_windows = 0
     playback = f"Source {source_rate:g} Hz" if realtime else "Full-frame playback"
     limit = get("~limit", 0)
     decoder_backend = get("~decoder_backend", "libav")
@@ -157,7 +161,7 @@ def main():
         pipe = None
         if mode == "parity":
             parity = ParityPipeline(library, width, height, warp_backend, reuse_gray, stack,
-                                    buf_library=buf_library)
+                                    buf_library=buf_library, confirm_frames=confirm_frames)
         else:
             pipe = CudaPipeline(library, width, height, warp_backend=warp_backend)
         torch.cuda.synchronize()
@@ -210,8 +214,10 @@ def main():
             windows = parity.windows(windows)
         for (previous, center, following), job, mfe_timing in windows:
             begin = time.perf_counter()
+            reuse_count = 0
             if parity:
-                boxes, status, candidates, stage_ms, _ = job.result()
+                boxes, status, candidates, stage_ms, (tracked, reuse_count) = job.result()
+                tracked_total += tracked
             else:
                 frame_ids = (previous.seq, center.seq, following.seq) if reuse_gray else None
                 boxes, status, candidates, timing = pipe.step(
@@ -225,6 +231,11 @@ def main():
             if error:
                 raise RuntimeError("CUDA TF failed with status {}".format(error))
             data = boxes.tolist()
+            verified_count = len(data) - reuse_count
+            if parity and parity.confirmed is not None:
+                parity.confirmed.observe(center.seq, data[:verified_count], data[verified_count:])
+                reused_total += reuse_count
+                reused_windows += bool(reuse_count)
             if wall_bins is not None:
                 wall_bins["detection_readback"] += time.perf_counter() - compute_done
             if not parity:
@@ -247,7 +258,7 @@ def main():
             publish_started = time.perf_counter() if wall_bins is not None else None
             detections.publish(build_detection_array(
                 header, width, height, [row[:4] for row in data], [row[4] for row in data],
-                ["lad"] * len(data), candidates, *stage_ms,
+                ["lad"] * verified_count + ["tf"] * reuse_count, candidates, *stage_ms,
                 track_ids=[int(row[5]) for row in data]))
             if wall_bins is not None:
                 preview_started = time.perf_counter()
@@ -287,6 +298,9 @@ def main():
                 rospy.loginfo("GPU progress: %d frames, %.2f fps", processed,
                               processed / (time.perf_counter() - started))
         wall = time.perf_counter() - started
+        if parity:
+            rospy.loginfo("GPU track confirmation: frames=%d tf_track_rows=%d reused_rows=%d windows_with_reuse=%d",
+                          confirm_frames, tracked_total, reused_total, reused_windows)
         if first_publish_ms is not None:
             rospy.loginfo("GPU playback startup: first_publish=%.2fms windows_first_3s=%d",
                           first_publish_ms, startup_processed)

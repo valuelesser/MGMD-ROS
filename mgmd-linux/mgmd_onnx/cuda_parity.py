@@ -9,6 +9,7 @@ from time import perf_counter
 
 import torch
 
+from mgmd_onnx.confirmed_tracks import ConfirmedTracks
 from mgmd_onnx.cuda_buf_ccl import BufCcl
 from mgmd_onnx.cuda_pipeline import CudaPipeline
 from mgmd_onnx.cuda_tf import CudaTf
@@ -28,8 +29,9 @@ def handoff(ready, *tensors):
 
 
 class ParityPipeline:
-    def __init__(self, library, width, height, warp, reuse_gray, stack, buf_library):
+    def __init__(self, library, width, height, warp, reuse_gray, stack, buf_library, confirm_frames=0):
         self.reuse_gray = reuse_gray
+        self.confirmed = ConfirmedTracks(confirm_frames) if confirm_frames else None
         self.streams = [torch.cuda.Stream() for _ in range(2)]
         self.tracker_stream = torch.cuda.Stream()
         self.lock = nullcontext()
@@ -151,16 +153,31 @@ class ParityPipeline:
     @torch.inference_mode()
     def detect(self, lane, center, previous, gray_start, gray_ready):
         tracks, ids, status, count, mfe_start, mfe_end, tf_start, tf_end = previous.result()
+        track_count = len(ids)
         with torch.cuda.stream(self.streams[lane]):
             handoff(tf_end, center.image, tracks, ids, status)
             start = event()
             pipe = self.pipes[lane]
-            image, tracks, ids = pipe.classify_tracks(center.image, tracks, ids)
+            reused = None
+            known = self.confirmed.snapshot if self.confirmed is not None else None
+            if known and len(ids):
+                keys = ids.new_tensor(tuple(known))
+                matches = ids[:, None] == keys
+                reuse, indices = matches.max(dim=1)
+                scores = tracks.new_tensor(tuple(known.values()))[indices[reuse]]
+                reused = torch.column_stack((tracks[reuse], scores, ids[reuse]))
+                tracks, ids = tracks[~reuse], ids[~reuse]
+            if len(ids) or self.confirmed is None:
+                image, tracks, ids = pipe.classify_tracks(center.image, tracks, ids)
+            else:
+                image = None
             classified = event()
-            output = pipe.refine_tracks(image, tracks, ids)
+            output = pipe.refine_tracks(image, tracks, ids) if image is not None else tracks.new_empty((0, 6))
+            if reused is not None:
+                output = torch.cat((output, reused))
             end = event()
             end.synchronize()
         stages = [gray_start.elapsed_time(gray_ready) + mfe_start.elapsed_time(mfe_end),
                   tf_start.elapsed_time(tf_end), start.elapsed_time(classified),
                   classified.elapsed_time(end)]
-        return output, status, count, stages, None
+        return output, status, count, stages, (track_count, 0 if reused is None else len(reused))

@@ -1,0 +1,12 @@
+{
+  "date": "2026-11-17",
+  "source_baseline_commit": "a26cf52",
+  "video": "phantom30.mp4",
+  "resolution": [1920, 1080],
+  "source_fps": "30000/1001",
+  "configuration": "ROS track_gpu.launch, dual parity lanes, realtime, 12 warmup windows, OpenCV NVDEC and warp, transparent CUDA HUD, Windows native FFplay",
+  "run": {"read": 1498, "processed": 1031, "skipped": 465, "detection_frames": 806, "wall_s": 50.036, "fps": 20.61},
+  "source_to_ros_publish_ms": {"p50": 131.81, "p95": 189.77},
+  "stage_mean_ms": {"MFE": 41.66, "TF": 3.37, "LAC": 7.17, "LAD": 26.07},
+  "preview_ms_per_window": {"overlay_enqueue": 1.287, "download_and_gpu_wait": 0.825, "pack": 0.549, "publish": 1.689, "total": 4.350}
+}

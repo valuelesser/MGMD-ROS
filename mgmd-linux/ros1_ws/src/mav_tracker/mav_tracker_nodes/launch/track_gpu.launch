@@ -15,6 +15,7 @@
   <arg name="pipeline_mode" default="parity"/>
   <arg name="limit" default="0"/>
   <arg name="preview" default="true"/>
+  <arg name="preview_library" default="/tmp/mgmd-cuda-preview.so"/>
   <arg name="rqt" default="true"/>
   <arg name="fullscreen" default="true"/>
   <node pkg="mav_tracker_nodes" type="cuda_pipeline_node.py" name="cuda_pipeline"
@@ -35,6 +36,7 @@
     <param name="pipeline_mode" value="$(arg pipeline_mode)"/>
     <param name="limit" value="$(arg limit)"/>
     <param name="preview" value="$(arg preview)"/>
+    <param name="preview_library" value="$(arg preview_library)" type="str"/>
   </node>
   <group if="$(arg preview)">
     <group if="$(arg rqt)">

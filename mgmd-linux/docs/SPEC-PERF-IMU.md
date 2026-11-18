@@ -1,6 +1,6 @@
 # SPEC-PERF-IMU · 单流 GPU IMU 对齐实验
 
-版本 0.1.1。分支 `exp/gpu-imu-mfe`，基线 `master@5b61607`。
+版本 0.1.2。分支 `exp/gpu-imu-mfe`，基线 `master@5b61607`。
 
 ## 实验口径
 
@@ -42,6 +42,18 @@ PYTHONPATH="$PWD:$PYTHONPATH" python3 scripts/compare_gpu_imu_mfe.py \
 
 已知旋转的 GPU 数值校验覆盖四元数符号翻转、时间插值、前后 warp 方向和时间戳越界。该校验和两种对齐的实际 CUDA 全链路回放均通过。
 
+## 关闭 LAC/LAD 的对照
+
+按全链路实验的相同命令和 rosbag 窗口增加 `--mfe-tf-only`，另写一个 JSON 输出路径。两组均加载 MFE、TF 和预览，不加载 LAC/LAD 模型。比较 TF 输出的跟踪框，继续使用同帧 IoU ≥ 0.5 的一对一匹配。TF 框没有 LAD 置信度。FPS 包含与上节相同的图像预览路径及 IMU 预计算，便于比较对齐方法本身。
+
+| 640×480 | 窗口 | LK / IMU FPS | LK / IMU MFE 平均 ms | LK / IMU TF 框 | 同帧匹配 / LK 框 | 匹配框中心偏差 P50/P95 |
+|---|---:|---:|---:|---:|---:|---:|
+| UAV1 | 1,087 | 79.35 / 167.93 | 11.03 / 4.53 | 15,864 / 12,088 | 4,870 / 30.7% | 1.00 / 7.57 px |
+| UAV2 | 1,086 | 80.96 / 158.63 | 10.80 / 4.77 | 14,341 / 17,066 | 2,767 / 19.3% | 1.12 / 11.03 px |
+| 合计 | 2,173 | 80.15 / 163.15 | — | 30,205 / 29,154 | 7,637 / 25.3% | — |
+
+移除模型筛选后，约四分之一的 LK 参考跟踪框能在 IMU 输出中匹配，表明两条路径在 MFE/TF 阶段已有较大差异。TF 框也会跟踪背景变化和其他运动，需要独立标注才能判断真实无人机检测表现或 LAC/LAD 是否存在跨数据集失效。[分段结果](../outputs/gpu_imu_mfe_20261118/_mfe_tf_only_summary.json)
+
 ## ROS 话题实时演示
 
 在 ROS Noetic 工作区环境初始化后，以同一个 ROS master 分别启动节点和 bag。可以用 `rosrun mav_tracker_nodes imu_gpu_node.py` 启动已安装节点，也可直接运行源脚本。节点默认订阅这架相机的 BGR 图像和 MAVROS IMU，保留图像时间戳，按中心帧发布 `/mav/detections` 和 `/mav/debug_image`。启动时先预热 GPU，再订阅话题。节点等到后帧已有后续 IMU 样本时才生成窗口，GPU 上生成两方向 warp。保留单条计算流、重叠图像和灰度缓存、BUF、CUDA warp、流内 ORT 及 CUDA HUD。
@@ -60,5 +72,6 @@ Windows FFplay 预览以相同 ROS master 的端口启动。例如 `scripts/prev
 
 | 日期 | 版本 | 改动 | 验收 |
 |---|---|---|---|
+| 2026-11-18 | 0.1.2 | 在同一单流基准中增加关闭 LAC/LAD 的对照 | 2,173 窗口，LK 80.15 FPS、IMU 163.15 FPS，参考框匹配率 25.3% |
 | 2026-11-18 | 0.1.1 | 增加 ROS 图像和 IMU 订阅入口及 480p 原生预览 | 见 ROS 话题实时演示 |
 | 2026-11-18 | 0.1.0 | 建立规格、GPU 姿态对齐与单流 rosbag 对照入口 | 2,173 个配对窗口，LK 78.02 FPS、IMU 123.34 FPS，42 个 LK 框匹配 9 个 |

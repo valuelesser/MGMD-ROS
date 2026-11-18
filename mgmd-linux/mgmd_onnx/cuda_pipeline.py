@@ -34,7 +34,7 @@ def cuda_model(path, stream=None, default_stream_lock=None, enqueue_only=False):
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
                  warp_backend="torch", mfe_stream=None, model_stream=None,
-                 async_lad=False, tracker=None, shared_lock=None):
+                 async_lad=False, tracker=None, shared_lock=None, enable_models=True):
         # OpenCV CCL uses the default stream and cannot run during ORT capture.
         default_stream_lock = shared_lock
         if default_stream_lock is None and mfe_stream is not None and model_stream is not None:
@@ -43,6 +43,8 @@ class CudaPipeline:
             self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
                                warp_backend=warp_backend, default_stream_lock=default_stream_lock)
         self.tf = CudaTf(library) if tracker is None else tracker
+        if not enable_models:
+            return
         self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock,
                               enqueue_only=async_lad)
         self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",

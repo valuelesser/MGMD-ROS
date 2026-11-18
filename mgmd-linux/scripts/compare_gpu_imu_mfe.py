@@ -49,7 +49,7 @@ def paired_indices(frames, coverage):
     return np.flatnonzero(coverage & good[:-1] & good[1:]) + 1
 
 
-def detect(pipe, stream, preview, images, warps, indices):
+def detect(pipe, stream, preview, images, warps, indices, stage_names):
     pipe.tf.reset()
     pipe.mfe.clear_gray_cache()
     stream.synchronize()
@@ -58,8 +58,18 @@ def detect(pipe, stream, preview, images, warps, indices):
     for i in indices:
         ids = (int(i)-1, int(i), int(i)+1)
         args = (images[j] for j in ids)
-        boxes, status, _, marks = pipe.step(*args, int(i), frame_ids=ids,
-                                            alignment=None if warps is None else warps[i-1])
+        alignment = None if warps is None else warps[i-1]
+        if len(stage_names) == 2:
+            marks = [torch.cuda.Event(enable_timing=True) for _ in range(3)]
+            marks[0].record()
+            candidates, scores = pipe.mfe.candidates(*args, frame_ids=ids, alignment=alignment)
+            marks[1].record()
+            tracks, track_ids, status = pipe.track(candidates, scores, int(i))
+            marks[2].record()
+            # The preview takes six-column rows. TF boxes carry no LAD confidence.
+            boxes = torch.cat((tracks, tracks.new_zeros((len(tracks), 1)), track_ids[:, None]), dim=1)
+        else:
+            boxes, status, _, marks = pipe.step(*args, int(i), frame_ids=ids, alignment=alignment)
         marks[-1].synchronize()
         if status.item():
             raise RuntimeError(f"CUDA TF status {status.item()} at frame {i}")
@@ -67,7 +77,7 @@ def detect(pipe, stream, preview, images, warps, indices):
         times = [a.elapsed_time(b) for a, b in zip(marks, marks[1:])]
         stages.append(times)
         preview.draw(images[i], boxes, [f"Frame {i}", "  ".join(
-            f"{name} {t:.1f} ms" for name, t in zip(("MFE", "TF", "LAC", "LAD"), times))])
+            f"{name} {t:.1f} ms" for name, t in zip(stage_names, times))])
         frame = preview.download()
         # Construct the same ROS image payload without involving a subscriber or sink.
         Image(height=frame.shape[0], width=frame.shape[1], encoding="bgr8",
@@ -75,7 +85,7 @@ def detect(pipe, stream, preview, images, warps, indices):
     return output, stages, perf_counter()-begin
 
 
-def match_outputs(lk, imu):
+def match_outputs(lk, imu, compare_confidence=True):
     counts = {"lk_boxes": 0, "imu_boxes": 0, "matched": 0, "both_empty": 0,
               "lk_only_frames": 0, "imu_only_frames": 0}
     ious, centers, scores = [], [], []
@@ -98,7 +108,8 @@ def match_outputs(lk, imu):
             j, k = np.unravel_index(iou.argmax(), iou.shape)
             ious.append(float(iou[j, k]))
             centers.append(float(np.linalg.norm((a[j, :2]+a[j, 2:4]-b[k, :2]-b[k, 2:4])*.5)))
-            scores.append(float(abs(a[j, 4]-b[k, 4])))
+            if compare_confidence:
+                scores.append(float(abs(a[j, 4]-b[k, 4])))
             iou[j, :] = 0
             iou[:, k] = 0
     counts["matched"] = len(ious)
@@ -118,6 +129,7 @@ def main():
     parser.add_argument("--bag", nargs=2, action="append", metavar=("CAMERA_NUMBER", "PATH"), required=True)
     parser.add_argument("--offsets", type=float, nargs="+", default=[20, 55, 90])
     parser.add_argument("--duration", type=float, default=4)
+    parser.add_argument("--mfe-tf-only", action="store_true", help="Compare TF boxes without loading LAC or LAD")
     parser.add_argument("--tf-library", default="/tmp/mgmd-tf-g3.so")
     parser.add_argument("--buf-library", default="/tmp/mgmd-buf-ccl.so")
     parser.add_argument("--preview-library", default="/tmp/mgmd-cuda-preview.so")
@@ -126,10 +138,11 @@ def main():
         cal = yaml.safe_load(source)
     width, height = int(cal["image_width"]), int(cal["image_height"])
     stream = torch.cuda.Stream()
-    report = {"resolution": [width, height], "duration_s": args.duration, "cameras": {}}
+    stage_names = ("MFE", "TF") if args.mfe_tf_only else ("MFE", "TF", "LAC", "LAD")
+    report = {"resolution": [width, height], "duration_s": args.duration, "stages": stage_names, "cameras": {}}
     with torch.inference_mode(), torch.cuda.stream(stream):
         pipe = CudaPipeline(args.tf_library, width, height, warp_backend="opencv", mfe_stream=stream,
-                            model_stream=stream, async_lad=True)
+                            model_stream=stream, async_lad=True, enable_models=not args.mfe_tf_only)
         pipe.mfe.buf_ccl = BufCcl(args.buf_library, width, height, stream)
         preview = CudaPreview(args.preview_library, torch.empty((height, width, 3), device="cuda", dtype=torch.uint8))
         for camera, path in args.bag:
@@ -163,12 +176,13 @@ def main():
                 measures = {}
                 for mode in (("lk", "imu") if clip % 2 == 0 else ("imu", "lk")):
                     h = warps if mode == "imu" else None
-                    detect(pipe, stream, preview, images, h, indices[:12])
-                    out, stage, wall = detect(pipe, stream, preview, images, h, indices)
+                    detect(pipe, stream, preview, images, h, indices[:12], stage_names)
+                    out, stage, wall = detect(pipe, stream, preview, images, h, indices, stage_names)
                     measures[mode] = out
                     stage_ms[mode].extend(stage)
                     time_s[mode] += wall
-                counts, ious, centers, scores = match_outputs(measures["lk"], measures["imu"])
+                counts, ious, centers, scores = match_outputs(measures["lk"], measures["imu"],
+                                                             compare_confidence=not args.mfe_tf_only)
                 for key, value in counts.items(): totals[key] = totals.get(key, 0) + value
                 all_ious.extend(ious)
                 all_centers.extend(centers)
@@ -181,7 +195,7 @@ def main():
                       "center_delta_px_p50_p95": quantiles(all_centers), "confidence_delta_p50_p95": quantiles(all_scores)}
             for mode in time_s:
                 result[mode] = {"wall_s": time_s[mode], "fps": total_frames/(time_s[mode]+(total_prep if mode == "imu" else 0)),
-                                "stage_mean_ms": dict(zip(("MFE", "TF", "LAC", "LAD"), np.mean(stage_ms[mode], axis=0).tolist()))}
+                                "stage_mean_ms": dict(zip(stage_names, np.mean(stage_ms[mode], axis=0).tolist()))}
             report["cameras"][str(camera)] = result
             print(result, flush=True)
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

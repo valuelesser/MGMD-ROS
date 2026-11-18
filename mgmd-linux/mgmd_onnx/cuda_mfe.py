@@ -255,7 +255,7 @@ class CudaMfe:
         stamp("region_stats")
         return boxes, scores
 
-    def candidates(self, previous, center, following, profile=None, *, frame_ids=None):
+    def candidates(self, previous, center, following, profile=None, *, frame_ids=None, alignment=None):
         if torch.cuda.current_stream() != self.stream:
             raise RuntimeError("CUDA MFE requires its creation stream")
         def stamp(name):
@@ -267,7 +267,11 @@ class CudaMfe:
         stamp("start")
         frames = self.gray_frames((previous, center, following), frame_ids)
         stamp("gray")
-        return self.candidates_from_gray(frames, stamp)
+        if alignment is None:
+            return self.candidates_from_gray(frames, stamp)
+        a = self._motion(frames[0], frames[1], alignment[0], stamp)
+        b = self._motion(frames[2], frames[1], alignment[1], stamp) if self.cfg.needs_next else None
+        return self.combine_candidates(a, b, stamp)
 
     def candidates_from_gray(self, frames, stamp):
         a = self._direction(frames[0], frames[1], stamp)

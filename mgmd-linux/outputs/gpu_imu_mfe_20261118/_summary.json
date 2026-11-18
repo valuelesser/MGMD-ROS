@@ -1,0 +1,185 @@
+{
+  "resolution": [
+    640,
+    480
+  ],
+  "duration_s": 12.0,
+  "cameras": {
+    "1": {
+      "bag": "uav1_onboard_20260729_190542_1.bag",
+      "windows": 1087,
+      "segments": [
+        {
+          "offset_s": 15.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 17,
+          "imu_boxes": 19,
+          "matched": 6,
+          "both_empty": 333,
+          "lk_only_frames": 10,
+          "imu_only_frames": 13,
+          "lk_unmatched": 11,
+          "imu_unmatched": 13
+        },
+        {
+          "offset_s": 50.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 4,
+          "imu_boxes": 1,
+          "matched": 0,
+          "both_empty": 357,
+          "lk_only_frames": 4,
+          "imu_only_frames": 1,
+          "lk_unmatched": 4,
+          "imu_unmatched": 1
+        },
+        {
+          "offset_s": 85.0,
+          "frames": 365,
+          "paired_windows": 363,
+          "lk_boxes": 1,
+          "imu_boxes": 2,
+          "matched": 0,
+          "both_empty": 360,
+          "lk_only_frames": 1,
+          "imu_only_frames": 2,
+          "lk_unmatched": 1,
+          "imu_unmatched": 2
+        }
+      ],
+      "imu_precompute_s": 0.012522466000064014,
+      "agreement": {
+        "lk_boxes": 22,
+        "imu_boxes": 22,
+        "matched": 6,
+        "both_empty": 1050,
+        "lk_only_frames": 15,
+        "imu_only_frames": 16,
+        "lk_unmatched": 16,
+        "imu_unmatched": 16
+      },
+      "iou_p50_p05": [
+        1.0,
+        0.9129464285714286
+      ],
+      "center_delta_px_p50_p95": [
+        0.0,
+        0.875
+      ],
+      "confidence_delta_p50_p95": [
+        0.002390235662460327,
+        0.020933479070663452
+      ],
+      "lk": {
+        "wall_s": 13.209649775000344,
+        "fps": 82.2883284958228,
+        "stage_mean_ms": {
+          "MFE": 9.09015027250625,
+          "TF": 0.5074305355329523,
+          "LAC": 1.5350898665949195,
+          "LAD": 0.34417492460173305
+        }
+      },
+      "imu": {
+        "wall_s": 7.267838533000031,
+        "fps": 149.30578307164873,
+        "stage_mean_ms": {
+          "MFE": 3.9101509475444804,
+          "TF": 0.4740335454388068,
+          "LAC": 1.3683350724892103,
+          "LAD": 0.30105503127070976
+        }
+      }
+    },
+    "2": {
+      "bag": "uav2_onboard_20260729_190547_1.bag",
+      "windows": 1086,
+      "segments": [
+        {
+          "offset_s": 15.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 15,
+          "imu_boxes": 24,
+          "matched": 1,
+          "both_empty": 328,
+          "lk_only_frames": 12,
+          "imu_only_frames": 19,
+          "lk_unmatched": 14,
+          "imu_unmatched": 23
+        },
+        {
+          "offset_s": 50.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 1,
+          "imu_boxes": 0,
+          "matched": 0,
+          "both_empty": 361,
+          "lk_only_frames": 1,
+          "imu_only_frames": 0,
+          "lk_unmatched": 1,
+          "imu_unmatched": 0
+        },
+        {
+          "offset_s": 85.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 4,
+          "imu_boxes": 3,
+          "matched": 2,
+          "both_empty": 358,
+          "lk_only_frames": 1,
+          "imu_only_frames": 1,
+          "lk_unmatched": 2,
+          "imu_unmatched": 1
+        }
+      ],
+      "imu_precompute_s": 0.00807365399941773,
+      "agreement": {
+        "lk_boxes": 20,
+        "imu_boxes": 27,
+        "matched": 3,
+        "both_empty": 1047,
+        "lk_only_frames": 14,
+        "imu_only_frames": 20,
+        "lk_unmatched": 17,
+        "imu_unmatched": 24
+      },
+      "iou_p50_p05": [
+        1.0,
+        1.0
+      ],
+      "center_delta_px_p50_p95": [
+        0.0,
+        0.0
+      ],
+      "confidence_delta_p50_p95": [
+        0.0,
+        0.0
+      ],
+      "lk": {
+        "wall_s": 14.64368117300046,
+        "fps": 74.16168019297848,
+        "stage_mean_ms": {
+          "MFE": 9.043578285319152,
+          "TF": 0.4914661070698972,
+          "LAC": 1.4784271670488254,
+          "LAD": 1.7710605655609446
+        }
+      },
+      "imu": {
+        "wall_s": 10.329227565000565,
+        "fps": 105.05643368541197,
+        "stage_mean_ms": {
+          "MFE": 4.000063646125091,
+          "TF": 0.5249605901388393,
+          "LAC": 1.4362568264590443,
+          "LAD": 2.8753837191065195
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "date": "2026-11-18",
+  "bag": "uav1_onboard_20260729_190542_1.bag",
+  "playback_start_s": 15,
+  "image_topic": "/usb_cam1/image_raw",
+  "imu_topic": "/mavros/imu/data",
+  "preview_topic": "/mav/debug_image",
+  "detections_topic": "/mav/detections",
+  "preview_resolution": [640, 480],
+  "preview_encoding": "bgr8",
+  "configuration": "GPU IMU, one CUDA stream, native Windows FFplay",
+  "verified_preview": {"ros_image_seq": 461, "green_box": true, "ffplay_window": "MGMD ROS 480p native preview"},
+  "after_warmup_at_window_400": {"positive_windows": 19, "input_queue_dropped": 1, "rejected": 0, "hud_fps": 30.52},
+  "cold_run_input_queue_drops_observed": 84,
+  "container_node_log": "/tmp/mgmd-imu-ros-demo-11431/node.log"
+}

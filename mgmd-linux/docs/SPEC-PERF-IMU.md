@@ -1,6 +1,6 @@
 # SPEC-PERF-IMU · 单流 GPU IMU 对齐实验
 
-版本 0.1.0。分支 `exp/gpu-imu-mfe`，基线 `master@5b61607`。
+版本 0.1.1。分支 `exp/gpu-imu-mfe`，基线 `master@5b61607`。
 
 ## 实验口径
 
@@ -42,8 +42,23 @@ PYTHONPATH="$PWD:$PYTHONPATH" python3 scripts/compare_gpu_imu_mfe.py \
 
 已知旋转的 GPU 数值校验覆盖四元数符号翻转、时间插值、前后 warp 方向和时间戳越界。该校验和两种对齐的实际 CUDA 全链路回放均通过。
 
+## ROS 话题实时演示
+
+在 ROS Noetic 工作区环境初始化后，以同一个 ROS master 分别启动节点和 bag。可以用 `rosrun mav_tracker_nodes imu_gpu_node.py` 启动已安装节点，也可直接运行源脚本。节点默认订阅这架相机的 BGR 图像和 MAVROS IMU，保留图像时间戳，按中心帧发布 `/mav/detections` 和 `/mav/debug_image`。启动时先预热 GPU，再订阅话题。节点等到后帧已有后续 IMU 样本时才生成窗口，GPU 上生成两方向 warp。保留单条计算流、重叠图像和灰度缓存、BUF、CUDA warp、流内 ORT 及 CUDA HUD。
+
+```bash
+rosrun mav_tracker_nodes imu_gpu_node.py _camera:=1 _calibration:=/tmp/mgmd-align-camera.yaml
+rosbag play --start 15 --delay 2 /data/ros_bag/uav1/uav1_onboard_20260729_190542_1.bag \
+  --topics /usb_cam1/image_raw /mavros/imu/data
+```
+
+Windows FFplay 预览以相同 ROS master 的端口启动。例如 `scripts/preview_ros_native.ps1 -MasterPort 11430 -Width 640 -Height 480 -FrameRate 30`。640×480 对应 bag 原图。实时演示用于观察后端输出，离线对拍仍使用上一节的同帧口径。
+
+在容器 ROS master 端口 11431 验证实际 bag 发布、ROS 检测与预览订阅，以及 Windows 原生 480p 窗口。预热版截至第 400 个处理窗口，19 个窗口含框，输入窗口丢弃计数为 1，GPU 拒绝计数为 0，HUD 最近窗口速率为 30.52 FPS。留存一帧实际 `/mav/debug_image`，图上有 CUDA HUD 和绿框。首轮未预热时输入窗口丢弃计数达到 84。[实时演示摘要](../outputs/gpu_imu_mfe_20261118/_ros_demo_summary.json)
+
 ## 修改记录
 
 | 日期 | 版本 | 改动 | 验收 |
 |---|---|---|---|
+| 2026-11-18 | 0.1.1 | 增加 ROS 图像和 IMU 订阅入口及 480p 原生预览 | 见 ROS 话题实时演示 |
 | 2026-11-18 | 0.1.0 | 建立规格、GPU 姿态对齐与单流 rosbag 对照入口 | 2,173 个配对窗口，LK 78.02 FPS、IMU 123.34 FPS，42 个 LK 框匹配 9 个 |

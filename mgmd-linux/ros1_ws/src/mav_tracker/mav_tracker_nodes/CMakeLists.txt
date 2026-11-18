@@ -17,6 +17,7 @@ catkin_install_python(PROGRAMS
   scripts/visualize_node.py
   scripts/target_mover.py
   scripts/cuda_pipeline_node.py
+  scripts/imu_gpu_node.py
   scripts/rqt_fullscreen.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )

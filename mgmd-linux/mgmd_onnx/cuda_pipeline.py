@@ -43,6 +43,7 @@ class CudaPipeline:
             self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
                                warp_backend=warp_backend, default_stream_lock=default_stream_lock)
         self.tf = CudaTf(library) if tracker is None else tracker
+        self.enable_models = enable_models
         if not enable_models:
             return
         self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock,
@@ -89,11 +90,16 @@ class CudaPipeline:
         return torch.cat((coords, det.index_select(0, nearest)[:, 4:5]), dim=1)
 
     def step(self, previous, center, following, seq, mfe_profile=None, *, frame_ids=None, alignment=None):
-        timing = [torch.cuda.Event(enable_timing=True) for _ in range(5)]
+        timing = [torch.cuda.Event(enable_timing=True) for _ in range(5 if self.enable_models else 3)]
         timing[0].record()
         boxes, scores = self.mfe.candidates(previous, center, following, mfe_profile,
                                            frame_ids=frame_ids, alignment=alignment)
         timing[1].record()
+        if not self.enable_models:
+            tracks, ids, status = self.track(boxes, scores, seq)
+            tracks = torch.cat((tracks, tracks.new_zeros((len(tracks), 1)), ids[:, None]), dim=1)
+            timing[2].record()
+            return tracks, status, len(boxes), timing
         return self.finish(center, boxes, scores, seq, timing)
 
     def finish(self, center, boxes, scores, seq, timing=None):

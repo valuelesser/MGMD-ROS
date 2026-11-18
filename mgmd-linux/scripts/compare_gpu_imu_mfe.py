@@ -59,17 +59,7 @@ def detect(pipe, stream, preview, images, warps, indices, stage_names):
         ids = (int(i)-1, int(i), int(i)+1)
         args = (images[j] for j in ids)
         alignment = None if warps is None else warps[i-1]
-        if len(stage_names) == 2:
-            marks = [torch.cuda.Event(enable_timing=True) for _ in range(3)]
-            marks[0].record()
-            candidates, scores = pipe.mfe.candidates(*args, frame_ids=ids, alignment=alignment)
-            marks[1].record()
-            tracks, track_ids, status = pipe.track(candidates, scores, int(i))
-            marks[2].record()
-            # The preview takes six-column rows. TF boxes carry no LAD confidence.
-            boxes = torch.cat((tracks, tracks.new_zeros((len(tracks), 1)), track_ids[:, None]), dim=1)
-        else:
-            boxes, status, _, marks = pipe.step(*args, int(i), frame_ids=ids, alignment=alignment)
+        boxes, status, _, marks = pipe.step(*args, int(i), frame_ids=ids, alignment=alignment)
         marks[-1].synchronize()
         if status.item():
             raise RuntimeError(f"CUDA TF status {status.item()} at frame {i}")
@@ -88,7 +78,7 @@ def detect(pipe, stream, preview, images, warps, indices, stage_names):
 def match_outputs(lk, imu, compare_confidence=True):
     counts = {"lk_boxes": 0, "imu_boxes": 0, "matched": 0, "both_empty": 0,
               "lk_only_frames": 0, "imu_only_frames": 0}
-    ious, centers, scores = [], [], []
+    ious, centers, scores, normalized = [], [], [], []
     for i, v in lk.items():
         w = imu[i]
         counts["lk_boxes"] += len(v)
@@ -108,6 +98,9 @@ def match_outputs(lk, imu, compare_confidence=True):
             j, k = np.unravel_index(iou.argmax(), iou.shape)
             ious.append(float(iou[j, k]))
             centers.append(float(np.linalg.norm((a[j, :2]+a[j, 2:4]-b[k, :2]-b[k, 2:4])*.5)))
+            diagonal = float(np.linalg.norm(a[j, 2:4]-a[j, :2]))
+            if diagonal > 0:
+                normalized.append(100 * centers[-1] / diagonal)
             if compare_confidence:
                 scores.append(float(abs(a[j, 4]-b[k, 4])))
             iou[j, :] = 0
@@ -115,7 +108,7 @@ def match_outputs(lk, imu, compare_confidence=True):
     counts["matched"] = len(ious)
     counts["lk_unmatched"] = counts["lk_boxes"] - len(ious)
     counts["imu_unmatched"] = counts["imu_boxes"] - len(ious)
-    return counts, ious, centers, scores
+    return counts, ious, centers, scores, normalized
 
 
 def quantiles(values):
@@ -151,6 +144,7 @@ def main():
             rotation = torch.tensor(cal["uavs"][camera-1]["T_bc"], device="cuda", dtype=torch.float64).reshape(4, 4)[:3, :3]
             total_frames, total_prep = 0, 0.
             totals, all_ious, all_centers, all_scores = {}, [], [], []
+            all_lk_sizes, all_normalized = [], []
             time_s = {"lk": 0., "imu": 0.}
             stage_ms = {"lk": [], "imu": []}
             segments = []
@@ -181,18 +175,23 @@ def main():
                     measures[mode] = out
                     stage_ms[mode].extend(stage)
                     time_s[mode] += wall
-                counts, ious, centers, scores = match_outputs(measures["lk"], measures["imu"],
-                                                             compare_confidence=not args.mfe_tf_only)
+                counts, ious, centers, scores, normalized = match_outputs(
+                    measures["lk"], measures["imu"], compare_confidence=not args.mfe_tf_only)
+                all_lk_sizes.extend((x2-x1, y2-y1) for rows in measures["lk"].values()
+                                    for x1, y1, x2, y2, *_ in rows)
                 for key, value in counts.items(): totals[key] = totals.get(key, 0) + value
                 all_ious.extend(ious)
                 all_centers.extend(centers)
                 all_scores.extend(scores)
+                all_normalized.extend(normalized)
                 segments.append({"offset_s": offset, "frames": len(frames), "paired_windows": len(indices), **counts})
                 print(f"camera {camera}, {offset}s: {len(indices)} windows, {counts}", flush=True)
             result = {"bag": Path(path).name, "windows": total_frames, "segments": segments,
                       "imu_precompute_s": total_prep, "agreement": totals,
                       "iou_p50_p05": np.percentile(all_ious, [50, 5]).tolist() if all_ious else None,
-                      "center_delta_px_p50_p95": quantiles(all_centers), "confidence_delta_p50_p95": quantiles(all_scores)}
+                      "center_delta_px_p50_p95": quantiles(all_centers), "confidence_delta_p50_p95": quantiles(all_scores),
+                      "lk_box_size_wh_p50_p95_px": np.percentile(all_lk_sizes, [50, 95], axis=0).tolist() if all_lk_sizes else None,
+                      "center_delta_pct_of_lk_diagonal_p50_p95": quantiles(all_normalized)}
             for mode in time_s:
                 result[mode] = {"wall_s": time_s[mode], "fps": total_frames/(time_s[mode]+(total_prep if mode == "imu" else 0)),
                                 "stage_mean_ms": dict(zip(stage_names, np.mean(stage_ms[mode], axis=0).tolist()))}

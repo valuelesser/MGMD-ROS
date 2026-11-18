@@ -77,8 +77,9 @@ def warmup(pipe, preview, intrinsic, rotation, width, height):
     t = torch.arange(4, device="cuda", dtype=torch.int64) * 10_000_000
     q = torch.tensor([[0., 0., 0., 1.]] * 4, device="cuda", dtype=torch.float64)
     warp, _ = camera_warps(t[:3], t, q, intrinsic, rotation)
-    pipe.lac.run(torch.zeros((1, 3, 32, 32), device="cuda"))
-    pipe.lad.run(torch.zeros((1, 3, 320, 320), device="cuda"))
+    if pipe.enable_models:
+        pipe.lac.run(torch.zeros((1, 3, 32, 32), device="cuda"))
+        pipe.lad.run(torch.zeros((1, 3, 320, 320), device="cuda"))
     boxes, _, _, _ = pipe.step(image, image, image, 1, frame_ids=(0, 1, 2), alignment=warp[0])
     preview.draw(image, boxes, ["GPU IMU"])
     preview.download()
@@ -91,6 +92,8 @@ def main():
     rospy.init_node("imu_gpu")
     get = rospy.get_param
     camera = get("~camera", 1)
+    models = not get("~mfe_tf_only", False)
+    stages = ("MFE", "TF", "LAC", "LAD") if models else ("MFE", "TF")
     with open(get("~calibration"), encoding="utf-8") as handle:
         cal = yaml.safe_load(handle)
     width, height = int(cal["image_width"]), int(cal["image_height"])
@@ -98,7 +101,7 @@ def main():
     with torch.cuda.stream(stream):
         pipe = CudaPipeline(get("~tf_library", "/tmp/mgmd-tf-g3.so"), width, height,
                             warp_backend="opencv", mfe_stream=stream, model_stream=stream,
-                            async_lad=True)
+                            async_lad=True, enable_models=models)
         pipe.mfe.buf_ccl = BufCcl(get("~buf_library", "/tmp/mgmd-buf-ccl.so"), width, height, stream)
         preview = CudaPreview(get("~preview_library", "/tmp/mgmd-cuda-preview.so"),
                               torch.empty((height, width, 3), device="cuda", dtype=torch.uint8))
@@ -117,7 +120,7 @@ def main():
         )
         images, recent = {}, deque()
         processed = positive = rejected = 0
-        rospy.loginfo("IMU GPU ready camera=%d %dx%d", camera, width, height)
+        rospy.loginfo("IMU GPU ready camera=%d %dx%d stages=%s", camera, width, height, "+".join(stages))
         while not rospy.is_shutdown():
             item = input_queue.next()
             if item is None:
@@ -144,16 +147,17 @@ def main():
             times = [a.elapsed_time(b) for a, b in zip(marks, marks[1:])]
             rows = boxes.tolist()
             header = messages[1].header
+            ros_times = times if models else times + [0., 0.]
             detections.publish(build_detection_array(header, width, height, [row[:4] for row in rows],
-                                                      [row[4] for row in rows], ["lad"] * len(rows),
-                                                      candidates, *times, track_ids=[int(row[5]) for row in rows]))
+                                                      [row[4] for row in rows], ["lad" if models else "tf"] * len(rows),
+                                                      candidates, *ros_times, track_ids=[int(row[5]) for row in rows]))
             now = perf_counter()
             recent.append(now)
             while len(recent) > 2 and now - recent[0] > 2:
                 recent.popleft()
             fps = (len(recent)-1) / max(now-recent[0], 1e-6)
             preview.draw(images[ids[1]], boxes, [f"GPU IMU  {fps:.1f} FPS  #{ids[1]}  Boxes {len(rows)}",
-                         "ms: " + "  ".join(f"{name} {value:.1f}" for name, value in zip(("MFE", "TF", "LAC", "LAD"), times))])
+                         "ms: " + "  ".join(f"{name} {value:.1f}" for name, value in zip(stages, times))])
             image = preview.download()
             debug.publish(Image(header=header, height=height, width=width, encoding="bgr8",
                                 step=width*3, data=image.tobytes()))

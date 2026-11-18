@@ -1,0 +1,203 @@
+{
+  "resolution": [
+    640,
+    480
+  ],
+  "duration_s": 12.0,
+  "stages": [
+    "MFE",
+    "TF"
+  ],
+  "cameras": {
+    "1": {
+      "bag": "uav1_onboard_20260729_190542_1.bag",
+      "windows": 1087,
+      "segments": [
+        {
+          "offset_s": 15.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 4751,
+          "imu_boxes": 3545,
+          "matched": 1151,
+          "both_empty": 2,
+          "lk_only_frames": 0,
+          "imu_only_frames": 0,
+          "lk_unmatched": 3600,
+          "imu_unmatched": 2394
+        },
+        {
+          "offset_s": 50.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 5051,
+          "imu_boxes": 4016,
+          "matched": 1783,
+          "both_empty": 2,
+          "lk_only_frames": 0,
+          "imu_only_frames": 0,
+          "lk_unmatched": 3268,
+          "imu_unmatched": 2233
+        },
+        {
+          "offset_s": 85.0,
+          "frames": 365,
+          "paired_windows": 363,
+          "lk_boxes": 6062,
+          "imu_boxes": 4527,
+          "matched": 1936,
+          "both_empty": 2,
+          "lk_only_frames": 0,
+          "imu_only_frames": 0,
+          "lk_unmatched": 4126,
+          "imu_unmatched": 2591
+        }
+      ],
+      "imu_precompute_s": 0.013039210000215462,
+      "agreement": {
+        "lk_boxes": 15864,
+        "imu_boxes": 12088,
+        "matched": 4870,
+        "both_empty": 6,
+        "lk_only_frames": 0,
+        "imu_only_frames": 0,
+        "lk_unmatched": 10994,
+        "imu_unmatched": 7218
+      },
+      "iou_p50_p05": [
+        0.8484848484848485,
+        0.5353039580144325
+      ],
+      "center_delta_px_p50_p95": [
+        1.0,
+        7.566372975210778
+      ],
+      "confidence_delta_p50_p95": null,
+      "lk_box_size_wh_p50_p95_px": [
+        [
+          17.0,
+          12.0
+        ],
+        [
+          68.0,
+          53.0
+        ]
+      ],
+      "center_delta_pct_of_lk_diagonal_p50_p95": [
+        3.6903135362322215,
+        18.109140795777826
+      ],
+      "lk": {
+        "wall_s": 13.572208841000133,
+        "fps": 80.09013217629645,
+        "stage_mean_ms": {
+          "MFE": 10.886935785920004,
+          "TF": 0.7151981166117545
+        }
+      },
+      "imu": {
+        "wall_s": 7.35916260099998,
+        "fps": 147.4457737141796,
+        "stage_mean_ms": {
+          "MFE": 5.1533219798947,
+          "TF": 0.7227247993169625
+        }
+      }
+    },
+    "2": {
+      "bag": "uav2_onboard_20260729_190547_1.bag",
+      "windows": 1086,
+      "segments": [
+        {
+          "offset_s": 15.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 5847,
+          "imu_boxes": 7210,
+          "matched": 1398,
+          "both_empty": 2,
+          "lk_only_frames": 0,
+          "imu_only_frames": 0,
+          "lk_unmatched": 4449,
+          "imu_unmatched": 5812
+        },
+        {
+          "offset_s": 50.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 4377,
+          "imu_boxes": 3829,
+          "matched": 733,
+          "both_empty": 2,
+          "lk_only_frames": 0,
+          "imu_only_frames": 0,
+          "lk_unmatched": 3644,
+          "imu_unmatched": 3096
+        },
+        {
+          "offset_s": 85.0,
+          "frames": 364,
+          "paired_windows": 362,
+          "lk_boxes": 4129,
+          "imu_boxes": 6027,
+          "matched": 636,
+          "both_empty": 2,
+          "lk_only_frames": 0,
+          "imu_only_frames": 0,
+          "lk_unmatched": 3493,
+          "imu_unmatched": 5391
+        }
+      ],
+      "imu_precompute_s": 0.009131905000003826,
+      "agreement": {
+        "lk_boxes": 14353,
+        "imu_boxes": 17066,
+        "matched": 2767,
+        "both_empty": 6,
+        "lk_only_frames": 0,
+        "imu_only_frames": 0,
+        "lk_unmatched": 11586,
+        "imu_unmatched": 14299
+      },
+      "iou_p50_p05": [
+        0.7575757575757576,
+        0.5217391304347826
+      ],
+      "center_delta_px_p50_p95": [
+        1.118033988749895,
+        11.08486946406725
+      ],
+      "confidence_delta_p50_p95": null,
+      "lk_box_size_wh_p50_p95_px": [
+        [
+          15.0,
+          9.0
+        ],
+        [
+          104.0,
+          57.0
+        ]
+      ],
+      "center_delta_pct_of_lk_diagonal_p50_p95": [
+        6.0903192141761995,
+        19.461955953617288
+      ],
+      "lk": {
+        "wall_s": 13.50269628000001,
+        "fps": 80.42838093074543,
+        "stage_mean_ms": {
+          "MFE": 10.873699179011814,
+          "TF": 0.6893689865675201
+        }
+      },
+      "imu": {
+        "wall_s": 6.779060781999988,
+        "fps": 159.98367313287807,
+        "stage_mean_ms": {
+          "MFE": 4.68311631921027,
+          "TF": 0.713537709763476
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # SPEC-PERF-IMU · 单流 GPU IMU 对齐实验
 
-版本 0.1.2。分支 `exp/gpu-imu-mfe`，基线 `master@5b61607`。
+版本 0.1.3。分支 `exp/gpu-imu-mfe`，基线 `master@5b61607`。
 
 ## 实验口径
 
@@ -54,6 +54,16 @@ PYTHONPATH="$PWD:$PYTHONPATH" python3 scripts/compare_gpu_imu_mfe.py \
 
 移除模型筛选后，约四分之一的 LK 参考跟踪框能在 IMU 输出中匹配，表明两条路径在 MFE/TF 阶段已有较大差异。TF 框也会跟踪背景变化和其他运动，需要独立标注才能判断真实无人机检测表现或 LAC/LAD 是否存在跨数据集失效。[分段结果](../outputs/gpu_imu_mfe_20261118/_mfe_tf_only_summary.json)
 
+重跑相同窗口量化偏移的相对尺度。中心偏移只对同帧 IoU ≥ 0.5 的匹配框统计，分母用每对框中的 LK 框对角线。LK 框尺寸来自全部 TF 框，包含场景中的其他运动和背景响应。
+
+| 指标 | UAV1 | UAV2 |
+|---|---:|---:|
+| LK 框宽×高中位数 | 17×12 px | 15×9 px |
+| 中心偏移 P50/P95 | 1.00/7.57 px | 1.12/11.08 px |
+| 中心偏移占 LK 框对角线 P50/P95 | 3.69%/18.11% | 6.09%/19.46% |
+
+此前 640×480 预览的一张远处无人机单帧人工抽查，暗色机体轮廓约 17–18×8–9 px，仅作尺寸示例。[复测摘要](../outputs/gpu_imu_mfe_20261118/_tf_box_sizes_summary.json)
+
 ## ROS 话题实时演示
 
 在 ROS Noetic 工作区环境初始化后，以同一个 ROS master 分别启动节点和 bag。可以用 `rosrun mav_tracker_nodes imu_gpu_node.py` 启动已安装节点，也可直接运行源脚本。节点默认订阅这架相机的 BGR 图像和 MAVROS IMU，保留图像时间戳，按中心帧发布 `/mav/detections` 和 `/mav/debug_image`。启动时先预热 GPU，再订阅话题。节点等到后帧已有后续 IMU 样本时才生成窗口，GPU 上生成两方向 warp。保留单条计算流、重叠图像和灰度缓存、BUF、CUDA warp、流内 ORT 及 CUDA HUD。
@@ -66,12 +76,15 @@ rosbag play --start 15 --delay 2 /data/ros_bag/uav1/uav1_onboard_20260729_190542
 
 Windows FFplay 预览以相同 ROS master 的端口启动。例如 `scripts/preview_ros_native.ps1 -MasterPort 11430 -Width 640 -Height 480 -FrameRate 30`。640×480 对应 bag 原图。实时演示用于观察后端输出，离线对拍仍使用上一节的同帧口径。
 
+节点加入 `_mfe_tf_only:=true` 后只显示 TF 跟踪框。ROS 框的 `source` 为 `tf`，置信度占位值为 0。该路径与离线 `--mfe-tf-only` 共用 `CudaPipeline.step`。用相同 bag 在端口 11432 验证实际 TF 框和 Windows FFplay 预览，第 900 窗口附近 HUD 稳定在约 30 FPS。
+
 在容器 ROS master 端口 11431 验证实际 bag 发布、ROS 检测与预览订阅，以及 Windows 原生 480p 窗口。预热版截至第 400 个处理窗口，19 个窗口含框，输入窗口丢弃计数为 1，GPU 拒绝计数为 0，HUD 最近窗口速率为 30.52 FPS。留存一帧实际 `/mav/debug_image`，图上有 CUDA HUD 和绿框。首轮未预热时输入窗口丢弃计数达到 84。[实时演示摘要](../outputs/gpu_imu_mfe_20261118/_ros_demo_summary.json)
 
 ## 修改记录
 
 | 日期 | 版本 | 改动 | 验收 |
 |---|---|---|---|
+| 2026-11-18 | 0.1.3 | 增加 TF 框尺寸和相对中心偏移统计及纯 IMU + TF 实时入口 | 2,173 个窗口复测及 480p Windows 实时预览验证 |
 | 2026-11-18 | 0.1.2 | 在同一单流基准中增加关闭 LAC/LAD 的对照 | 2,173 窗口，LK 80.15 FPS、IMU 163.15 FPS，参考框匹配率 25.3% |
 | 2026-11-18 | 0.1.1 | 增加 ROS 图像和 IMU 订阅入口及 480p 原生预览 | 见 ROS 话题实时演示 |
 | 2026-11-18 | 0.1.0 | 建立规格、GPU 姿态对齐与单流 rosbag 对照入口 | 2,173 个配对窗口，LK 78.02 FPS、IMU 123.34 FPS，42 个 LK 框匹配 9 个 |

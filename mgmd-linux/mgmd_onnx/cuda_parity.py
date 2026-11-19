@@ -29,11 +29,12 @@ def handoff(ready, *tensors):
 
 
 class ParityPipeline:
-    def __init__(self, library, width, height, warp, reuse_gray, stack, buf_library, confirm_frames=0):
+    def __init__(self, library, width, height, warp, reuse_gray, stack, buf_library,
+                 confirm_frames=0, compute_lanes=2):
         self.reuse_gray = reuse_gray
         self.confirmed = ConfirmedTracks(confirm_frames) if confirm_frames else None
-        self.streams = [torch.cuda.Stream() for _ in range(2)]
-        self.tracker_stream = torch.cuda.Stream()
+        self.streams = [torch.cuda.Stream() for _ in range(compute_lanes)]
+        self.tracker_stream = self.streams[0] if compute_lanes == 1 else torch.cuda.Stream()
         self.lock = nullcontext()
         with torch.cuda.stream(self.tracker_stream):
             tracker = CudaTf(library)
@@ -47,7 +48,8 @@ class ParityPipeline:
                 self.pipes[-1].mfe.buf_ccl = BufCcl(buf_library, width, height, stream)
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
                         for _ in self.streams]
-        self.tracker_worker = stack.enter_context(ThreadPoolExecutor(max_workers=1))
+        self.tracker_worker = (self.workers[0] if compute_lanes == 1 else
+                               stack.enter_context(ThreadPoolExecutor(max_workers=1)))
         # Initialize Torch's lazy CUDA linear algebra backend before either lane uses it.
         with torch.cuda.stream(self.streams[0]):
             matrix = torch.eye(8, dtype=torch.float64, device="cuda")
@@ -64,11 +66,13 @@ class ParityPipeline:
         yield from pending
 
     def submit(self, lane, window, marks):
-        start = event()
-        gray = self.pipes[0].mfe.gray_frames(
-            tuple(frame.image for frame in window),
-            tuple(frame.seq for frame in window) if self.reuse_gray else None)
-        ready = event()
+        gray_stream = torch.cuda.stream(self.streams[0]) if len(self.streams) == 1 else nullcontext()
+        with gray_stream:
+            start = event()
+            gray = self.pipes[0].mfe.gray_frames(
+                tuple(frame.image for frame in window),
+                tuple(frame.seq for frame in window) if self.reuse_gray else None)
+            ready = event()
         if marks is not None:
             marks.extend((("start", start), ("gray", ready)))
         worker = self.workers[lane]

@@ -1,0 +1,123 @@
+{
+  "date": "2026-11-19",
+  "base_commit": "a6729bd",
+  "video": "phantom30.mp4",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "source_fps": "30000/1001",
+  "config": "ROS parity, confirm_frames=3, idle dispatch, realtime, OpenCV CUDA decode and warp, 12 warmup windows, CUDA HUD, Windows FFplay",
+  "gpu_sampling_ms": 200,
+  "runs": {
+    "2": {
+      "read": 1498,
+      "processed": 1134,
+      "skipped": 362,
+      "detection_windows": 920,
+      "fps": 22.68,
+      "wall_s": 49.997,
+      "source_to_ros_publish_ms": {
+        "p50": 131.03,
+        "p95": 193.69
+      },
+      "stage_ms": {
+        "MFE": {
+          "mean": 43.85,
+          "p95": 72.76
+        },
+        "TF": {
+          "mean": 3.42,
+          "p95": 6.66
+        },
+        "LAC": {
+          "mean": 9.57,
+          "p95": 25.11
+        },
+        "LAD": {
+          "mean": 19.19,
+          "p95": 59.22
+        }
+      },
+      "tf_track_rows": 83363,
+      "reused_rows": 766,
+      "reuse_windows": 766,
+      "queued_peak": 4,
+      "wait_for_lane_ms_per_window": 32.706,
+      "source_ms_per_window": {
+        "source_sleep": 3.808,
+        "decode_opencv_bgr": 4.58
+      },
+      "main_ms_per_window": {
+        "detection_publish": 0.05,
+        "detection_readback": 0.849,
+        "other": 2.457,
+        "preview_download_and_gpu_wait": 1.36,
+        "preview_hud_and_pack": 0.591,
+        "preview_overlay_enqueue": 1.908,
+        "preview_publish": 1.804,
+        "wait_parity": 35.07
+      },
+      "gpu_samples_after_warmup": 247,
+      "gpu_util_pct_mean": 57.78,
+      "gpu_util_pct_peak": 77,
+      "vram_playback_peak_mib": 1478,
+      "vram_full_run_peak_mib": 2472
+    },
+    "1": {
+      "read": 1498,
+      "processed": 935,
+      "skipped": 561,
+      "detection_windows": 761,
+      "fps": 18.7,
+      "wall_s": 50.011,
+      "source_to_ros_publish_ms": {
+        "p50": 101.58,
+        "p95": 150.44
+      },
+      "stage_ms": {
+        "MFE": {
+          "mean": 28.92,
+          "p95": 44.13
+        },
+        "TF": {
+          "mean": 2.2,
+          "p95": 3.98
+        },
+        "LAC": {
+          "mean": 4.52,
+          "p95": 12.13
+        },
+        "LAD": {
+          "mean": 11.21,
+          "p95": 35.05
+        }
+      },
+      "tf_track_rows": 65979,
+      "reused_rows": 611,
+      "reuse_windows": 611,
+      "queued_peak": 1,
+      "wait_for_lane_ms_per_window": 46.951,
+      "source_ms_per_window": {
+        "source_sleep": 0.11,
+        "decode_opencv_bgr": 5.008
+      },
+      "main_ms_per_window": {
+        "detection_publish": 0.049,
+        "detection_readback": 0.677,
+        "other": 4.591,
+        "preview_download_and_gpu_wait": 1.253,
+        "preview_hud_and_pack": 0.558,
+        "preview_overlay_enqueue": 1.39,
+        "preview_publish": 1.675,
+        "wait_parity": 43.295
+      },
+      "gpu_samples_after_warmup": 248,
+      "gpu_util_pct_mean": 48.55,
+      "gpu_util_pct_peak": 71,
+      "vram_playback_peak_mib": 1044,
+      "vram_full_run_peak_mib": 1502
+    }
+  },
+  "container_logs": "/tmp/mgmd-confirmed-single-results-20261119/{1,2}.{log,csv}"
+}

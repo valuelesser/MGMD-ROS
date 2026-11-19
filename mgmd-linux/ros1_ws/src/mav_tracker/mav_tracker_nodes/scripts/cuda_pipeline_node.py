@@ -119,6 +119,9 @@ def main():
     if mode not in ("legacy", "parity"):
         raise ValueError("Expected legacy or parity")
     confirm_frames = get("~confirm_frames", 3 if mode == "parity" else 0)
+    compute_lanes = get("~compute_lanes", 2)
+    if compute_lanes not in (1, 2) or (compute_lanes == 1 and mode != "parity"):
+        raise ValueError("compute_lanes=1 requires parity mode; parity supports one or two lanes")
     if confirm_frames < 0 or (confirm_frames and (mode != "parity" or confirm_frames < 2)):
         raise ValueError("confirm_frames must be 0 (disabled) or at least 2 in parity mode")
     tracked_total = reused_total = reused_windows = 0
@@ -161,7 +164,10 @@ def main():
         pipe = None
         if mode == "parity":
             parity = ParityPipeline(library, width, height, warp_backend, reuse_gray, stack,
-                                    buf_library=buf_library, confirm_frames=confirm_frames)
+                                    buf_library=buf_library, confirm_frames=confirm_frames,
+                                    compute_lanes=compute_lanes)
+            rospy.loginfo("GPU compute topology: %d detection lane(s), TF %s",
+                          compute_lanes, "on the lane stream" if compute_lanes == 1 else "on a shared stream")
         else:
             pipe = CudaPipeline(library, width, height, warp_backend=warp_backend)
         torch.cuda.synchronize()

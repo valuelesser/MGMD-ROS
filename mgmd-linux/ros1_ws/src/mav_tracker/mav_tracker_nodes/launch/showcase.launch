@@ -1,0 +1,25 @@
+<launch>
+  <arg name="video" default="/data/videos/phantom30.mp4"/>
+  <arg name="rate" default="29.97002997002997"/>
+  <arg name="decoder_leading_frames" default="$(eval 25 if arg('video') == '/data/videos/phantom30.mp4' else 0)"/>
+  <arg name="enable_lac" default="true"/>
+  <arg name="enable_lad" default="true"/>
+  <arg name="dual_stream" default="true"/>
+  <arg name="skip_confirmed" default="true"/>
+  <arg name="rqt" default="true"/>
+  <arg name="realtime" default="true"/>
+  <arg name="limit" default="0"/>
+  <include file="$(find mav_tracker_nodes)/launch/track_gpu.launch">
+    <arg name="video" value="$(arg video)"/>
+    <arg name="rate" value="$(arg rate)"/>
+    <arg name="decoder_leading_frames" value="$(arg decoder_leading_frames)"/>
+    <arg name="enable_lac" value="$(arg enable_lac)"/>
+    <arg name="enable_lad" value="$(arg enable_lad)"/>
+    <arg name="compute_lanes" value="$(eval 2 if arg('dual_stream') else 1)"/>
+    <arg name="confirm_frames" value="$(eval 3 if arg('skip_confirmed') and arg('enable_lac') and arg('enable_lad') else 0)"/>
+    <arg name="warmup_frames" value="12"/>
+    <arg name="rqt" value="$(arg rqt)"/>
+    <arg name="realtime" value="$(arg realtime)"/>
+    <arg name="limit" value="$(arg limit)"/>
+  </include>
+</launch>

@@ -1,6 +1,6 @@
 # 确认轨迹复用下的单流对照
 
-`spec_version: 0.1.1` · `branch: exp/confirmed-single-stream` · `base: master@a6729bd`
+`spec_version: 0.2.0` · `branch: exp/confirmed-single-stream` · `base: master@a6729bd`
 
 `track_gpu.launch compute_lanes:=1` 将灰度准备、MFE、TF、LAC 和 LAD 放入一条 CUDA 计算流。MFE、TF 和模型处理在同一个工作线程上按提交顺序执行。`compute_lanes:=2` 使用基线的两条计算流和一条共享 TF 流，也是实验分支的默认值。实验保留主分支的跨窗口灰度缓存、BUF 连通域、源帧率实时选帧、空闲派发和 `confirm_frames:=3`。CUDA 解码和预览是单独的输入输出环节，沿用原实现。
 
@@ -45,9 +45,16 @@ Nsight 在当前 WSL/Docker 环境采到了 CUDA API，CUDA 内核表缺失。�
 
 只在诊断副本中缓存尺度常量，按双、单各复测同一组 300 个窗口。RANSAC 均值为单流 5.160 ms、双流 10.509 ms，MFE 均值分别为 22.76 和 34.44 ms，吞吐分别为 24.21 和 28.98 FPS。消除一处同步后，双流仍明显慢于单流。完整链路的同步试验每组只跑一遍。[诊断摘要](../outputs/ransac_contention_20261119/_summary.json)
 
+## 展示入口验收
+
+`showcase.launch` 默认双流、LAC 与 LAD、三帧确认复用均开启。原有实时选帧规则和共享 TF 顺序沿用前述配置。单双流各验证五种模式：两级模型且复用、两级模型逐窗执行、仅 LAC、仅 LAD、仅 TF。每组固定读入 62 帧并顺序处理 60 个窗口，ROS 订阅端均收到 60 条检测消息及原尺寸 BGR 图像。核对各组实际框来源、轨迹 ID、置信度范围和已关闭模型耗时为零。
+
+Windows 通过 PowerShell 入口完整运行默认配置，已核对 FFplay 窗口标题与响应状态。phantom30 实时回放共读入 1,498 帧、处理 1,176 个窗口、跳过 320 个，23.49 FPS，复用 811 个框。另以同一 Windows 入口传入单流、仅 LAC 和 120 帧上限，验证参数透传和结束时订阅器退出。当前 Docker 未配置 X 显示，图形实测采用原生窗口。[展示 README](../README-showcase.md) · [验收摘要](../outputs/showcase_20261119/_summary.json)
+
 继承仓库 AGENTS.md 和主分支 SPEC-PERF-GPU 的维护规则。每轮改动更新规格版本和验收记录，提交前核对差异和暂存清单，提交后推送对应分支并确认远端提交。
 
 | 日期 | 版本 | 改动 | 验证 |
 |---|---|---|---|
+| 2026-11-19 | 0.2.0 | 接受当前配置并增加 ROS 展示入口、模型独立开关与 Windows 一键预览 | 10 组 ROS 短片验证及默认配置完整桌面回放 |
 | 2026-11-19 | 0.1.1 | 记录固定窗口、CUDA Graph 和同步调用的诊断 | 固定窗口复现 RANSAC 变慢，Graph 重放保留约 40% 的双流阶段增幅 |
 | 2026-11-19 | 0.1.0 | 主分支复用策略下增加单计算流实验 | 双流和单流各通过一轮 1080p 实时全片回放 |

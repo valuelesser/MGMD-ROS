@@ -2,7 +2,8 @@
 param(
     [string] $Container = 'mgmd-ros',
     [int] $MasterPort = 11331,
-    [string] $FrameRate = '30'
+    [string] $FrameRate = '30',
+    [Diagnostics.Process] $PlaybackProcess
 )
 
 $ErrorActionPreference = 'Stop'
@@ -33,8 +34,9 @@ $sourceInfo.UseShellExecute = $false
 $sourceInfo.CreateNoWindow = $true
 $sourceInfo.RedirectStandardInput = $true
 $sourceInfo.RedirectStandardOutput = $true
+$subscriberToken = 'mgmd-preview-' + [guid]::NewGuid().ToString('N')
 foreach ($arg in @('exec','-i','-u','valuelesser','-e',"ROS_MASTER_URI=http://127.0.0.1:$MasterPort",
-        $Container,'bash','-lc','source /opt/ros/noetic/setup.bash; exec python3 -u -')) {
+        $Container,'bash','-lc','source /opt/ros/noetic/setup.bash; exec python3 -u - "$0"',$subscriberToken)) {
     $sourceInfo.ArgumentList.Add($arg)
 }
 $playerInfo = [Diagnostics.ProcessStartInfo]::new($ffplay)
@@ -54,7 +56,9 @@ try {
     $source.StandardInput.Close()
     $player = [Diagnostics.Process]::Start($playerInfo)
     $copy = $source.StandardOutput.BaseStream.CopyToAsync($player.StandardInput.BaseStream)
-    while (-not $copy.IsCompleted -and -not $player.WaitForExit(250)) {}
+    while (-not $copy.IsCompleted -and -not $player.WaitForExit(250)) {
+        if ($PlaybackProcess -and $PlaybackProcess.HasExited) { break }
+    }
     if ($copy.IsCompleted -and -not $player.HasExited) {
         $copy.GetAwaiter().GetResult()
         $player.StandardInput.Close()
@@ -62,7 +66,10 @@ try {
     }
 }
 finally {
-    if (-not $source.HasExited) { $source.Kill() }
+    if (-not $source.HasExited) {
+        & $docker exec -u valuelesser $Container pkill -TERM -f "^python3 -u - $subscriberToken$"
+        if (-not $source.WaitForExit(3000)) { $source.Kill() }
+    }
     if ($null -ne $player -and -not $player.HasExited) { $player.Kill() }
     $source.Dispose()
     if ($null -ne $player) { $player.Dispose() }

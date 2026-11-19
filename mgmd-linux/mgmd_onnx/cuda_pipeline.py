@@ -34,7 +34,7 @@ def cuda_model(path, stream=None, default_stream_lock=None, enqueue_only=False):
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
                  warp_backend="torch", mfe_stream=None, model_stream=None,
-                 async_lad=False, tracker=None, shared_lock=None):
+                 async_lad=False, tracker=None, shared_lock=None, enable_lac=True, enable_lad=True):
         # OpenCV CCL uses the default stream and cannot run during ORT capture.
         default_stream_lock = shared_lock
         if default_stream_lock is None and mfe_stream is not None and model_stream is not None:
@@ -43,16 +43,19 @@ class CudaPipeline:
             self.mfe = CudaMfe(MFEConfig().apply_recommended(), width, height,
                                warp_backend=warp_backend, default_stream_lock=default_stream_lock)
         self.tf = CudaTf(library) if tracker is None else tracker
-        self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock,
-                              enqueue_only=async_lad)
-        self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
-                              model_stream, default_stream_lock, enqueue_only=async_lad)
-        _inject_syspath(yolov5_dir())
+        self.lac = self.lad = None
+        if enable_lac:
+            self.lac = cuda_model(config.WEIGHTS_DIR / "lac.onnx", model_stream, default_stream_lock,
+                                  enqueue_only=async_lad)
+            self.lac_axis = (torch.arange(32, device="cuda") + .5) / 32
+        if enable_lad:
+            self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
+                                  model_stream, default_stream_lock, enqueue_only=async_lad)
+            _inject_syspath(yolov5_dir())
+            self.lad_axis = torch.arange(320, device="cuda")
         self.lac_threshold = lac_threshold
         self.lad_threshold = lad_threshold
         self.width, self.height = width, height
-        self.lac_axis = (torch.arange(32, device="cuda") + .5) / 32
-        self.lad_axis = torch.arange(320, device="cuda")
 
     def _classify(self, image, boxes):
         lo = (boxes[:, :2].trunc() - 2).clamp_min(0).float()
@@ -116,12 +119,21 @@ class CudaPipeline:
         valid = rows < result.count
         return result.boxes[valid], result.ids[valid], result.status
 
+    @staticmethod
+    def model_image(center):
+        return center.permute(2, 0, 1).flip(0).unsqueeze(0).float()
+
     def classify_tracks(self, center, tracks, ids):
-        image = center.permute(2, 0, 1).flip(0).unsqueeze(0).float()
-        if tracks.shape[0]:
-            selected = self._classify(image, tracks) >= self.lac_threshold
-            tracks, ids = tracks[selected], ids[selected]
+        image = self.model_image(center)
+        tracks, ids, _ = self.select_lac(image, tracks, ids)
         return image, tracks, ids
+
+    def select_lac(self, image, tracks, ids):
+        if tracks.shape[0]:
+            scores = self._classify(image, tracks)
+            selected = scores >= self.lac_threshold
+            return tracks[selected], ids[selected], scores[selected] if self.lad is None else None
+        return tracks, ids, tracks.new_empty((0,))
 
     def refine_tracks(self, image, tracks, ids):
         detections = []

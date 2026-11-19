@@ -15,6 +15,8 @@
   <arg name="pipeline_mode" default="parity"/>
   <arg name="dispatch_idle" default="true"/>
   <arg name="compute_lanes" default="2"/>
+  <arg name="enable_lac" default="true"/>
+  <arg name="enable_lad" default="true"/>
   <arg name="confirm_frames" default="$(eval 3 if arg('pipeline_mode') == 'parity' else 0)"/>
   <arg name="limit" default="0"/>
   <arg name="preview" default="true"/>
@@ -39,6 +41,8 @@
     <param name="pipeline_mode" value="$(arg pipeline_mode)"/>
     <param name="dispatch_idle" value="$(arg dispatch_idle)" type="bool"/>
     <param name="compute_lanes" value="$(arg compute_lanes)" type="int"/>
+    <param name="enable_lac" value="$(arg enable_lac)" type="bool"/>
+    <param name="enable_lad" value="$(arg enable_lad)" type="bool"/>
     <param name="confirm_frames" value="$(arg confirm_frames)" type="int"/>
     <param name="limit" value="$(arg limit)"/>
     <param name="preview" value="$(arg preview)"/>

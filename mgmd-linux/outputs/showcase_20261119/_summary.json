@@ -1,0 +1,35 @@
+{
+  "video": "/data/videos/phantom30.mp4",
+  "resolution": [1920, 1080],
+  "decoder_leading_frames": 25,
+  "warmup_windows": 12,
+  "smoke": {
+    "compute_lanes": [1, 2],
+    "source_labels_per_mode": {
+      "full_with_reuse": ["lad", "tf"],
+      "full_without_reuse": ["lad"],
+      "lac_only": ["lac"],
+      "lad_only": ["lad"],
+      "tf_only": ["tf"]
+    },
+    "runs": 10,
+    "realtime": false,
+    "per_run": {"read": 62, "processed": 60, "skipped": 0, "detection_messages_received": 60},
+    "preview_encoding": "bgr8"
+  },
+  "default_windows_full_playback": {
+    "compute_lanes": 2,
+    "confirm_frames": 3,
+    "source_rate_hz": 29.97002997002997,
+    "realtime": true,
+    "read": 1498,
+    "processed": 1176,
+    "skipped": 320,
+    "detection_frames": 956,
+    "reused_rows": 811,
+    "wall_s": 50.064,
+    "processed_fps": 23.49,
+    "source_to_publish_ms": {"p50": 126.32, "p95": 190.72},
+    "mean_stage_ms": {"MFE": 42.74, "TF": 3.46, "LAC": 9.01, "LAD": 18.15}
+  }
+}

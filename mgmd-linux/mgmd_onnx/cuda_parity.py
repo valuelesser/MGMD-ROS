@@ -30,7 +30,7 @@ def handoff(ready, *tensors):
 
 class ParityPipeline:
     def __init__(self, library, width, height, warp, reuse_gray, stack, buf_library,
-                 confirm_frames=0, compute_lanes=2):
+                 confirm_frames=0, compute_lanes=2, enable_lac=True, enable_lad=True):
         self.reuse_gray = reuse_gray
         self.confirmed = ConfirmedTracks(confirm_frames) if confirm_frames else None
         self.streams = [torch.cuda.Stream() for _ in range(compute_lanes)]
@@ -44,7 +44,8 @@ class ParityPipeline:
                 self.pipes.append(CudaPipeline(library, width, height, warp_backend=warp,
                                                mfe_stream=stream, model_stream=stream,
                                                tracker=tracker, shared_lock=self.lock,
-                                               async_lad=True))
+                                               async_lad=True, enable_lac=enable_lac,
+                                               enable_lad=enable_lad))
                 self.pipes[-1].mfe.buf_ccl = BufCcl(buf_library, width, height, stream)
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
                         for _ in self.streams]
@@ -171,17 +172,27 @@ class ParityPipeline:
                 scores = tracks.new_tensor(tuple(known.values()))[indices[reuse]]
                 reused = torch.column_stack((tracks[reuse], scores, ids[reuse]))
                 tracks, ids = tracks[~reuse], ids[~reuse]
-            if len(ids) or self.confirmed is None:
-                image, tracks, ids = pipe.classify_tracks(center.image, tracks, ids)
-            else:
-                image = None
+            image = None
+            scores = None
+            if pipe.lac is not None and (len(ids) or self.confirmed is None):
+                image = pipe.model_image(center.image)
+                tracks, ids, scores = pipe.select_lac(image, tracks, ids)
             classified = event()
-            output = pipe.refine_tracks(image, tracks, ids) if image is not None else tracks.new_empty((0, 6))
+            if not len(ids):
+                output = tracks.new_empty((0, 6))
+            elif pipe.lad is not None:
+                if image is None:
+                    image = pipe.model_image(center.image)
+                output = pipe.refine_tracks(image, tracks, ids)
+            else:
+                if scores is None:
+                    scores = tracks.new_zeros(len(ids))
+                output = torch.column_stack((tracks, scores, ids))
             if reused is not None:
                 output = torch.cat((output, reused))
             end = event()
             end.synchronize()
         stages = [gray_start.elapsed_time(gray_ready) + mfe_start.elapsed_time(mfe_end),
-                  tf_start.elapsed_time(tf_end), start.elapsed_time(classified),
-                  classified.elapsed_time(end)]
+                  tf_start.elapsed_time(tf_end), start.elapsed_time(classified) if pipe.lac else 0.,
+                  classified.elapsed_time(end) if pipe.lad else 0.]
         return output, status, count, stages, (track_count, 0 if reused is None else len(reused))

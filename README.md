@@ -4,6 +4,8 @@
 
 当前可交付版本与归档校验见 [DELIVERY.md](DELIVERY.md)。
 
+**1080p GPU 展示版**支持一条命令打开 Windows 原生预览，也可以用 ROS 启动 rqt。LAC、LAD、双流和已确认轨迹复用均可切换。启动命令、优化说明与实测数据见 [GPU 展示版 README](mgmd-linux/README-showcase.md)。
+
 当前开发工程位于 **`mgmd-linux/`**。项目包含离线论文复现和 ROS 实时系统两个阶段；现阶段聚焦图像上的无人机检测与跟踪，不包含飞行控制。
 
 ## 处理流程

@@ -119,6 +119,12 @@ def main():
     if mode not in ("legacy", "parity"):
         raise ValueError("Expected legacy or parity")
     confirm_frames = get("~confirm_frames", 3 if mode == "parity" else 0)
+    enable_lac, enable_lad = get("~enable_lac", True), get("~enable_lad", True)
+    if not (enable_lac and enable_lad):
+        if mode != "parity":
+            raise ValueError("Independent LAC/LAD switches require parity mode")
+        confirm_frames = 0
+    detection_source = "lad" if enable_lad else ("lac" if enable_lac else "tf")
     compute_lanes = get("~compute_lanes", 2)
     if compute_lanes not in (1, 2) or (compute_lanes == 1 and mode != "parity"):
         raise ValueError("compute_lanes=1 requires parity mode; parity supports one or two lanes")
@@ -157,7 +163,7 @@ def main():
             from mgmd_onnx.cuda_preview import CudaPreview
             gpu_preview = CudaPreview(preview_library, first.image)
             rospy.loginfo("GPU preview compositor: %dx%d with CUDA boxes and HUD", width, height)
-        if min(height, width) < 320:
+        if enable_lad and min(height, width) < 320:
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
         library = get("~tf_library")
         parity = None
@@ -165,13 +171,15 @@ def main():
         if mode == "parity":
             parity = ParityPipeline(library, width, height, warp_backend, reuse_gray, stack,
                                     buf_library=buf_library, confirm_frames=confirm_frames,
-                                    compute_lanes=compute_lanes)
+                                    compute_lanes=compute_lanes, enable_lac=enable_lac,
+                                    enable_lad=enable_lad)
             rospy.loginfo("GPU compute topology: %d detection lane(s), TF %s",
                           compute_lanes, "on the lane stream" if compute_lanes == 1 else "on a shared stream")
         else:
             pipe = CudaPipeline(library, width, height, warp_backend=warp_backend)
         torch.cuda.synchronize()
-        rospy.loginfo("GPU path initialized: NVDEC, MFE, TF, LAC, LAD (%dx%d)", width, height)
+        rospy.loginfo("GPU path initialized: NVDEC, MFE, TF (%dx%d), LAC=%s LAD=%s confirm_frames=%d",
+                      width, height, enable_lac, enable_lad, confirm_frames)
         rospy.loginfo("MFE warp backend: %s; pipeline mode: %s", warp_backend, mode)
         rospy.loginfo("GPU decoder backend: %s", decoder_backend)
         prefetched = deque()
@@ -264,7 +272,7 @@ def main():
             publish_started = time.perf_counter() if wall_bins is not None else None
             detections.publish(build_detection_array(
                 header, width, height, [row[:4] for row in data], [row[4] for row in data],
-                ["lad"] * verified_count + ["tf"] * reuse_count, candidates, *stage_ms,
+                [detection_source] * verified_count + ["tf"] * reuse_count, candidates, *stage_ms,
                 track_ids=[int(row[5]) for row in data]))
             if wall_bins is not None:
                 preview_started = time.perf_counter()

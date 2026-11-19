@@ -14,7 +14,7 @@
   <arg name="warp_backend" default="opencv"/>
   <arg name="pipeline_mode" default="parity"/>
   <arg name="dispatch_idle" default="true"/>
-  <arg name="confirm_frames" default="0"/>
+  <arg name="confirm_frames" default="$(eval 3 if arg('pipeline_mode') == 'parity' else 0)"/>
   <arg name="limit" default="0"/>
   <arg name="preview" default="true"/>
   <arg name="preview_library" default="/tmp/mgmd-cuda-preview.so"/>

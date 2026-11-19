@@ -118,7 +118,7 @@ def main():
     buf_library = get("~buf_ccl_library", "/tmp/mgmd-buf-ccl.so")
     if mode not in ("legacy", "parity"):
         raise ValueError("Expected legacy or parity")
-    confirm_frames = get("~confirm_frames", 0)
+    confirm_frames = get("~confirm_frames", 3 if mode == "parity" else 0)
     if confirm_frames < 0 or (confirm_frames and (mode != "parity" or confirm_frames < 2)):
         raise ValueError("confirm_frames must be 0 (disabled) or at least 2 in parity mode")
     tracked_total = reused_total = reused_windows = 0

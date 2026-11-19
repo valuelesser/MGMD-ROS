@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-19",
+  "accepted_experiment_commit": "d4a93f75409f44080a153af49a8c3f0578f6d42e",
+  "video": "phantom30.mp4",
+  "resolution": [1920, 1080],
+  "source_fps": "30000/1001",
+  "config": "ROS parity, default confirm_frames=3, idle dispatch, realtime, OpenCV CUDA decode and warp, 12 warmup windows, transparent CUDA HUD, Windows FFplay",
+  "read": 1498,
+  "processed": 1208,
+  "skipped": 288,
+  "windows_with_results": 978,
+  "tf_track_rows": 88133,
+  "reused_rows": 827,
+  "windows_with_reuse": 827,
+  "wall_s": 49.991,
+  "fps": 24.16,
+  "source_to_ros_publish_ms": {"p50": 123.09, "p95": 189.65},
+  "stage_mean_ms": {"MFE": 40.72, "TF": 3.38, "LAC": 8.94, "LAD": 18.07},
+  "stage_p95_ms": {"MFE": 70.65, "TF": 6.37, "LAC": 24.40, "LAD": 55.34},
+  "windows_temp_logs": ["mgmd-master-confirmed-20261119.log", "mgmd-master-confirmed-20261119.err"],
+  "validation": "Full playback completed cleanly and FFplay window observed; per-frame accuracy and bounding box comparison pending."
+}

@@ -1,6 +1,6 @@
 # ROS GPU 双路集成规格
 
-版本 0.1.2，目标分支 `master`。`track_gpu.launch` 默认用两条端到端计算流处理 MFE、LAC 和 LAD，空闲的流直接接下一帧。两路共用一条 TF 流并按帧序更新和发布。CUDA 预览在设备端绘制绿框与透明 HUD，字形使用 4 倍超采样、比例字距、白字和细黑描边，发布原尺寸 `bgr8` 图像。
+版本 0.1.3，目标分支 `master`。`track_gpu.launch` 默认用两条端到端计算流处理 MFE、LAC 和 LAD，空闲的流直接接下一帧。两路共用一条 TF 流并按帧序更新和发布。CUDA 预览在设备端绘制绿框与透明 HUD，字形使用 4 倍超采样、比例字距、白字和细黑描边，发布原尺寸 `bgr8` 图像。
 
 - GPU 灰度缓存按源帧号复用实际重叠图像。
 - 每路的 BUF 八连通标记绑定自身 CUDA 流。双路解除应用共享锁，ORT 完成等待限制在各自 CUDA 流。
@@ -27,6 +27,10 @@ OpenCV Python 需包含 CUDA LK、remap 和 cudacodec，ORT 使用 CUDA EP。25 
 在已有 ROS Noetic 工作区重新运行 `catkin_make` 并加载 `devel/setup.bash`。将 `mgmd-linux` 和 CUDA OpenCV Python 模块目录加入 `PYTHONPATH`，将对应的 OpenCV、ORT/CUDA 和 NVDEC 动态库目录加入 `LD_LIBRARY_PATH`。设置 `MGMD_YOLOV5_DIR` 指向已有 YOLOv5 源码目录。可选 libav 解码库可用 `cc -O3 -shared -fPIC mgmd_onnx/cuda_decoder.c -o /tmp/mgmd-cuda-decoder.so $(pkg-config --cflags --libs libavformat libavcodec libavutil)` 编译。
 
 ## 维护与证据
+
+2026-11-19 采纳 `perf-confirmed-track-skip@d4a93f7` 的轨迹复用。双路 `parity` 默认 `confirm_frames:=3`，同一 TF ID 连续三个源帧输出 LAD 检测后，后续帧以当前 TF 框和最近 LAD 置信度发布 `source=tf`，跳过该目标的 LAC/LAD。消失或换 ID 后重新确认，已在途窗口可能滞后应用状态切换。`confirm_frames:=0` 可恢复逐帧模型复核。`legacy` 默认关闭该功能。规则、风险与实验原始对照见 [确认轨迹规格](SPEC-PERF-CONFIRMED-TRACK.md)。
+
+0.1.3 验收：合入后的节点和 launch 在现有 Docker 独立运行副本中，以 1920×1080、29.97 Hz、12 窗口预热、Windows FFplay 和 CUDA HUD 完成 `phantom30` 全片回放。未手动指定确认参数，日志确认为 `confirm_frames=3`。读取 1,498 帧，处理 1,208 个窗口，跳过 288；827 个窗口复用了已确认轨迹。实际 24.16 FPS，源帧到 ROS 发布 P50/P95 为 123.09/189.65 ms。此轮验证默认入口和全片运行，尚未逐帧对拍框偏移及准确率。[验收摘要](../outputs/master_confirmed_tracks_20261119/_summary.json)
 
 参考源分支 `SPEC-PERF-SINGLE` §1.3、§1.5、§1.7–1.8、§1.13。历史全帧去同步对照为 20.49 → 23.53 FPS。之后每轮将代码、规格版本、验证结果同步提交，检查 diff 和提交范围，推送后核对远端。
 

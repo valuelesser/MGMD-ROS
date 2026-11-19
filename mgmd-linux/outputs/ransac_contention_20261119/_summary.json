@@ -1,0 +1,432 @@
+{
+  "date": "2026-11-19",
+  "base_commit": "df30500",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "video": "phantom30.mp4",
+  "matched_ros_config": "1920x1080, limit=302, 300 identical windows, no realtime pacing, 12 warmup windows, confirm_frames=3, serialized test runs, CUDA HUD, no FFplay subscriber",
+  "matched_ros_original": [
+    {
+      "streams": 1,
+      "cache_scale": false,
+      "fps": 23.66,
+      "wall_s": 12.678,
+      "windows_with_results": 297,
+      "stages_ms": {
+        "MFE": {
+          "mean": 23.94,
+          "p95": 27.65
+        },
+        "TF": {
+          "mean": 2.2,
+          "p95": 3.71
+        },
+        "LAC": {
+          "mean": 5.35,
+          "p95": 12.08
+        },
+        "LAD": {
+          "mean": 8.45,
+          "p95": 23.49
+        }
+      },
+      "ransac_ms": {
+        "mean": 6.346,
+        "p50": 6.191,
+        "p95": 9.185
+      },
+      "log": "matched-1a.log"
+    },
+    {
+      "streams": 2,
+      "cache_scale": false,
+      "fps": 28.31,
+      "wall_s": 10.596,
+      "windows_with_results": 295,
+      "stages_ms": {
+        "MFE": {
+          "mean": 35.32,
+          "p95": 46.34
+        },
+        "TF": {
+          "mean": 3.66,
+          "p95": 6.79
+        },
+        "LAC": {
+          "mean": 12.08,
+          "p95": 26.0
+        },
+        "LAD": {
+          "mean": 14.92,
+          "p95": 45.12
+        }
+      },
+      "ransac_ms": {
+        "mean": 11.478,
+        "p50": 11.168,
+        "p95": 21.095
+      },
+      "log": "matched-2a.log"
+    },
+    {
+      "streams": 2,
+      "cache_scale": false,
+      "fps": 29.09,
+      "wall_s": 10.312,
+      "windows_with_results": 297,
+      "stages_ms": {
+        "MFE": {
+          "mean": 34.46,
+          "p95": 45.02
+        },
+        "TF": {
+          "mean": 3.66,
+          "p95": 6.55
+        },
+        "LAC": {
+          "mean": 11.67,
+          "p95": 26.21
+        },
+        "LAD": {
+          "mean": 14.61,
+          "p95": 44.98
+        }
+      },
+      "ransac_ms": {
+        "mean": 10.776,
+        "p50": 10.128,
+        "p95": 18.391
+      },
+      "log": "matched-2b.log"
+    },
+    {
+      "streams": 1,
+      "cache_scale": false,
+      "fps": 23.97,
+      "wall_s": 12.514,
+      "windows_with_results": 297,
+      "stages_ms": {
+        "MFE": {
+          "mean": 23.97,
+          "p95": 27.99
+        },
+        "TF": {
+          "mean": 2.2,
+          "p95": 3.77
+        },
+        "LAC": {
+          "mean": 5.25,
+          "p95": 11.71
+        },
+        "LAD": {
+          "mean": 7.95,
+          "p95": 22.73
+        }
+      },
+      "ransac_ms": {
+        "mean": 6.286,
+        "p50": 6.046,
+        "p95": 9.248
+      },
+      "log": "matched-1b.log"
+    }
+  ],
+  "matched_ros_cached_scale": [
+    {
+      "streams": 2,
+      "cache_scale": true,
+      "fps": 28.98,
+      "wall_s": 10.352,
+      "windows_with_results": 297,
+      "stages_ms": {
+        "MFE": {
+          "mean": 34.44,
+          "p95": 48.2
+        },
+        "TF": {
+          "mean": 3.31,
+          "p95": 6.14
+        },
+        "LAC": {
+          "mean": 12.04,
+          "p95": 28.57
+        },
+        "LAD": {
+          "mean": 14.25,
+          "p95": 43.14
+        }
+      },
+      "ransac_ms": {
+        "mean": 10.509,
+        "p50": 9.096,
+        "p95": 21.208
+      },
+      "log": "cached-2.log"
+    },
+    {
+      "streams": 1,
+      "cache_scale": true,
+      "fps": 24.21,
+      "wall_s": 12.391,
+      "windows_with_results": 297,
+      "stages_ms": {
+        "MFE": {
+          "mean": 22.76,
+          "p95": 26.74
+        },
+        "TF": {
+          "mean": 2.21,
+          "p95": 3.74
+        },
+        "LAC": {
+          "mean": 5.33,
+          "p95": 11.28
+        },
+        "LAD": {
+          "mean": 8.71,
+          "p95": 25.03
+        }
+      },
+      "ransac_ms": {
+        "mean": 5.16,
+        "p50": 4.344,
+        "p95": 8.396
+      },
+      "log": "cached-1.log"
+    }
+  ],
+  "fixed_lk_microbenchmark": {
+    "input": "12 forward and backward LK outputs from the first 8 decoded phantom30 frames",
+    "resolution": [
+      1920,
+      1080
+    ],
+    "num_keypoints": 600,
+    "ransac_hypotheses": 256,
+    "variants": {
+      "original_eager": {
+        "1_streams_run_1": {
+          "cuda_event_ms": {
+            "mean": 2.647,
+            "p50": 2.281,
+            "p95": 4.174
+          },
+          "host_call_ms": {
+            "mean": 2.605,
+            "p50": 2.252,
+            "p95": 4.127
+          },
+          "samples": 144
+        },
+        "2_streams_run_1": {
+          "cuda_event_ms": {
+            "mean": 3.538,
+            "p50": 3.359,
+            "p95": 5.474
+          },
+          "host_call_ms": {
+            "mean": 3.48,
+            "p50": 3.299,
+            "p95": 5.417
+          },
+          "samples": 288
+        },
+        "2_streams_run_2": {
+          "cuda_event_ms": {
+            "mean": 3.587,
+            "p50": 3.369,
+            "p95": 5.451
+          },
+          "host_call_ms": {
+            "mean": 3.546,
+            "p50": 3.324,
+            "p95": 5.351
+          },
+          "samples": 288
+        },
+        "1_streams_run_2": {
+          "cuda_event_ms": {
+            "mean": 2.73,
+            "p50": 2.379,
+            "p95": 3.969
+          },
+          "host_call_ms": {
+            "mean": 2.686,
+            "p50": 2.337,
+            "p95": 3.917
+          },
+          "samples": 144
+        }
+      },
+      "cached_eager": {
+        "1_streams_run_1": {
+          "cuda_event_ms": {
+            "mean": 1.998,
+            "p50": 1.628,
+            "p95": 3.41
+          },
+          "host_call_ms": {
+            "mean": 1.727,
+            "p50": 1.289,
+            "p95": 3.34
+          },
+          "samples": 144
+        },
+        "2_streams_run_1": {
+          "cuda_event_ms": {
+            "mean": 3.132,
+            "p50": 3.075,
+            "p95": 4.623
+          },
+          "host_call_ms": {
+            "mean": 2.952,
+            "p50": 2.793,
+            "p95": 4.54
+          },
+          "samples": 288
+        },
+        "2_streams_run_2": {
+          "cuda_event_ms": {
+            "mean": 3.251,
+            "p50": 3.139,
+            "p95": 4.875
+          },
+          "host_call_ms": {
+            "mean": 3.093,
+            "p50": 2.92,
+            "p95": 4.822
+          },
+          "samples": 288
+        },
+        "1_streams_run_2": {
+          "cuda_event_ms": {
+            "mean": 2.601,
+            "p50": 2.472,
+            "p95": 4.14
+          },
+          "host_call_ms": {
+            "mean": 2.388,
+            "p50": 2.294,
+            "p95": 4.052
+          },
+          "samples": 144
+        }
+      },
+      "cached_cuda_graph": {
+        "1_streams_run_1": {
+          "cuda_event_ms": {
+            "mean": 0.93,
+            "p50": 0.923,
+            "p95": 0.976
+          },
+          "host_call_ms": {
+            "mean": 0.039,
+            "p50": 0.028,
+            "p95": 0.107
+          },
+          "wall_batch_ms": {
+            "mean": 0.996,
+            "p50": 0.981,
+            "p95": 1.081
+          },
+          "samples": 144
+        },
+        "2_streams_run_1": {
+          "cuda_event_ms": {
+            "mean": 1.305,
+            "p50": 1.296,
+            "p95": 1.491
+          },
+          "host_call_ms": {
+            "mean": 0.041,
+            "p50": 0.027,
+            "p95": 0.117
+          },
+          "wall_batch_ms": {
+            "mean": 1.465,
+            "p50": 1.39,
+            "p95": 1.785
+          },
+          "samples": 288
+        },
+        "2_streams_run_2": {
+          "cuda_event_ms": {
+            "mean": 1.302,
+            "p50": 1.295,
+            "p95": 1.484
+          },
+          "host_call_ms": {
+            "mean": 0.042,
+            "p50": 0.026,
+            "p95": 0.107
+          },
+          "wall_batch_ms": {
+            "mean": 1.48,
+            "p50": 1.389,
+            "p95": 1.749
+          },
+          "samples": 288
+        },
+        "1_streams_run_2": {
+          "cuda_event_ms": {
+            "mean": 0.935,
+            "p50": 0.922,
+            "p95": 1.003
+          },
+          "host_call_ms": {
+            "mean": 0.047,
+            "p50": 0.029,
+            "p95": 0.117
+          },
+          "wall_batch_ms": {
+            "mean": 1.008,
+            "p50": 0.992,
+            "p95": 1.1
+          },
+          "samples": 144
+        }
+      }
+    }
+  },
+  "scale_cuda_api_trace": {
+    "ranges": {
+      "EAGER_CACHED": 32,
+      "EAGER_ORIGINAL": 32,
+      "SCALE_COPY": 40
+    },
+    "runtime": [
+      {
+        "range": "EAGER_CACHED",
+        "api": "cudaMemcpyAsync_v3020",
+        "calls": 224,
+        "total_ms": 3.52
+      },
+      {
+        "range": "EAGER_ORIGINAL",
+        "api": "cudaMemcpyAsync_v3020",
+        "calls": 256,
+        "total_ms": 3.714
+      },
+      {
+        "range": "EAGER_ORIGINAL",
+        "api": "cudaStreamSynchronize_v3020",
+        "calls": 32,
+        "total_ms": 21.993
+      },
+      {
+        "range": "SCALE_COPY",
+        "api": "cudaMemcpyAsync_v3020",
+        "calls": 40,
+        "total_ms": 0.567
+      },
+      {
+        "range": "SCALE_COPY",
+        "api": "cudaStreamSynchronize_v3020",
+        "calls": 40,
+        "total_ms": 27.559
+      }
+    ],
+    "kernel_table": false
+  },
+  "scope": "Cached scale and CUDA Graph used in isolated diagnostics only. Original algorithm uses both forward and backward directions per window.",
+  "container_evidence": "/tmp/mgmd-ransac-profile-20261119/"
+}

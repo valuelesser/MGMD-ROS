@@ -1,5 +1,6 @@
 """OpenCV NVDEC reader for verified constant-rate source ranges."""
 
+from collections import deque
 from time import perf_counter
 
 import cv2
@@ -19,7 +20,7 @@ class BgrDeviceView:
 
 
 class OpenCvCudaDecoder:
-    def __init__(self, video, leading_frames):
+    def __init__(self, video, leading_frames, event_handoff=False):
         if leading_frames < 0:
             raise ValueError("OpenCV leading frame count cannot be negative")
         if not hasattr(cv2, "cudacodec"):
@@ -29,6 +30,9 @@ class OpenCvCudaDecoder:
         if not self.reader.set(colorFormat=cv2.cudacodec.BGR):
             raise RuntimeError("Could not select OpenCV GPU BGR output")
         self.seq = 0
+        self.decode_stream = torch.cuda.Stream() if event_handoff else None
+        self.cv_stream = cv2.cuda.wrapStream(self.decode_stream.cuda_stream) if event_handoff else None
+        self.pending = deque()
         for _ in range(leading_frames):
             ok, _ = self.reader.nextFrame()
             if not ok:
@@ -37,7 +41,8 @@ class OpenCvCudaDecoder:
 
     def read(self, profile=None):
         started = perf_counter() if profile is not None else None
-        ok, frame = self.reader.nextFrame()
+        ok, frame = (self.reader.nextFrame(stream=self.cv_stream) if self.cv_stream is not None
+                     else self.reader.nextFrame())
         if not ok:
             if profile is not None:
                 profile["decode_opencv_bgr"] += perf_counter() - started
@@ -47,10 +52,17 @@ class OpenCvCudaDecoder:
         image = torch.as_tensor(BgrDeviceView(frame), device="cuda")
         if image.data_ptr() != frame.cudaPtr():
             raise RuntimeError("OpenCV decoder frame copied during Torch import")
-        torch.cuda.current_stream().synchronize()
+        ready = None
+        if self.decode_stream is None:
+            torch.cuda.current_stream().synchronize()
+        else:
+            ready = self.decode_stream.record_event()
+            while self.pending and self.pending[0][0].query():
+                self.pending.popleft()
+            self.pending.append((ready, frame))
         if profile is not None:
             profile["decode_opencv_bgr"] += perf_counter() - started
-        decoded = CudaFrame(image, self.seq, None, None, (frame.step,), frame)
+        decoded = CudaFrame(image, self.seq, None, None, (frame.step,), frame, ready)
         self.seq += 1
         return decoded
 
@@ -58,4 +70,7 @@ class OpenCvCudaDecoder:
         return self
 
     def __exit__(self, exc_type, exc, traceback):
+        if self.decode_stream is not None:
+            self.decode_stream.synchronize()
+            self.pending.clear()
         self.reader = None

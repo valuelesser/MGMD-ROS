@@ -10,6 +10,7 @@ from mgmd.lad import _inject_syspath, yolov5_dir
 from mgmd.mfe import MFEConfig
 from mgmd_onnx.cuda_mfe import CudaMfe
 from mgmd_onnx.cuda_models import CudaModel
+from mgmd_onnx.resident_lad import combine_heads, split_heads
 from mgmd_onnx.cuda_tf import CudaTf
 
 
@@ -22,7 +23,7 @@ def cuda_model(path, stream=None, default_stream_lock=None, enqueue_only=False):
     if stream is not None:
         provider = (provider, {"device_id": stream.device.index,
                                "user_compute_stream": str(stream.cuda_stream)})
-    session = ort.InferenceSession(str(path), options, providers=[provider])
+    session = ort.InferenceSession(path if isinstance(path, bytes) else str(path), options, providers=[provider])
     session.disable_fallback()
     run_options = None
     if enqueue_only:
@@ -34,7 +35,8 @@ def cuda_model(path, stream=None, default_stream_lock=None, enqueue_only=False):
 class CudaPipeline:
     def __init__(self, library, width, height, lac_threshold=.5, lad_threshold=.5,
                  warp_backend="torch", mfe_stream=None, model_stream=None,
-                 async_lad=False, tracker=None, shared_lock=None, enable_lac=True, enable_lad=True):
+                 async_lad=False, tracker=None, shared_lock=None, enable_lac=True, enable_lad=True,
+                 resident_ops=None):
         # OpenCV CCL uses the default stream and cannot run during ORT capture.
         default_stream_lock = shared_lock
         if default_stream_lock is None and mfe_stream is not None and model_stream is not None:
@@ -49,10 +51,17 @@ class CudaPipeline:
                                   enqueue_only=async_lad)
             self.lac_axis = (torch.arange(32, device="cuda") + .5) / 32
         if enable_lad:
-            self.lad = cuda_model(config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx",
+            lad_path = config.WEIGHTS_DIR / "yolov5s_GLAD-crop.onnx"
+            self.lad = cuda_model(split_heads(lad_path) if resident_ops and resident_ops.split_head else lad_path,
                                   model_stream, default_stream_lock, enqueue_only=async_lad)
             _inject_syspath(yolov5_dir())
             self.lad_axis = torch.arange(320, device="cuda")
+        self.resident_ops = resident_ops
+        if resident_ops:
+            self.image_bounds = torch.tensor((width, height), dtype=torch.float64, device="cuda")
+            for model in (self.lac, self.lad):
+                if model:
+                    model.enqueue_stream = model_stream
         self.lac_threshold = lac_threshold
         self.lad_threshold = lad_threshold
         self.width, self.height = width, height
@@ -60,7 +69,7 @@ class CudaPipeline:
     def _classify(self, image, boxes):
         lo = (boxes[:, :2].trunc() - 2).clamp_min(0).float()
         hi = torch.minimum(boxes[:, 2:].round() + 2,
-                           boxes.new_tensor((self.width, self.height))).float()
+                           self.image_bounds if self.resident_ops else boxes.new_tensor((self.width, self.height))).float()
         size = (hi - lo).clamp_min(1)
         sample = lo[:, None, :] + self.lac_axis[None, :, None] * size[:, None, :] - .5
         sample = torch.maximum(lo[:, None, :], torch.minimum(sample, hi[:, None, :] - 1))
@@ -79,8 +88,13 @@ class CudaPipeline:
         x = (center[0] - 160).round().long().clamp(0, self.width - 320)
         y = (center[1] - 160).round().long().clamp(0, self.height - 320)
         crop = image[:, :, y + self.lad_axis[:, None], x + self.lad_axis[None, :]]
-        raw = self.lad.run(crop.div(255).contiguous())[0]
-        det = non_max_suppression(raw, self.lad_threshold, .45)[0]
+        values = self.lad.run(crop.div(255).contiguous())
+        if self.resident_ops:
+            raw = combine_heads(values) if self.resident_ops.split_head else values[0]
+            selected = self.resident_ops.select_box(raw, self.lad_threshold)
+            selected[:, :4] += torch.stack((x, y, x, y))
+            return selected
+        det = non_max_suppression(values[0], self.lad_threshold, .45)[0]
         if det.shape[0] == 0:
             return det.new_empty((0, 5))
         coords = det[:, :4].round().clamp(0, 320)
@@ -113,10 +127,13 @@ class CudaPipeline:
             timing[3].record()
         return image, tracks, ids, status
 
-    def track(self, boxes, scores, seq):
-        result = self.tf.step(boxes, scores, seq)
+    def track(self, boxes, scores, seq, count=None):
+        result = self.tf.step(boxes, scores, seq, count)
         rows = torch.arange(result.boxes.shape[0], device=boxes.device)
         valid = rows < result.count
+        if self.resident_ops:
+            indices = valid.nonzero().flatten()
+            return result.boxes.index_select(0, indices), result.ids.index_select(0, indices), result.status
         return result.boxes[valid], result.ids[valid], result.status
 
     @staticmethod
@@ -132,6 +149,10 @@ class CudaPipeline:
         if tracks.shape[0]:
             scores = self._classify(image, tracks)
             selected = scores >= self.lac_threshold
+            if self.resident_ops:
+                indices = selected.nonzero().flatten()
+                return (tracks.index_select(0, indices), ids.index_select(0, indices),
+                        scores.index_select(0, indices) if self.lad is None else None)
             return tracks[selected], ids[selected], scores[selected] if self.lad is None else None
         return tracks, ids, tracks.new_empty((0,))
 
@@ -141,4 +162,7 @@ class CudaPipeline:
             box = self._refine(image, track)
             if box.shape[0]:
                 detections.append(torch.cat((box, track_id.reshape(1, 1)), dim=1))
+        if self.resident_ops and detections:
+            rows = torch.cat(detections)
+            return rows[rows[:, 4] > 0]
         return torch.cat(detections) if detections else tracks.new_empty((0, 6))

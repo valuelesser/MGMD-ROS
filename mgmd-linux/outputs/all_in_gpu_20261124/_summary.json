@@ -1,0 +1,275 @@
+{
+  "date": "2026-11-24",
+  "base": "046323d996b7e3c5ab464ff6ec260651cbc50368",
+  "video": "/data/videos/phantom30.mp4",
+  "desktop_ros_log_extract": {
+    "baseline": [
+      "GPU track confirmation: frames=3 tf_track_rows=78806 reused_rows=659 windows_with_reuse=659",
+      "GPU playback startup: first_publish=109.73ms windows_first_3s=54",
+      "GPU idle dispatch: queued_peak=4 wait_for_lane_ms_per_window=35.769 source_ms_per_window={}",
+      "GPU summary: read=1498 processed=1075 skipped=421 detection_frames=862 wall=50.021s fps=21.49 compute_mean=38.34ms",
+      "GPU source-to-publish latency (ms p50/p95): 139.37/201.71",
+      "GPU stages (ms mean/p95): MFE=46.70/74.20, TF=3.47/6.42, LAC=10.06/26.39, LAD=21.31/62.26; slowest=MFE",
+      "MFE profile: RANSAC n=1075 mean=16.571 p50=14.932 p95=34.809 ms",
+      "MFE profile: region_stats n=1075 mean=6.893 p50=5.857 p95=14.007 ms",
+      "MFE profile: warp n=1075 mean=5.944 p50=4.958 p95=11.300 ms",
+      "MFE profile: morphology n=1075 mean=4.752 p50=4.136 p95=7.679 ms",
+      "MFE profile: LK n=1075 mean=3.960 p50=3.561 p95=8.050 ms",
+      "MFE profile: gray n=1075 mean=3.766 p50=3.031 p95=8.875 ms",
+      "MFE profile: threshold_median n=1075 mean=3.689 p50=3.096 p95=6.859 ms",
+      "MFE profile: CCL n=1075 mean=0.918 p50=0.873 p95=1.458 ms"
+    ],
+    "resident_original_head": [
+      "GPU track confirmation: frames=3 tf_track_rows=78046 reused_rows=694 windows_with_reuse=694",
+      "GPU playback startup: first_publish=104.76ms windows_first_3s=59",
+      "GPU idle dispatch: queued_peak=5 wait_for_lane_ms_per_window=35.517 source_ms_per_window={}",
+      "GPU summary: read=1498 processed=1073 skipped=423 detection_frames=867 wall=50.057s fps=21.44 compute_mean=39.04ms",
+      "GPU source-to-publish latency (ms p50/p95): 150.35/214.97",
+      "GPU stages (ms mean/p95): MFE=47.66/78.72, TF=3.16/6.23, LAC=10.39/26.46, LAD=20.63/60.41; slowest=MFE",
+      "MFE profile: RANSAC n=1073 mean=20.701 p50=18.832 p95=40.862 ms",
+      "MFE profile: warp n=1073 mean=6.701 p50=5.550 p95=14.027 ms",
+      "MFE profile: morphology n=1073 mean=4.864 p50=4.181 p95=7.738 ms",
+      "MFE profile: LK n=1073 mean=4.151 p50=3.752 p95=8.219 ms",
+      "MFE profile: threshold_median n=1073 mean=4.061 p50=3.381 p95=8.166 ms",
+      "MFE profile: gray n=1073 mean=3.336 p50=2.599 p95=7.968 ms",
+      "MFE profile: region_stats n=1073 mean=2.880 p50=1.783 p95=7.219 ms",
+      "MFE profile: CCL n=1073 mean=0.922 p50=0.871 p95=1.465 ms"
+    ],
+    "resident_split_head": [
+      "GPU track confirmation: frames=3 tf_track_rows=82692 reused_rows=772 windows_with_reuse=772",
+      "GPU playback startup: first_publish=103.26ms windows_first_3s=55",
+      "GPU idle dispatch: queued_peak=5 wait_for_lane_ms_per_window=33.455 source_ms_per_window={}",
+      "GPU summary: read=1498 processed=1126 skipped=370 detection_frames=911 wall=50.068s fps=22.49 compute_mean=36.24ms",
+      "GPU source-to-publish latency (ms p50/p95): 136.33/213.86",
+      "GPU stages (ms mean/p95): MFE=44.02/77.95, TF=2.98/5.76, LAC=9.52/25.82, LAD=20.19/64.56; slowest=MFE",
+      "MFE profile: RANSAC n=1126 mean=18.732 p50=16.130 p95=39.984 ms",
+      "MFE profile: warp n=1126 mean=6.363 p50=5.309 p95=13.165 ms",
+      "MFE profile: morphology n=1126 mean=4.636 p50=4.163 p95=7.378 ms",
+      "MFE profile: threshold_median n=1126 mean=3.875 p50=3.167 p95=6.806 ms",
+      "MFE profile: LK n=1126 mean=3.790 p50=3.255 p95=7.930 ms",
+      "MFE profile: gray n=1126 mean=2.998 p50=2.000 p95=7.841 ms",
+      "MFE profile: region_stats n=1126 mean=2.682 p50=1.736 p95=6.918 ms",
+      "MFE profile: CCL n=1126 mean=0.902 p50=0.874 p95=1.414 ms"
+    ]
+  },
+  "lockstep": {
+    "verify": {
+      "windows": 300,
+      "decoded": 302,
+      "detections": 343,
+      "reused": 290,
+      "mismatched_windows": 0,
+      "max_conf_error": 0.0008040070533752441,
+      "hud_equal": true
+    },
+    "original-head": {
+      "windows": 300,
+      "decoded": 302,
+      "detections": 343,
+      "reused": 290,
+      "mismatched_windows": 0,
+      "max_conf_error": 0.0008078217506408691,
+      "hud_equal": true
+    },
+    "control": {
+      "windows": 300,
+      "decoded": 302,
+      "detections": 343,
+      "reused": 290,
+      "mismatched_windows": 0,
+      "max_conf_error": 0.0011186599731445312,
+      "hud_equal": true
+    },
+    "controlled": {
+      "windows": 1496,
+      "decoded": 1498,
+      "detections": 1408,
+      "reused": 1107,
+      "mismatched_windows": 0,
+      "max_conf_error": 0,
+      "hud_equal": true
+    },
+    "audit": {
+      "windows": 32,
+      "decoded": 34,
+      "detections": 31,
+      "reused": 27,
+      "mismatched_windows": 0,
+      "max_conf_error": 0,
+      "hud_equal": true
+    }
+  },
+  "batch_probe": {
+    "lac112_ms": 0.59,
+    "lac1024_ms": 2.255,
+    "lac_max_logit_delta": 0.001735687255859375,
+    "lad1_ms": 4.025,
+    "lad4_serial_ms": 18.503,
+    "lad4_batch_ms": 8.105,
+    "lad_raw_max_delta": [
+      0.142730712890625,
+      0.105682373046875,
+      0.23741912841796875,
+      0.04117774963378906,
+      0.00007444620132446289,
+      0.000015020370483398438
+    ]
+  },
+  "fixed_slots": {
+    "slots": [
+      {
+        "windows": 64,
+        "measured": 62,
+        "max_lad": 5,
+        "overflow_windows": 5,
+        "differing_windows_within_capacity": 0,
+        "max_conf_delta": 0,
+        "mean_ms": 39.19352525280368
+      },
+      {
+        "fixed-MFE-TF-LAC-LAD": {
+          "D2D_calls": 1240,
+          "D2D_bytes": 25857968
+        }
+      }
+    ],
+    "slots8": [
+      {
+        "slots": 8,
+        "windows": 64,
+        "measured": 62,
+        "max_lad": 5,
+        "overflow_windows": 0,
+        "differing_windows_within_capacity": 0,
+        "max_conf_delta": 0,
+        "mean_ms": 47.98798751831055
+      },
+      {
+        "fixed-MFE-TF-LAC-LAD": {
+          "D2D_calls": 1488,
+          "D2D_bytes": 32107568
+        }
+      }
+    ],
+    "full8": [
+      {
+        "slots": 8,
+        "windows": 1496,
+        "measured": 1494,
+        "max_lad": 8,
+        "overflow_windows": 0,
+        "differing_windows_within_capacity": 0,
+        "max_conf_delta": 0,
+        "mean_ms": 45.96482531229655
+      },
+      {
+        "D2D_bytes": 773688816,
+        "D2D_calls": 35856
+      }
+    ]
+  },
+  "stage_probe": {
+    "base/read": {
+      "stream_waits": 34
+    },
+    "base/_homography": {
+      "D2D_calls": 448,
+      "D2D_bytes": 9858048
+    },
+    "base/_boxes": {
+      "D2H_calls": 64,
+      "D2H_bytes": 256,
+      "stream_waits": 96,
+      "H2D_calls": 32,
+      "H2D_bytes": 32,
+      "D2D_calls": 96,
+      "D2D_bytes": 65888
+    },
+    "base/track": {
+      "D2H_calls": 64,
+      "D2H_bytes": 256,
+      "stream_waits": 64
+    },
+    "base/detect": {
+      "event_waits": 32,
+      "H2D_calls": 54,
+      "H2D_bytes": 432,
+      "stream_waits": 189,
+      "D2H_calls": 135,
+      "D2H_bytes": 540,
+      "D2D_calls": 55,
+      "D2D_bytes": 1128
+    },
+    "resident/_homography": {
+      "D2D_calls": 448,
+      "D2D_bytes": 9858048
+    },
+    "resident/track": {
+      "D2H_calls": 32,
+      "D2H_bytes": 128,
+      "stream_waits": 32
+    },
+    "resident/detect": {
+      "event_waits": 32,
+      "D2H_calls": 60,
+      "D2H_bytes": 240,
+      "stream_waits": 60,
+      "D2D_calls": 71,
+      "D2D_bytes": 1896
+    },
+    "base/select_lac": {
+      "H2D_calls": 30,
+      "H2D_bytes": 480,
+      "stream_waits": 120,
+      "D2H_calls": 60,
+      "D2H_bytes": 240
+    },
+    "base/_refine": {
+      "H2D_calls": 152,
+      "H2D_bytes": 1867496,
+      "stream_waits": 86,
+      "D2H_calls": 45,
+      "D2H_bytes": 868,
+      "D2D_calls": 4,
+      "D2D_bytes": 704
+    },
+    "base/refine_tracks": {
+      "D2D_calls": 8,
+      "D2D_bytes": 176
+    },
+    "resident/select_lac": {
+      "D2H_calls": 30,
+      "D2H_bytes": 120,
+      "stream_waits": 30
+    },
+    "resident/_refine": {
+      "D2D_calls": 37,
+      "D2D_bytes": 932400
+    },
+    "resident/refine_tracks": {
+      "D2D_calls": 46,
+      "D2D_bytes": 956,
+      "D2H_calls": 20,
+      "D2H_bytes": 80,
+      "stream_waits": 20
+    },
+    "base/draw": {
+      "H2D_calls": 1,
+      "H2D_bytes": 2056
+    }
+  },
+  "operator_probe": {
+    "base-head": {
+      "H2D_calls": 8,
+      "H2D_bytes": 100944
+    },
+    "resident-nms": {
+      "D2D_calls": 2,
+      "D2D_bytes": 50400
+    },
+    "resident-nms-nonempty": {
+      "D2D_calls": 1,
+      "D2D_bytes": 25200
+    }
+  }
+}

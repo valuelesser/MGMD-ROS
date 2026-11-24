@@ -1,5 +1,6 @@
 """CUDA model stages for the GPU backend, using the existing ONNX sessions."""
 
+from collections import deque
 from contextlib import nullcontext
 
 import numpy as np
@@ -14,6 +15,8 @@ class CudaModel:
     def __init__(self, session, default_stream_lock=None, enqueue_options=None):
         if session.get_providers()[0] != "CUDAExecutionProvider":
             raise ValueError("CUDAExecutionProvider is required")
+        self.pending = deque()
+        self.enqueue_stream = None
         self.session = session
         self.default_stream_lock = default_stream_lock
         self.enqueue_options = enqueue_options
@@ -41,10 +44,17 @@ class CudaModel:
         stream = torch.cuda.current_stream(value.device)
         if self.enqueue_options is not None:
             # Device I/O Binding and the ORT user stream keep input and output ordered.
-            # Release the capture guard before waiting for the submitted GPU work.
+            # Keep the binding and its buffers alive until the final GPU reader finishes.
+            if self.enqueue_stream is not None and stream != self.enqueue_stream:
+                raise RuntimeError("ORT must enqueue on the consumer stream")
+            while self.pending and self.pending[0][0].query():
+                self.pending.popleft()
             with self.default_stream_lock:
                 self.session.run_with_iobinding(binding, self.enqueue_options)
-            stream.synchronize()
+            if self.enqueue_stream is None:
+                stream.synchronize()
+            else:
+                self.pending.append((stream.record_event(), binding, value, outputs))
             return outputs
         stream.synchronize()
         # ORT can capture CUDA work during initialization of a new input shape.

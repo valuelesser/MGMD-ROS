@@ -2,6 +2,8 @@
   <arg name="video" default="/data/videos/phantom30.mp4"/>
   <arg name="rate" default="29.97002997002997"/>
   <arg name="decoder_leading_frames" default="$(eval 25 if arg('video') == '/data/videos/phantom30.mp4' else 0)"/>
+  <arg name="resident_split_head" default="false"/>
+  <arg name="resident_library" default=""/>
   <arg name="enable_lac" default="true"/>
   <arg name="enable_lad" default="true"/>
   <arg name="dual_stream" default="true"/>
@@ -13,6 +15,8 @@
     <arg name="video" value="$(arg video)"/>
     <arg name="rate" value="$(arg rate)"/>
     <arg name="decoder_leading_frames" value="$(arg decoder_leading_frames)"/>
+    <arg name="resident_split_head" value="$(arg resident_split_head)"/>
+    <arg name="resident_library" value="$(arg resident_library)"/>
     <arg name="enable_lac" value="$(arg enable_lac)"/>
     <arg name="enable_lad" value="$(arg enable_lad)"/>
     <arg name="compute_lanes" value="$(eval 2 if arg('dual_stream') else 1)"/>

@@ -147,9 +147,15 @@ def main():
     latency = []
     mfe_samples = defaultdict(list)
     elapsed = 0.
+    resident = None
+    if get("~resident_library", ""):
+        if mode != "parity" or decoder_backend != "opencv":
+            raise ValueError("Resident experiment requires parity and OpenCV NVDEC")
+        from mgmd_onnx.resident_ops import ResidentOps
+        resident = ResidentOps(get("~resident_library"), get("~resident_split_head", False))
     if decoder_backend == "opencv":
         from mgmd_onnx.cuda_opencv_decoder import OpenCvCudaDecoder
-        source = OpenCvCudaDecoder(video, get("~decoder_leading_frames", 0))
+        source = OpenCvCudaDecoder(video, get("~decoder_leading_frames", 0), bool(resident))
     else:
         source = CudaDecoder(get("~decoder_library"), video)
     with torch.inference_mode(), source as decoder, ExitStack() as stack:
@@ -161,7 +167,7 @@ def main():
         gpu_preview = None
         if debug is not None and preview_library:
             from mgmd_onnx.cuda_preview import CudaPreview
-            gpu_preview = CudaPreview(preview_library, first.image)
+            gpu_preview = CudaPreview(preview_library, first.image, resident)
             rospy.loginfo("GPU preview compositor: %dx%d with CUDA boxes and HUD", width, height)
         if enable_lad and min(height, width) < 320:
             raise ValueError("GPU LAD requires both dimensions to be at least 320")
@@ -172,7 +178,7 @@ def main():
             parity = ParityPipeline(library, width, height, warp_backend, reuse_gray, stack,
                                     buf_library=buf_library, confirm_frames=confirm_frames,
                                     compute_lanes=compute_lanes, enable_lac=enable_lac,
-                                    enable_lad=enable_lad)
+                                    enable_lad=enable_lad, resident_ops=resident)
             rospy.loginfo("GPU compute topology: %d detection lane(s), TF %s",
                           compute_lanes, "on the lane stream" if compute_lanes == 1 else "on a shared stream")
         else:
@@ -241,13 +247,21 @@ def main():
             if wall_bins is not None:
                 wall_bins["wait_parity" if parity else "legacy_compute"] += compute_done - begin
             # Detection metadata and the optional display image cross the ROS boundary here.
-            error = status.item()
+            if resident:
+                header_row = boxes.new_zeros((1, 6))
+                header_row[0, :2] = torch.cat((status, candidates))
+                header_data, *data = torch.cat((header_row, boxes)).tolist()
+                error, candidates = map(int, header_data[:2])
+            else:
+                error, data = status.item(), boxes.tolist()
             if error:
                 raise RuntimeError("CUDA TF failed with status {}".format(error))
-            data = boxes.tolist()
             verified_count = len(data) - reuse_count
             if parity and parity.confirmed is not None:
-                parity.confirmed.observe(center.seq, data[:verified_count], data[verified_count:])
+                if resident:
+                    parity.confirmed.observe(center.seq, boxes, reuse_count)
+                else:
+                    parity.confirmed.observe(center.seq, data[:verified_count], data[verified_count:])
                 reused_total += reuse_count
                 reused_windows += bool(reuse_count)
             if wall_bins is not None:

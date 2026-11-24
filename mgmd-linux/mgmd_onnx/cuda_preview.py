@@ -10,7 +10,7 @@ import torch
 class CudaPreview:
     glyph_width, line_height, text_columns, max_lines = 24, 28, 128, 4
 
-    def __init__(self, library, sample):
+    def __init__(self, library, sample, resident_ops=None):
         self.library = C.CDLL(library)
         self.render = self.library.mgmd_render_preview_hud
         self.render.argtypes = [C.c_void_p, C.c_size_t, C.c_void_p, C.c_int, C.c_int,
@@ -23,7 +23,8 @@ class CudaPreview:
         self.host_text = torch.empty((self.max_lines, 2 * self.text_columns + 1), dtype=torch.int16,
                                      pin_memory=True)
         self.text_view = self.host_text.numpy()
-        self.text = torch.empty_like(self.host_text, device=sample.device)
+        self.text = None if resident_ops else torch.empty_like(self.host_text, device=sample.device)
+        self.layout_ptr = resident_ops.mapped_text(self.host_text) if resident_ops else self.text.data_ptr()
         self.image = torch.empty(sample.shape, dtype=torch.uint8, device=sample.device)
         self.host_image = torch.empty(sample.shape, dtype=torch.uint8, pin_memory=True)
 
@@ -65,13 +66,14 @@ class CudaPreview:
             if size:
                 width = max(width, int(ends[-1]))
         with torch.cuda.stream(self.stream):
-            self.text.copy_(self.host_text, non_blocking=True)
+            if self.text is not None:
+                self.text.copy_(self.host_text, non_blocking=True)
             # LAD already rounds pixel coordinates; do not convert confidence or track IDs.
             # Keep the packed coordinates alive until the matching download synchronizes.
             self.boxes = boxes[:, :4].to(torch.float32).contiguous()
             status = self.render(frame.data_ptr(), frame.stride(0), self.image.data_ptr(),
                                  frame.shape[1], frame.shape[0], self.boxes.data_ptr(), len(boxes),
-                                 self.atlas.data_ptr(), self.text.data_ptr(), len(lines), width,
+                                 self.atlas.data_ptr(), self.layout_ptr, len(lines), width,
                                  self.stream.cuda_stream)
         if status:
             raise RuntimeError(f"CUDA preview compositor failed with CUDA status {status}")

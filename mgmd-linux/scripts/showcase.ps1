@@ -15,7 +15,7 @@ foreach ($option in $LaunchArgs) {
 }
 $entry = @'
 set -e
-source "$HOME/mgmd-showcase/mgmd-linux/scripts/showcase_env.sh"
+source "$HOME/mgmd-all-in-gpu/mgmd-linux/scripts/showcase_env.sh"
 if python3 -c 'import rosgraph,sys; sys.exit(0 if rosgraph.is_master_online() else 1)'; then
     echo "ROS master already in use: $ROS_MASTER_URI" >&2
     exit 1

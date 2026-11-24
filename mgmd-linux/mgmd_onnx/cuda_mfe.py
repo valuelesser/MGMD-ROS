@@ -111,6 +111,7 @@ class CudaMfe:
         self._gray_cache = {}
         self._lk_owners = deque()
         self._sync_warp = os.getenv("MGMD_SYNC_MFE_WARP") == "1"
+        self.resident_regions = None
         self.buf_ccl = None
         self.candidate_cv_stream = self.cv_stream
 
@@ -228,6 +229,11 @@ class CudaMfe:
                     torch.cuda.default_stream().synchronize()
             labels_image = self._tensor(labels_mat, "<i4")
         stamp("CCL")
+        if self.resident_regions is not None:
+            ops, capacity = self.resident_regions
+            result = ops.regions(labels_image, self.cfg, capacity)
+            stamp("region_stats")
+            return result
         ids = mask.flatten().nonzero().flatten()
         labels = labels_image.reshape(-1)[ids].long()
         pixel = self.pixel[ids]

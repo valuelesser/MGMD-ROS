@@ -33,6 +33,7 @@ class CudaFrame:
     time_base: tuple
     strides: tuple
     owner: object = None
+    ready: object = None
 
 
 def _to_bgr(y, uv, color_space, full_range):

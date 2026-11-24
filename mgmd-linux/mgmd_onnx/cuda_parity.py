@@ -12,6 +12,7 @@ import torch
 from mgmd_onnx.confirmed_tracks import ConfirmedTracks
 from mgmd_onnx.cuda_buf_ccl import BufCcl
 from mgmd_onnx.cuda_pipeline import CudaPipeline
+from mgmd_onnx.device_confirmation import DeviceConfirmation
 from mgmd_onnx.cuda_tf import CudaTf
 
 
@@ -30,9 +31,10 @@ def handoff(ready, *tensors):
 
 class ParityPipeline:
     def __init__(self, library, width, height, warp, reuse_gray, stack, buf_library,
-                 confirm_frames=0, compute_lanes=2, enable_lac=True, enable_lad=True):
+                 confirm_frames=0, compute_lanes=2, enable_lac=True, enable_lad=True, resident_ops=None):
         self.reuse_gray = reuse_gray
-        self.confirmed = ConfirmedTracks(confirm_frames) if confirm_frames else None
+        confirmation_type = DeviceConfirmation if resident_ops else ConfirmedTracks
+        self.confirmed = confirmation_type(confirm_frames) if confirm_frames else None
         self.streams = [torch.cuda.Stream() for _ in range(compute_lanes)]
         self.tracker_stream = self.streams[0] if compute_lanes == 1 else torch.cuda.Stream()
         self.lock = nullcontext()
@@ -45,7 +47,9 @@ class ParityPipeline:
                                                mfe_stream=stream, model_stream=stream,
                                                tracker=tracker, shared_lock=self.lock,
                                                async_lad=True, enable_lac=enable_lac,
-                                               enable_lad=enable_lad))
+                                               enable_lad=enable_lad, resident_ops=resident_ops))
+                if resident_ops:
+                    self.pipes[-1].mfe.resident_regions = resident_ops, tracker.det_capacity
                 self.pipes[-1].mfe.buf_ccl = BufCcl(buf_library, width, height, stream)
         self.workers = [stack.enter_context(ThreadPoolExecutor(max_workers=1))
                         for _ in self.streams]
@@ -69,6 +73,9 @@ class ParityPipeline:
     def submit(self, lane, window, marks):
         gray_stream = torch.cuda.stream(self.streams[0]) if len(self.streams) == 1 else nullcontext()
         with gray_stream:
+            for frame in window:
+                if frame.ready is not None:
+                    torch.cuda.current_stream().wait_event(frame.ready)
             start = event()
             gray = self.pipes[0].mfe.gray_frames(
                 tuple(frame.image for frame in window),
@@ -143,17 +150,19 @@ class ParityPipeline:
                 if marks is not None:
                     marks.append((name, event()))
 
-            boxes, scores = self.pipes[lane].mfe.candidates_from_gray(gray, stamp)
-            return boxes, scores, start, event()
+            candidates = self.pipes[lane].mfe.candidates_from_gray(gray, stamp)
+            return candidates, start, event()
 
     @torch.inference_mode()
     def track(self, lane, previous, seq):
-        boxes, scores, mfe_start, ready = previous.result()
+        candidates, mfe_start, ready = previous.result()
+        boxes, scores = candidates[:2]
+        count = candidates[2] if len(candidates) == 3 else None
         with torch.cuda.stream(self.tracker_stream):
-            handoff(ready, boxes, scores)
+            handoff(ready, *candidates)
             start = event()
-            tracks, ids, status = self.pipes[lane].track(boxes, scores, seq)
-            return tracks, ids, status, len(boxes), mfe_start, ready, start, event()
+            tracks, ids, status = self.pipes[lane].track(boxes, scores, seq, count)
+            return tracks, ids, status, (len(boxes) if count is None else count), mfe_start, ready, start, event()
 
     @torch.inference_mode()
     def detect(self, lane, center, previous, gray_start, gray_ready):
@@ -165,7 +174,14 @@ class ParityPipeline:
             pipe = self.pipes[lane]
             reused = None
             known = self.confirmed.snapshot if self.confirmed is not None else None
-            if known and len(ids):
+            if pipe.resident_ops and known is not None and len(ids):
+                reuse, known_scores, _ = DeviceConfirmation.match(known, ids)
+                take = reuse.nonzero().flatten()
+                fresh = (~reuse).nonzero().flatten()
+                reused = torch.column_stack((tracks.index_select(0, take), known_scores.index_select(0, take),
+                                             ids.index_select(0, take)))
+                tracks, ids = tracks.index_select(0, fresh), ids.index_select(0, fresh)
+            elif known and len(ids):
                 keys = ids.new_tensor(tuple(known))
                 matches = ids[:, None] == keys
                 reuse, indices = matches.max(dim=1)

@@ -1,6 +1,6 @@
 # GPU 常驻计算实验
 
-`spec_version: 0.1.0` · `branch: exp/all-in-gpu` · `base: exp/confirmed-single-stream@046323d` · 2026-11-24
+`spec_version: 0.1.1` · `branch: exp/all-in-gpu` · `base: exp/confirmed-single-stream@046323d` · 2026-11-25
 
 ## 目标和维护
 
@@ -101,3 +101,27 @@ LD_PRELOAD=/tmp/allgpu-copy-hook.so python3 scripts/probe_resident_slots.py --sl
 完整 phantom30 的 1496 个窗口使用 8 槽复测，最多正好 8 个目标需要 LAD，溢出 0 窗，全部窗口的最终框、ID、置信度与动态参考一致。剔除前两窗，1494 窗的计算段 CUDA 事件均值 45.96 ms。在所拦截的调用中仅记录到 35856 笔 D2D；H2D、D2H、流同步和事件主机等待均为 0。CPU 仍负责发起算子，末端再把打包结果交还给主机。这是独立的单流、逐窗计算实验，未加入 ROS 默认路径。8 槽仅覆盖本片，通用版本需要在超过容量时续批或回退。
 
 [桌面运行日志摘要、锁步比较、传输计数和槽位测试数据](../outputs/all_in_gpu_20261124/_summary.json)
+
+## 0.1.1 ROS 单流桌面对照
+
+2026-11-25 在同一 RTX 3050 Laptop GPU 和 `mgmd-ros` 容器顺序运行原单流、实验单流、实验双流，各完整回放一遍。三组均使用 `phantom30`、1920×1080、源速 30000/1001 Hz、12 窗预热、三帧轨迹确认、CUDA HUD 与 Windows 原生 FFplay，并发布原尺寸 BGR 预览。每组读取 1498 帧。GPU 每 200 ms 在 Windows 主机采样，取 ROS 暖机完毕至回放结束的区间，指标包含整张 GPU 的活动。实验两组均启用拆头及动态目标数。
+
+| 配置 | 实际 FPS | 处理 / 跳过 | 发布延迟 P50 / P95（ms） | 平均 GPU 占用 | 显存峰值（MiB） | MFE / TF / LAC / LAD 均值（ms） |
+|---|---:|---:|---:|---:|---:|---:|
+| 原单流 | 17.40 | 870 / 626 | 104.05 / 159.14 | 50.31% | 1147 | 31.31 / 2.37 / 4.93 / 11.74 |
+| 实验单流 | 20.38 | 1019 / 477 | 98.83 / 149.95 | 52.93% | 1148 | 27.83 / 2.10 / 4.12 / 9.56 |
+| 实验双流 | 23.27 | 1164 / 332 | 126.97 / 201.53 | 59.38% | 1379 | 39.44 / 2.82 / 8.58 / 19.27 |
+
+原单流到实验单流的 FPS 变化为 17.1%，发布 P95 变化为 -5.8%。实验双流对实验单流的 FPS 变化为 14.2%，发布 P95 变化为 34.4%。实时选帧和异步确认使各组处理窗口及复用次数不同，阶段均值不能隔离单项改动的贡献。
+
+MFE 仍是三组中耗时最长的阶段。原单流至实验单流，区域统计均值由 4.375 ms 降至 1.480 ms。实验单流的 RANSAC 为 9.920 ms，实验双流为 16.023 ms。
+
+从 Windows 的 `mgmd-linux` 目录运行。
+
+```powershell
+pwsh -File .\scripts\showcase.ps1 -MasterPort 11575 dual_stream:=false
+pwsh -File .\scripts\showcase.ps1 -MasterPort 11576 dual_stream:=false resident_library:=/tmp/mgmd-all-in-gpu.so resident_split_head:=true
+pwsh -File .\scripts\showcase.ps1 -MasterPort 11577 dual_stream:=true resident_library:=/tmp/mgmd-all-in-gpu.so resident_split_head:=true
+```
+
+[ROS 日志摘要及各阶段数据](../outputs/resident_single_20261125/_summary.json)

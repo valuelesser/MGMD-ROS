@@ -1,0 +1,368 @@
+{
+  "date": "2026-11-25",
+  "code_commit": "82aad65bdf98cfe1e51d3283fa8eafc71223f714",
+  "video": "/data/videos/phantom30.mp4",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "width": 1920,
+  "height": 1080,
+  "source_rate": "30000/1001",
+  "leading_frames": 25,
+  "warmup_windows": 12,
+  "confirm_frames": 3,
+  "viewer": "Windows native FFplay",
+  "gpu_sample_interval_ms": 200,
+  "configurations": {
+    "baseline-single": {
+      "dual_stream": false,
+      "resident_split_head": false
+    },
+    "resident-single": {
+      "dual_stream": false,
+      "resident_library": "/tmp/mgmd-all-in-gpu.so",
+      "resident_split_head": true
+    },
+    "resident-dual": {
+      "dual_stream": true,
+      "resident_library": "/tmp/mgmd-all-in-gpu.so",
+      "resident_split_head": true
+    }
+  },
+  "runs": {
+    "baseline-single": {
+      "lanes": 1,
+      "read": 1498,
+      "processed": 870,
+      "skipped": 626,
+      "detected": 684,
+      "wall_s": 49.996,
+      "fps": 17.4,
+      "warmup_s": 6.366,
+      "compute_mean_ms": 47.65,
+      "tf_rows": 61734,
+      "reused_rows": 522,
+      "reused_windows": 522,
+      "source_to_publish_ms": {
+        "p50": 104.05,
+        "p95": 159.14
+      },
+      "stages_ms": {
+        "MFE": {
+          "mean": 31.31,
+          "p95": 49.44
+        },
+        "TF": {
+          "mean": 2.37,
+          "p95": 4.1
+        },
+        "LAC": {
+          "mean": 4.93,
+          "p95": 13.01
+        },
+        "LAD": {
+          "mean": 11.74,
+          "p95": 38.64
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 870,
+          "mean": 9.016,
+          "p50": 7.037,
+          "p95": 19.087
+        },
+        "region_stats": {
+          "n": 870,
+          "mean": 4.375,
+          "p50": 3.393,
+          "p95": 9.376
+        },
+        "warp": {
+          "n": 870,
+          "mean": 4.196,
+          "p50": 3.688,
+          "p95": 7.332
+        },
+        "morphology": {
+          "n": 870,
+          "mean": 4.067,
+          "p50": 3.938,
+          "p95": 4.501
+        },
+        "LK": {
+          "n": 870,
+          "mean": 2.974,
+          "p50": 2.791,
+          "p95": 5.901
+        },
+        "gray": {
+          "n": 870,
+          "mean": 2.893,
+          "p50": 2.865,
+          "p95": 5.315
+        },
+        "threshold_median": {
+          "n": 870,
+          "mean": 2.882,
+          "p50": 2.593,
+          "p95": 4.053
+        },
+        "CCL": {
+          "n": 870,
+          "mean": 0.817,
+          "p50": 0.819,
+          "p95": 1.017
+        }
+      },
+      "log": [
+        "[INFO] [1795537221.601809]: GPU preview compositor: 1920x1080 with CUDA boxes and HUD",
+        "[INFO] [1795537222.068598]: GPU compute topology: 1 detection lane(s), TF on the lane stream",
+        "[INFO] [1795537222.070243]: GPU path initialized: NVDEC, MFE, TF (1920x1080), LAC=True LAD=True confirm_frames=3",
+        "[INFO] [1795537228.439769]: GPU warmup: 12 windows in 6.366s",
+        "[INFO] [1795537278.435863]: GPU track confirmation: frames=3 tf_track_rows=61734 reused_rows=522 windows_with_reuse=522",
+        "[INFO] [1795537278.437406]: GPU playback startup: first_publish=110.23ms windows_first_3s=42",
+        "[INFO] [1795537278.438493]: GPU idle dispatch: queued_peak=1 wait_for_lane_ms_per_window=50.530 source_ms_per_window={}",
+        "[INFO] [1795537278.439392]: GPU summary: read=1498 processed=870 skipped=626 detection_frames=684 wall=49.996s fps=17.40 compute_mean=47.65ms",
+        "[INFO] [1795537278.444919]: GPU source-to-publish latency (ms p50/p95): 104.05/159.14",
+        "[INFO] [1795537278.450895]: GPU stages (ms mean/p95): MFE=31.31/49.44, TF=2.37/4.10, LAC=4.93/13.01, LAD=11.74/38.64; slowest=MFE",
+        "[INFO] [1795537278.463022]: MFE profile: RANSAC n=870 mean=9.016 p50=7.037 p95=19.087 ms",
+        "[INFO] [1795537278.466468]: MFE profile: region_stats n=870 mean=4.375 p50=3.393 p95=9.376 ms",
+        "[INFO] [1795537278.469906]: MFE profile: warp n=870 mean=4.196 p50=3.688 p95=7.332 ms",
+        "[INFO] [1795537278.474526]: MFE profile: morphology n=870 mean=4.067 p50=3.938 p95=4.501 ms",
+        "[INFO] [1795537278.477724]: MFE profile: LK n=870 mean=2.974 p50=2.791 p95=5.901 ms",
+        "[INFO] [1795537278.480907]: MFE profile: gray n=870 mean=2.893 p50=2.865 p95=5.315 ms",
+        "[INFO] [1795537278.484287]: MFE profile: threshold_median n=870 mean=2.882 p50=2.593 p95=4.053 ms",
+        "[INFO] [1795537278.486854]: MFE profile: CCL n=870 mean=0.817 p50=0.819 p95=1.017 ms",
+        "process has finished cleanly"
+      ],
+      "gpu_samples": 234,
+      "gpu_utilization_pct_mean": 50.31,
+      "gpu_utilization_pct_peak": 74,
+      "gpu_memory_mib_peak": 1147,
+      "gpu_power_w_mean": 28.76
+    },
+    "resident-single": {
+      "lanes": 1,
+      "read": 1498,
+      "processed": 1019,
+      "skipped": 477,
+      "detected": 829,
+      "wall_s": 49.993,
+      "fps": 20.38,
+      "warmup_s": 3.579,
+      "compute_mean_ms": 41.23,
+      "tf_rows": 72948,
+      "reused_rows": 700,
+      "reused_windows": 700,
+      "source_to_publish_ms": {
+        "p50": 98.83,
+        "p95": 149.95
+      },
+      "stages_ms": {
+        "MFE": {
+          "mean": 27.83,
+          "p95": 43.22
+        },
+        "TF": {
+          "mean": 2.1,
+          "p95": 3.71
+        },
+        "LAC": {
+          "mean": 4.12,
+          "p95": 10.88
+        },
+        "LAD": {
+          "mean": 9.56,
+          "p95": 32.77
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1019,
+          "mean": 9.92,
+          "p50": 8.334,
+          "p95": 20.387
+        },
+        "morphology": {
+          "n": 1019,
+          "mean": 3.986,
+          "p50": 3.937,
+          "p95": 4.311
+        },
+        "warp": {
+          "n": 1019,
+          "mean": 3.932,
+          "p50": 3.626,
+          "p95": 5.661
+        },
+        "threshold_median": {
+          "n": 1019,
+          "mean": 2.736,
+          "p50": 2.591,
+          "p95": 3.378
+        },
+        "gray": {
+          "n": 1019,
+          "mean": 2.507,
+          "p50": 1.525,
+          "p95": 5.997
+        },
+        "LK": {
+          "n": 1019,
+          "mean": 2.447,
+          "p50": 1.902,
+          "p95": 5.615
+        },
+        "region_stats": {
+          "n": 1019,
+          "mean": 1.48,
+          "p50": 1.404,
+          "p95": 1.691
+        },
+        "CCL": {
+          "n": 1019,
+          "mean": 0.805,
+          "p50": 0.817,
+          "p95": 1.018
+        }
+      },
+      "log": [
+        "[INFO] [1795537285.124177]: GPU preview compositor: 1920x1080 with CUDA boxes and HUD",
+        "[INFO] [1795537285.456995]: GPU compute topology: 1 detection lane(s), TF on the lane stream",
+        "[INFO] [1795537285.458318]: GPU path initialized: NVDEC, MFE, TF (1920x1080), LAC=True LAD=True confirm_frames=3",
+        "[INFO] [1795537289.040584]: GPU warmup: 12 windows in 3.579s",
+        "[INFO] [1795537339.032772]: GPU track confirmation: frames=3 tf_track_rows=72948 reused_rows=700 windows_with_reuse=700",
+        "[INFO] [1795537339.035425]: GPU playback startup: first_publish=95.38ms windows_first_3s=46",
+        "[INFO] [1795537339.037049]: GPU idle dispatch: queued_peak=1 wait_for_lane_ms_per_window=42.949 source_ms_per_window={}",
+        "[INFO] [1795537339.039028]: GPU summary: read=1498 processed=1019 skipped=477 detection_frames=829 wall=49.993s fps=20.38 compute_mean=41.23ms",
+        "[INFO] [1795537339.041373]: GPU source-to-publish latency (ms p50/p95): 98.83/149.95",
+        "[INFO] [1795537339.044934]: GPU stages (ms mean/p95): MFE=27.83/43.22, TF=2.10/3.71, LAC=4.12/10.88, LAD=9.56/32.77; slowest=MFE",
+        "[INFO] [1795537339.054779]: MFE profile: RANSAC n=1019 mean=9.920 p50=8.334 p95=20.387 ms",
+        "[INFO] [1795537339.060200]: MFE profile: morphology n=1019 mean=3.986 p50=3.937 p95=4.311 ms",
+        "[INFO] [1795537339.065814]: MFE profile: warp n=1019 mean=3.932 p50=3.626 p95=5.661 ms",
+        "[INFO] [1795537339.071696]: MFE profile: threshold_median n=1019 mean=2.736 p50=2.591 p95=3.378 ms",
+        "[INFO] [1795537339.080735]: MFE profile: gray n=1019 mean=2.507 p50=1.525 p95=5.997 ms",
+        "[INFO] [1795537339.084183]: MFE profile: LK n=1019 mean=2.447 p50=1.902 p95=5.615 ms",
+        "[INFO] [1795537339.087370]: MFE profile: region_stats n=1019 mean=1.480 p50=1.404 p95=1.691 ms",
+        "[INFO] [1795537339.091389]: MFE profile: CCL n=1019 mean=0.805 p50=0.817 p95=1.018 ms",
+        "process has finished cleanly"
+      ],
+      "gpu_samples": 230,
+      "gpu_utilization_pct_mean": 52.93,
+      "gpu_utilization_pct_peak": 78,
+      "gpu_memory_mib_peak": 1148,
+      "gpu_power_w_mean": 30.71
+    },
+    "resident-dual": {
+      "lanes": 2,
+      "read": 1498,
+      "processed": 1164,
+      "skipped": 332,
+      "detected": 961,
+      "wall_s": 50.012,
+      "fps": 23.27,
+      "warmup_s": 3.896,
+      "compute_mean_ms": 34.24,
+      "tf_rows": 86431,
+      "reused_rows": 820,
+      "reused_windows": 820,
+      "source_to_publish_ms": {
+        "p50": 126.97,
+        "p95": 201.53
+      },
+      "stages_ms": {
+        "MFE": {
+          "mean": 39.44,
+          "p95": 74.45
+        },
+        "TF": {
+          "mean": 2.82,
+          "p95": 5.54
+        },
+        "LAC": {
+          "mean": 8.58,
+          "p95": 24.07
+        },
+        "LAD": {
+          "mean": 19.27,
+          "p95": 56.25
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1164,
+          "mean": 16.023,
+          "p50": 13.116,
+          "p95": 36.738
+        },
+        "warp": {
+          "n": 1164,
+          "mean": 5.75,
+          "p50": 4.754,
+          "p95": 10.827
+        },
+        "morphology": {
+          "n": 1164,
+          "mean": 4.551,
+          "p50": 4.12,
+          "p95": 6.826
+        },
+        "threshold_median": {
+          "n": 1164,
+          "mean": 3.585,
+          "p50": 2.864,
+          "p95": 6.45
+        },
+        "LK": {
+          "n": 1164,
+          "mean": 3.394,
+          "p50": 2.932,
+          "p95": 7.015
+        },
+        "gray": {
+          "n": 1164,
+          "mean": 2.719,
+          "p50": 1.862,
+          "p95": 6.857
+        },
+        "region_stats": {
+          "n": 1164,
+          "mean": 2.497,
+          "p50": 1.683,
+          "p95": 6.488
+        },
+        "CCL": {
+          "n": 1164,
+          "mean": 0.887,
+          "p50": 0.868,
+          "p95": 1.318
+        }
+      },
+      "log": [
+        "[INFO] [1795537345.350275]: GPU preview compositor: 1920x1080 with CUDA boxes and HUD",
+        "[INFO] [1795537345.853040]: GPU compute topology: 2 detection lane(s), TF on a shared stream",
+        "[INFO] [1795537345.854695]: GPU path initialized: NVDEC, MFE, TF (1920x1080), LAC=True LAD=True confirm_frames=3",
+        "[INFO] [1795537349.753624]: GPU warmup: 12 windows in 3.896s",
+        "[INFO] [1795537399.751225]: GPU track confirmation: frames=3 tf_track_rows=86431 reused_rows=820 windows_with_reuse=820",
+        "[INFO] [1795537399.752823]: GPU playback startup: first_publish=100.15ms windows_first_3s=62",
+        "[INFO] [1795537399.754152]: GPU idle dispatch: queued_peak=4 wait_for_lane_ms_per_window=29.544 source_ms_per_window={}",
+        "[INFO] [1795537399.755295]: GPU summary: read=1498 processed=1164 skipped=332 detection_frames=961 wall=50.012s fps=23.27 compute_mean=34.24ms",
+        "[INFO] [1795537399.756667]: GPU source-to-publish latency (ms p50/p95): 126.97/201.53",
+        "[INFO] [1795537399.758437]: GPU stages (ms mean/p95): MFE=39.44/74.45, TF=2.82/5.54, LAC=8.58/24.07, LAD=19.27/56.25; slowest=MFE",
+        "[INFO] [1795537399.762656]: MFE profile: RANSAC n=1164 mean=16.023 p50=13.116 p95=36.738 ms",
+        "[INFO] [1795537399.764163]: MFE profile: warp n=1164 mean=5.750 p50=4.754 p95=10.827 ms",
+        "[INFO] [1795537399.765746]: MFE profile: morphology n=1164 mean=4.551 p50=4.120 p95=6.826 ms",
+        "[INFO] [1795537399.767388]: MFE profile: threshold_median n=1164 mean=3.585 p50=2.864 p95=6.450 ms",
+        "[INFO] [1795537399.769035]: MFE profile: LK n=1164 mean=3.394 p50=2.932 p95=7.015 ms",
+        "[INFO] [1795537399.770755]: MFE profile: gray n=1164 mean=2.719 p50=1.862 p95=6.857 ms",
+        "[INFO] [1795537399.773658]: MFE profile: region_stats n=1164 mean=2.497 p50=1.683 p95=6.488 ms",
+        "[INFO] [1795537399.776281]: MFE profile: CCL n=1164 mean=0.887 p50=0.868 p95=1.318 ms",
+        "process has finished cleanly"
+      ],
+      "gpu_samples": 200,
+      "gpu_utilization_pct_mean": 59.38,
+      "gpu_utilization_pct_peak": 84,
+      "gpu_memory_mib_peak": 1379,
+      "gpu_power_w_mean": 33.34
+    }
+  }
+}

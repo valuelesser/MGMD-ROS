@@ -56,7 +56,7 @@ roslaunch mav_tracker_nodes showcase.launch video:=/data/videos/example.mp4 rate
 | 双流与模型 | 空闲的计算流可以接下一窗口，ROS 按序发布。LAC、LAD 使用绑定到对应 CUDA 流的 ONNX Runtime 会话。三帧确认后可省去该轨迹的两级推理。 |
 | 启动与预览 | 正式回放前用 12 个窗口预热，随后重置跟踪器和灰度缓存并重放这些帧。GPU 合成框和透明 HUD，最后下载到主机并发布 ROS 图像。 |
 
-同一台 RTX 3050 Laptop、同一 1080p 视频和 Windows FFplay 环境下，此前完整回放的双流 / 单流分别达到 **22.68 / 18.70 处理 FPS**，源帧到发布的 P95 为 **193.69 / 150.44 ms**。双流让更多窗口并行完成，也会因 GPU 竞争拉长单个窗口的 MFE 耗时。这两组均开启两级模型与三帧复用。关闭模型会改变检测语义，各模式的识别精度尚未统一评测。RANSAC 尺度常量缓存和 CUDA Graph 仅做过诊断实验。[完整对照与实验条件](docs/SPEC-PERF-CONFIRMED-SINGLE-STREAM.md)
+同一台 RTX 3050 Laptop、同一 1080p 视频和 Windows FFplay 环境下，此前完整回放的双流 / 单流分别达到 **22.68 / 18.70 处理 FPS**，源帧到发布的 P95 为 **193.69 / 150.44 ms**。双流让更多窗口并行完成，也会因 GPU 竞争拉长单个窗口的 MFE 耗时。这两组均开启两级模型与三帧复用。关闭模型会改变检测语义，各模式的识别精度尚未统一评测。2026-11-24 将 RANSAC 的 FP64 尺度常量移到各计算流初始化阶段，去除每次拟合的同步复制。CUDA Graph 的结果来自独立诊断实验。[完整对照与实验条件](docs/SPEC-PERF-CONFIRMED-SINGLE-STREAM.md)
 
 ## 在当前 Docker 环境重新部署此分支
 

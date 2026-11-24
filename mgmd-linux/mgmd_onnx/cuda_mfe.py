@@ -102,6 +102,8 @@ class CudaMfe:
         self.points = torch.as_tensor(points.reshape(1, -1, 2), device="cuda")
         self.scale = float(max(width, height))
         self.identity = torch.eye(3, dtype=torch.float64, device="cuda")
+        # Create this on the lane once to avoid a synchronous host copy in RANSAC.
+        self.homography_scale = self.identity.new_tensor((self.scale, self.scale, 1))
         generator = torch.Generator(device="cuda").manual_seed(0)
         self.sample = torch.rand((hypotheses, 4), generator=generator, device="cuda")
         self.pixel = torch.arange(width * height, dtype=torch.int32, device="cuda")
@@ -158,7 +160,7 @@ class CudaMfe:
         bw = (src * keep[:, None]).reshape(-1, 1)
         refined, status = torch.linalg.solve_ex(aw.T @ aw, aw.T @ bw)
         h = torch.cat((refined.flatten(), one[:1])).reshape(3, 3)
-        scale = h.new_tensor((self.scale, self.scale, 1))
+        scale = self.homography_scale
         h = h * scale[:, None] / scale
         good = (keep.sum() >= self.cfg.min_keypoints) & (status == 0) & torch.isfinite(h).all()
         return torch.where(good, h, self.identity)

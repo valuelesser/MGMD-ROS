@@ -1,0 +1,33 @@
+{
+  "date": "2026-11-24",
+  "container": "mgmd-ros",
+  "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "video": "/data/videos/phantom30.mp4",
+  "resolution": [1920, 1080],
+  "nsight": {
+    "version": "2023.1.2",
+    "scope": "RANSAC fitter after warmup",
+    "streams_tested_in_sequence": 2,
+    "calls_each_variant_per_stream": 32,
+    "cuda_stream_synchronize_calls": {"before": 64, "after": 0},
+    "cuda_stream_synchronize_total_ms": {"before": 33.635648, "after": 0},
+    "lk_pairs_with_bitwise_equal_homographies_per_stream": 12
+  },
+  "ros": {
+    "launch": "mav_tracker_nodes showcase.launch",
+    "launch_arguments": ["rqt:=false", "realtime:=false", "limit:=302"],
+    "desktop_subscriber": false,
+    "read_each": 302,
+    "processed_each": 300,
+    "skipped_each": 0,
+    "confirm_frames": 3,
+    "run_order": ["dual_before", "dual_after", "single_after", "single_before"],
+    "results": {
+      "dual_before": {"fps": 28.94, "mfe_ms": 35.62, "ransac_ms": 11.560, "reused_rows": 284},
+      "dual_after": {"fps": 29.34, "mfe_ms": 33.78, "ransac_ms": 10.297, "reused_rows": 289},
+      "single_before": {"fps": 24.97, "mfe_ms": 22.89, "ransac_ms": 5.581, "reused_rows": 290},
+      "single_after": {"fps": 26.12, "mfe_ms": 21.77, "ransac_ms": 4.615, "reused_rows": 290}
+    }
+  },
+  "container_evidence": "/tmp/mgmd-ransac-scale-20261124"
+}

@@ -1,0 +1,243 @@
+{
+  "date": "2026-11-25",
+  "base": "d57351bca5570b52a2badf44c38f24b2506486ff",
+  "video": "/data/videos/phantom30.mp4",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "source_rate": "30000/1001",
+  "resident_split_head": true,
+  "warmup_windows": 12,
+  "leading_frames": 25,
+  "confirm_frames": 3,
+  "viewer": "Windows native FFplay",
+  "runs": {
+    "single": {
+      "read": 1498,
+      "processed": 1053,
+      "skipped": 443,
+      "detected": 848,
+      "wall_s": 50.003,
+      "fps": 21.06,
+      "stages_ms": {
+        "MFE": {
+          "mean": 27.17,
+          "p95": 38.43
+        },
+        "TF": {
+          "mean": 2.06,
+          "p95": 3.41
+        },
+        "LAC": {
+          "mean": 4.05,
+          "p95": 10.66
+        },
+        "LAD": {
+          "mean": 10.25,
+          "p95": 29.86
+        }
+      },
+      "ransac_ms_mean": 9.657,
+      "frame_latency_ms": {
+        "admitted_to_compute_finished": {
+          "mean": 44.527,
+          "n": 1053,
+          "p50": 40.398,
+          "p90": 65.49,
+          "p95": 73.889
+        },
+        "center_read": {
+          "mean": 1.529,
+          "n": 1053,
+          "p50": 1.091,
+          "p90": 3.38,
+          "p95": 4.186
+        },
+        "compute_finished_to_main": {
+          "mean": 0.314,
+          "n": 1053,
+          "p50": 0.269,
+          "p90": 0.473,
+          "p95": 0.554
+        },
+        "input_to_detection": {
+          "mean": 76.4,
+          "n": 1053,
+          "p50": 73.655,
+          "p90": 106.948,
+          "p95": 117.948
+        },
+        "input_to_preview": {
+          "mean": 80.531,
+          "n": 1053,
+          "p50": 77.519,
+          "p90": 112.634,
+          "p95": 122.916
+        },
+        "next_read": {
+          "mean": 1.738,
+          "n": 1053,
+          "p50": 1.121,
+          "p90": 3.786,
+          "p95": 4.344
+        },
+        "playback_pacing": {
+          "mean": 0.372,
+          "n": 1053,
+          "p50": 0.005,
+          "p90": 0.013,
+          "p95": 1.446
+        },
+        "prepare_and_publish_detection": {
+          "mean": 4.338,
+          "n": 1053,
+          "p50": 4.108,
+          "p90": 6.966,
+          "p95": 8.391
+        },
+        "publish_detection_to_preview": {
+          "mean": 4.131,
+          "n": 1053,
+          "p50": 3.504,
+          "p90": 6.068,
+          "p95": 6.789
+        },
+        "source_to_detection": {
+          "mean": 98.638,
+          "n": 1053,
+          "p50": 97.938,
+          "p90": 124.119,
+          "p95": 134.653
+        },
+        "source_to_preview": {
+          "mean": 102.769,
+          "n": 1053,
+          "p50": 101.547,
+          "p90": 128.678,
+          "p95": 140.758
+        },
+        "wait_for_next_read": {
+          "mean": 23.582,
+          "n": 1053,
+          "p50": 30.368,
+          "p90": 45.74,
+          "p95": 51.915
+        }
+      }
+    },
+    "dual": {
+      "read": 1498,
+      "processed": 1164,
+      "skipped": 332,
+      "detected": 956,
+      "wall_s": 50.023,
+      "fps": 23.27,
+      "stages_ms": {
+        "MFE": {
+          "mean": 42.62,
+          "p95": 72.61
+        },
+        "TF": {
+          "mean": 2.91,
+          "p95": 5.68
+        },
+        "LAC": {
+          "mean": 9.41,
+          "p95": 25.04
+        },
+        "LAD": {
+          "mean": 19.69,
+          "p95": 58.29
+        }
+      },
+      "ransac_ms_mean": 17.784,
+      "frame_latency_ms": {
+        "admitted_to_compute_finished": {
+          "mean": 76.787,
+          "n": 1164,
+          "p50": 74.137,
+          "p90": 120.416,
+          "p95": 132.632
+        },
+        "center_read": {
+          "mean": 1.743,
+          "n": 1164,
+          "p50": 1.286,
+          "p90": 3.509,
+          "p95": 4.133
+        },
+        "compute_finished_to_main": {
+          "mean": 6.173,
+          "n": 1164,
+          "p50": 0.831,
+          "p90": 21.655,
+          "p95": 38.404
+        },
+        "input_to_detection": {
+          "mean": 122.243,
+          "n": 1164,
+          "p50": 117.142,
+          "p90": 171.972,
+          "p95": 185.546
+        },
+        "input_to_preview": {
+          "mean": 127.284,
+          "n": 1164,
+          "p50": 122.063,
+          "p90": 177.761,
+          "p95": 192.504
+        },
+        "next_read": {
+          "mean": 1.81,
+          "n": 1164,
+          "p50": 1.332,
+          "p90": 3.628,
+          "p95": 4.285
+        },
+        "playback_pacing": {
+          "mean": 5.664,
+          "n": 1164,
+          "p50": 0.01,
+          "p90": 22.528,
+          "p95": 28.682
+        },
+        "prepare_and_publish_detection": {
+          "mean": 6.589,
+          "n": 1164,
+          "p50": 5.805,
+          "p90": 12.693,
+          "p95": 14.133
+        },
+        "publish_detection_to_preview": {
+          "mean": 5.041,
+          "n": 1164,
+          "p50": 4.452,
+          "p90": 7.392,
+          "p95": 8.56
+        },
+        "source_to_detection": {
+          "mean": 132.69,
+          "n": 1164,
+          "p50": 132.368,
+          "p90": 181.424,
+          "p95": 192.789
+        },
+        "source_to_preview": {
+          "mean": 137.731,
+          "n": 1164,
+          "p50": 137.799,
+          "p90": 187.296,
+          "p95": 198.784
+        },
+        "wait_for_next_read": {
+          "mean": 23.477,
+          "n": 1164,
+          "p50": 19.985,
+          "p90": 55.167,
+          "p95": 62.065
+        }
+      }
+    }
+  }
+}

@@ -381,9 +381,10 @@ def main():
         if latencies:
             summary = {}
             for name, samples in latencies.items():
-                p50, p95 = np.percentile(samples, (50, 95))
+                p50, p90, p95 = np.percentile(samples, (50, 90, 95))
                 summary[name] = {"n": len(samples), "mean": round(mean(samples), 3),
-                                 "p50": round(float(p50), 3), "p95": round(float(p95), 3)}
+                                 "p50": round(float(p50), 3), "p90": round(float(p90), 3),
+                                 "p95": round(float(p95), 3)}
             rospy.loginfo("GPU frame latency (ms): %s", json.dumps(summary, sort_keys=True))
         if stages:
             average = np.mean(stages, axis=0)

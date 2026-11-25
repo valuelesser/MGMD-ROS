@@ -1,6 +1,6 @@
 # GPU 常驻计算实验
 
-`spec_version: 0.1.2` · `branch: master` · 原实验分支 `exp/all-in-gpu` · 2026-11-25
+`spec_version: 0.1.3` · `branch: master` · 原实验分支 `exp/all-in-gpu` · 2026-11-25
 
 ## 目标和维护
 
@@ -125,3 +125,9 @@ pwsh -File .\scripts\showcase.ps1 -MasterPort 11577 dual_stream:=true resident_l
 ```
 
 [ROS 日志摘要及各阶段数据](../outputs/resident_single_20261125/_summary.json)
+
+## 0.1.3 主分支展示验收
+
+2026-11-25 从合并提交 `5261deb` 部署 `~/mgmd-showcase/mgmd-linux` 并构建 GPU 常驻库。用上一节的双流参数完整播放 `phantom30`，两条计算流共用 TF，开启 LAC、LAD、三帧确认、CUDA HUD 与 LAD 拆头。Windows 原生 1920×1080 窗口响应正常，回放结束后正常退出。
+
+读入 1498 帧，处理 1052 窗，按实时策略跳过 444 窗。正式回放历时 50.483 秒，处理速率 20.84 FPS，发布延迟 P50 / P95 为 136.04 / 208.79 ms。MFE / TF / LAC / LAD 均值为 44.13 / 3.04 / 9.79 / 19.79 ms。本次为一次桌面验收，实验分支的 23.27 FPS 来自上一节的独立回放。[主分支验收摘要](../outputs/master_resident_showcase_20261125/_summary.json)

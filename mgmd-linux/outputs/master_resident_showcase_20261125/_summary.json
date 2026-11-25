@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-25",
+  "merge_commit": "5261deba0bbe82967d6603c919497b199b3ba774",
+  "video": "/data/videos/phantom30.mp4",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "source_rate": "30000/1001",
+  "leading_frames": 25,
+  "viewer": "Windows native FFplay",
+  "preview_window_responding": true,
+  "lane_count": 2,
+  "shared_tf": true,
+  "lac": true,
+  "lad": true,
+  "resident_library": "/tmp/mgmd-all-in-gpu.so",
+  "resident_split_head": true,
+  "realtime": true,
+  "confirm_frames": 3,
+  "warmup_windows": 12,
+  "warmup_s": 7.05,
+  "read": 1498,
+  "processed": 1052,
+  "skipped": 444,
+  "detection_frames": 883,
+  "reused_rows": 742,
+  "wall_s": 50.483,
+  "processing_fps": 20.84,
+  "source_to_publish_ms": {
+    "p50": 136.04,
+    "p95": 208.79
+  },
+  "stages_ms": {
+    "MFE": {
+      "mean": 44.13,
+      "p95": 75.45
+    },
+    "TF": {
+      "mean": 3.04,
+      "p95": 5.94
+    },
+    "LAC": {
+      "mean": 9.79,
+      "p95": 25.1
+    },
+    "LAD": {
+      "mean": 19.79,
+      "p95": 56.94
+    }
+  },
+  "mfe_ms_mean": {
+    "RANSAC": 18.588,
+    "warp": 6.455,
+    "morphology": 4.707,
+    "LK": 3.853,
+    "threshold_median": 3.825,
+    "gray": 2.916,
+    "region_stats": 2.845,
+    "CCL": 0.903
+  },
+  "clean_exit": true
+}

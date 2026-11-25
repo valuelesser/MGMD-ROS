@@ -1,0 +1,102 @@
+{
+  "video": "phantom70",
+  "frames_gt": 1349,
+  "source_rate_hz": 6,
+  "resolution": "1920x1080",
+  "offline_full_video": {
+    "tp": 908,
+    "fp": 29,
+    "fn": 441,
+    "precision": 0.9690501600853789,
+    "recall": 0.6730911786508524,
+    "f1": 0.7944006999125109
+  },
+  "previous_ros_no_display": {
+    "lac_provider": "CUDAExecutionProvider",
+    "lad_provider": "CUDAExecutionProvider",
+    "images": 1349,
+    "processed": 1272,
+    "first_300_processed": 261,
+    "median_step_ms": 113.65,
+    "median_queue_to_work_ms": 0.16,
+    "median_publish_ms": 0.22,
+    "tp": 831,
+    "fp": 23,
+    "fn": 518,
+    "precision": 0.9730679156908665,
+    "recall": 0.6160118606375092,
+    "f1": 0.7544257830231502
+  },
+  "display_with_lac_cpu_fallback": {
+    "lac_provider": "CPUExecutionProvider",
+    "lad_provider": "CUDAExecutionProvider",
+    "images": 1349,
+    "processed": 818,
+    "first_300_processed": 190,
+    "median_step_ms": 207.58,
+    "median_queue_to_work_ms": 51.88,
+    "median_publish_ms": 2.4,
+    "tp": 540,
+    "fp": 26,
+    "fn": 809,
+    "precision": 0.9540636042402827,
+    "recall": 0.40029651593773163,
+    "f1": 0.5639686684073106
+  },
+  "display_with_cuda_libraries": {
+    "lac_provider": "CUDAExecutionProvider",
+    "lad_provider": "CUDAExecutionProvider",
+    "images": 1349,
+    "processed": 963,
+    "first_300_processed": 237,
+    "median_step_ms": 186.77,
+    "median_queue_to_work_ms": 48.36,
+    "median_publish_ms": 1.31,
+    "tp": 642,
+    "fp": 30,
+    "fn": 707,
+    "precision": 0.9553571428571429,
+    "recall": 0.4759080800593032,
+    "f1": 0.6353290450272143
+  },
+  "short_diagnostic_300_frames": {
+    "new_tracking_no_display_cuda": {
+      "lac_provider": "CUDAExecutionProvider",
+      "lad_provider": "CUDAExecutionProvider",
+      "images": 300,
+      "processed": 246,
+      "first_300_processed": 246,
+      "median_step_ms": 144.82,
+      "median_queue_to_work_ms": 23.06,
+      "median_publish_ms": 0.57
+    },
+    "old_tracking_no_display_cuda": {
+      "lac_provider": "CUDAExecutionProvider",
+      "lad_provider": "CUDAExecutionProvider",
+      "images": 300,
+      "processed": 237,
+      "first_300_processed": 237,
+      "median_step_ms": 152.98,
+      "median_queue_to_work_ms": 24.61,
+      "median_publish_ms": 0.26
+    }
+  },
+  "root_cause": "The initial display run omitted source scripts/env_setup_ros38.sh: LAC used CPU while LAD used CUDA. With correct CUDA paths, live visualization and video encoding further reduced processed-frame coverage. A full no-display run with the new tracker processed 1155 frames versus 963 with display; the prior old-tracker/no-display run processed 1272. Tracking change and run-to-run variation are not isolated by this comparison.",
+  "recording": "outputs/ros_viz/phantom70_display6_cuda_20261106.mp4",
+  "new_tracking_no_display_cuda": {
+    "lac_provider": "CUDAExecutionProvider",
+    "lad_provider": "CUDAExecutionProvider",
+    "images": 1349,
+    "processed": 1155,
+    "first_300_processed": 239,
+    "median_step_ms": 159.45,
+    "median_queue_to_work_ms": 33.54,
+    "median_publish_ms": 0.56,
+    "tp": 799,
+    "fp": 37,
+    "fn": 550,
+    "precision": 0.9557416267942583,
+    "recall": 0.5922905856189771,
+    "f1": 0.7313501144164759
+  }
+}

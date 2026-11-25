@@ -7,8 +7,8 @@
 实测 15 轨迹 × 131 候选 × 290 帧 = **1127 万次 `iou()`，占 TF 耗时 69%**
 （cProfile: cumtime 16.1s / 23.4s）。
 
-**做法**：继承 `SortTracker`，覆写 `update`，**只把 gain 矩阵改成一次向量化调用**，
-其余逻辑逐行照抄原实现。`mgmd/` 不改（V7）。
+默认只向量化 gain 矩阵，保持基线等价。ROS 可选按真实视频帧间隔预测，
+并对未匹配框作有界中心距离关联。`mgmd/` 不改（V7）。
 
 **验收**：SPEC-ROS §14.6 S3-c —— 与 SortTracker 逐帧输出差必须为 0。
 """
@@ -37,7 +37,16 @@ def iou_matrix(A: np.ndarray, B: np.ndarray) -> np.ndarray:
 
 
 class FastSortTracker(_SortTracker):
-    """输出与 SortTracker 逐帧一致；IoU 关联矩阵向量化。"""
+    """默认与 SortTracker 逐帧一致；可选用真实帧间隔和宽关联门。"""
+
+    def __init__(self, *args, frame_delta_predict=False,
+                 association_radius_factor=0.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.frame_delta_predict = bool(frame_delta_predict)
+        self.association_radius_factor = float(association_radius_factor)
+        if self.association_radius_factor < 0:
+            raise ValueError("association_radius_factor must be >= 0")
+        self._predicted_at = {}
 
     def update(self, dets, frame, scores=None, step_H=None):
         from scipy.optimize import linear_sum_assignment
@@ -49,7 +58,11 @@ class FastSortTracker(_SortTracker):
         # 预测
         preds = {}
         for tid in active:
-            preds[tid] = self._kal[tid].predict()
+            previous = self._predicted_at.get(tid, frame - 1)
+            steps = min(30, max(1, frame - previous)) if self.frame_delta_predict else 1
+            for _ in range(steps):
+                preds[tid] = self._kal[tid].predict()
+            self._predicted_at[tid] = frame
 
         # ---- 唯一改动：gain 向量化 ----
         matched: list[tuple[int, int]] = []
@@ -62,6 +75,28 @@ class FastSortTracker(_SortTracker):
                 if gain[r, c] >= self.iou_thresh:
                     matched.append((active[r], int(c)))
 
+            # IoU 为零的快速位移：仅在未关联集合内按预测中心距离补匹配。
+            if self.association_radius_factor > 0:
+                used_r = {active.index(tid) for tid, _ in matched}
+                used_c = {dj for _, dj in matched}
+                free_r = [r for r in range(len(active)) if r not in used_r]
+                free_c = [c for c in range(len(dets)) if c not in used_c]
+                if free_r and free_c:
+                    pa, db = A[free_r], B[free_c]
+                    pc = (pa[:, :2] + pa[:, 2:]) / 2
+                    dc = (db[:, :2] + db[:, 2:]) / 2
+                    distance = np.linalg.norm(pc[:, None, :] - dc[None, :, :], axis=2)
+                    pd = np.linalg.norm(pa[:, 2:] - pa[:, :2], axis=1)
+                    dd = np.linalg.norm(db[:, 2:] - db[:, :2], axis=1)
+                    radius = self.association_radius_factor * (pd[:, None] + dd[None, :]) / 2
+                    normalized = np.divide(distance, radius, out=np.full_like(distance, np.inf),
+                                           where=radius > 0)
+                    normalized = np.where(normalized <= 1, normalized, 1e6)
+                    rr, cc = linear_sum_assignment(normalized)
+                    for r, c in zip(rr, cc):
+                        if normalized[r, c] <= 1:
+                            matched.append((active[free_r[r]], free_c[c]))
+
         matched_tids = {t for t, _ in matched}
         matched_dets = {d for _, d in matched}
 
@@ -71,6 +106,7 @@ class FastSortTracker(_SortTracker):
             self._kal[tid].update(box)
             self._hits[tid] += 1
             self._miss[tid] = 0
+            self._predicted_at[tid] = frame
             self.states[tid].add(frame, box)
             if step_H is not None:
                 self.states[tid].step_H[frame] = step_H
@@ -103,6 +139,7 @@ class FastSortTracker(_SortTracker):
             self._hits[tid] = 1
             self._miss[tid] = 0
             self.states[tid].classify(self.span, self.d_mode, self.d_min, self.align)
+            self._predicted_at[tid] = frame
 
         # 删除超龄
         for tid in list(self.states.keys()):
@@ -112,6 +149,7 @@ class FastSortTracker(_SortTracker):
                 self._age.pop(tid, None)
                 self._hits.pop(tid, None)
                 self._miss.pop(tid, None)
+                self._predicted_at.pop(tid, None)
 
         if self.init_velocity:
             self._prev_free = list(dets)

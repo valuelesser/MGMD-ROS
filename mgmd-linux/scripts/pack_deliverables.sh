@@ -7,13 +7,61 @@
 # 用法：
 #   bash scripts/pack_deliverables.sh            # 打包
 #   bash scripts/pack_deliverables.sh --list     # 只列清单，不打包
+#   bash scripts/pack_deliverables.sh --ros-testset <运行目录>
+#   bash scripts/pack_deliverables.sh --ros-run <单视频对照目录>
 set -euo pipefail
 
 PROJECT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FIG="$PROJECT/outputs/figures"
+ROSVIZ="$PROJECT/outputs/ros_viz"
 OUTDIR="$PROJECT/../deliverables"
 STAMP="$(date +%Y%m%d)"
 NAME="mgmd_demo_videos_${STAMP}"
+
+# 完整测试集单独归档，包含视频、时间戳映射、检测输出与日志。
+if [ "${1:-}" = "--ros-testset" ] || [ "${1:-}" = "--ros-run" ]; then
+  if [ "$#" -ne 2 ]; then
+    echo "用法：$0 --ros-testset|--ros-run <运行目录>" >&2
+    exit 2
+  fi
+  SUITE="$(realpath "$2")"
+  NAME="mgmd_${SUITE##*/}"
+  mkdir -p "$OUTDIR"
+  MANIFEST="$OUTDIR/${NAME}_MANIFEST.md"
+  python3 - "$SUITE" "$MANIFEST" "$1" <<'PY'
+import json
+from pathlib import Path
+import sys
+
+root = Path(sys.argv[1])
+if sys.argv[3] == '--ros-run':
+    result = json.loads((root / 'result.json').read_text())
+    assert result['ros'] and result['offline_matching'], '对照未完成'
+    summary = dict(configuration={k: result[k] for k in ('video','rate','coverage','code_commit')},
+                   per_video=[dict(video=result['video'],
+                                   frames=result.get('video_frames',result['images']),
+                                   detection_messages=result['centers'])])
+else:
+    summary = json.loads((root / 'summary.json').read_text())
+    assert summary['completed'] == summary['expected'] == 15, '测试集未全部完成'
+    assert len(summary['per_video']) == 15
+lines = ['# ROS 评测交付清单', '',
+         '运行配置：`' + json.dumps(summary['configuration'], ensure_ascii=False) + '`', '',
+         '| 视频 | 输入帧 | 检测输出帧 | 录制大小 |', '|---|---:|---:|---:|']
+for row in summary['per_video']:
+    video = root / (row['video'] + '.mp4')
+    assert video.is_file() and video.stat().st_size > 0, '缺少录制：' + str(video)
+    lines.append('| %s | %d | %d | %d bytes |' %
+                 (row['video'], row['frames'], row['detection_messages'], video.stat().st_size))
+Path(sys.argv[2]).write_text('\n'.join(lines) + '\n')
+PY
+  tar -I 'gzip -1' -cf "$OUTDIR/${NAME}.tar.gz" \
+    -C "$(dirname "$SUITE")" "$(basename "$SUITE")" \
+    -C "$OUTDIR" "$(basename "$MANIFEST")"
+  echo "测试集交付包：$OUTDIR/${NAME}.tar.gz"
+  exit 0
+fi
+
 LIST_ONLY=0
 [ "${1:-}" = "--list" ] && LIST_ONLY=1
 
@@ -30,7 +78,8 @@ MANIFEST="$OUTDIR/${NAME}_MANIFEST.md"
   echo
   echo "> 打包时间：$(date '+%Y-%m-%d %H:%M:%S')"
   echo "> 源码 commit：$(git -C "$PROJECT" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-  echo "> SPEC 版本：$(grep -m1 'spec_version:' "$PROJECT/docs/SPEC.md" | tr -d '`' | sed 's/spec_version: //')"
+  echo "> 阶段一 SPEC 版本：$(grep -m1 'spec_version:' "$PROJECT/docs/SPEC.md" | tr -d '`' | sed 's/spec_version: //')"
+  echo "> SPEC-ROS 版本：$(grep -m1 'spec_version:' "$PROJECT/docs/SPEC-ROS.md" | cut -d'|' -f1 | tr -d '`' | sed 's/spec_version: //')"
   echo
   echo "自动生成，请勿手改。重新生成：\`bash scripts/pack_deliverables.sh\`"
   echo
@@ -53,6 +102,8 @@ declare -A DESC=(
   ["D3_mvdt_viz.mp4"]="MVDT 跨域测试 D3"
   ["D4_mvdt_viz.mp4"]="MVDT 跨域测试 D4"
   ["live_sim.mp4"]="实时链路模拟"
+  ["phantom63_20261106.mp4"]="ROS 全程展示：随机抽取 phantom63，单行 HUD，1799 帧（SPEC-ROS §27）"
+  ["phantom70_display6_cuda_20261106.mp4"]="ROS 全程展示：phantom70，正确 CUDA 环境，单行 HUD，1349 帧（SPEC-ROS §28）"
 )
 
 n=0
@@ -65,7 +116,7 @@ while IFS= read -r f; do
   printf '| `%s` | %s | %s |\n' "$base" "$human" "$d" >> "$MANIFEST"
   n=$((n+1))
   total=$((total+sz))
-done < <(find "$FIG" -maxdepth 1 -name '*.mp4' -type f | sort)
+done < <(find "$FIG" "$ROSVIZ" -maxdepth 1 -name '*.mp4' -type f | sort)
 
 {
   echo
@@ -94,6 +145,7 @@ PKG="$OUTDIR/$NAME"
 rm -rf "$PKG"
 mkdir -p "$PKG"
 cp "$FIG"/*.mp4 "$PKG"/ 2>/dev/null || true
+cp "$ROSVIZ"/*.mp4 "$PKG"/ 2>/dev/null || true
 cp "$MANIFEST" "$PKG"/
 tar -czf "$OUTDIR/${NAME}.tar.gz" -C "$OUTDIR" "$NAME"
 rm -rf "$PKG"

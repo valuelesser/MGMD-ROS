@@ -1,0 +1,1512 @@
+{
+  "date": "2026-11-25",
+  "baseline_git": "253e1576dcf2f039ff69d748abfa7a3539ab7ad2",
+  "master_git": "ae7e43122dfc7daf8ebe129b28031c2f1b59f037",
+  "video": "/data/videos/phantom30.mp4",
+  "video_sha256": "be5cc749038bfc664e094cf463129b5f044400d3d4c3a0f2fe239acd9be8d8a9",
+  "shared_native_library_sha256": {
+    "resident": "4f20030cc5ed5ac311c4dc24293eb21e8a613288113e739485d9bc8e928e8f4c",
+    "ccl": "664643e575237d6c6d6e97ffab89eb9f5cc9d7365ee6c43e753762d4e91a1097",
+    "tf": "9de9dd8a13110e788d883bcb1364710f33faa32ef0a81a3a063814e530e55fc7",
+    "preview": "c293f79bcdb24cd37ca0e677640b488fd5d2e2ff9f9aa26dc82987da7ab678ff"
+  },
+  "config": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "source_rate": "30000/1001",
+    "resident_split_head": true,
+    "lanes": 2,
+    "lac": true,
+    "lad": true,
+    "warmup_windows": 12,
+    "confirm_frames": 3,
+    "leading_frames": 25,
+    "windows_viewer": "FFplay native",
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU",
+    "nominal_gpu_sample_ms": 200,
+    "windows_power_plan": "Balanced"
+  },
+  "master_pooled_window_count": 2323,
+  "master_pooled_mean_latency_ms": {
+    "input_to_detection": 121.384,
+    "input_to_preview": 126.346,
+    "source_to_detection": 129.817,
+    "source_to_preview": 134.779
+  },
+  "master_no_preview_non_realtime_smoke": {
+    "decoded": 12,
+    "output_samples": 10,
+    "reported_metrics": [
+      "input_to_detection"
+    ],
+    "clean_exit": true
+  },
+  "runs": {
+    "master-1": {
+      "read": 1498,
+      "processed": 1070,
+      "skipped": 426,
+      "detected": 840,
+      "wall_s": 49.997,
+      "fps": 21.4,
+      "warmup_s": 4.245,
+      "compute_mean_ms": 36.99,
+      "stages_ms": {
+        "MFE": {
+          "mean": 44.67,
+          "p95": 75.79
+        },
+        "TF": {
+          "mean": 3.06,
+          "p95": 5.79
+        },
+        "LAC": {
+          "mean": 9.62,
+          "p95": 25.2
+        },
+        "LAD": {
+          "mean": 19.88,
+          "p95": 59.2
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1070,
+          "mean": 18.973,
+          "p50": 16.568,
+          "p95": 38.739
+        },
+        "warp": {
+          "n": 1070,
+          "mean": 6.403,
+          "p50": 5.241,
+          "p95": 13.389
+        },
+        "morphology": {
+          "n": 1070,
+          "mean": 4.812,
+          "p50": 4.168,
+          "p95": 7.755
+        },
+        "LK": {
+          "n": 1070,
+          "mean": 3.827,
+          "p50": 3.388,
+          "p95": 7.824
+        },
+        "threshold_median": {
+          "n": 1070,
+          "mean": 3.805,
+          "p50": 3.093,
+          "p95": 7.325
+        },
+        "gray": {
+          "n": 1070,
+          "mean": 3.129,
+          "p50": 2.19,
+          "p95": 7.224
+        },
+        "region_stats": {
+          "n": 1070,
+          "mean": 2.753,
+          "p50": 1.769,
+          "p95": 6.774
+        },
+        "CCL": {
+          "n": 1070,
+          "mean": 0.92,
+          "p50": 0.882,
+          "p95": 1.399
+        }
+      },
+      "queued_peak": 4,
+      "wait_for_lane_ms_per_window": 33.267,
+      "tf_track_rows": 77411,
+      "reused_rows": 646,
+      "windows_with_reuse": 646,
+      "historical_source_to_publish_ms": {
+        "p50": 139.4,
+        "p95": 212.39
+      },
+      "frame_latency_ms": {
+        "input_to_detection": {
+          "mean": 124.361,
+          "n": 1070,
+          "p50": 119.171,
+          "p95": 192.766
+        },
+        "input_to_preview": {
+          "mean": 129.727,
+          "n": 1070,
+          "p50": 124.062,
+          "p95": 199.154
+        },
+        "source_to_detection": {
+          "mean": 136.832,
+          "n": 1070,
+          "p50": 133.241,
+          "p95": 204.371
+        },
+        "source_to_preview": {
+          "mean": 142.198,
+          "n": 1070,
+          "p50": 139.397,
+          "p95": 212.394
+        }
+      },
+      "gpu_samples": 223,
+      "gpu": {
+        "Util": {
+          "Mean": 55.13,
+          "Min": 0,
+          "Max": 81
+        },
+        "Memory": {
+          "Mean": 1262.776,
+          "Min": 1188,
+          "Max": 1355
+        },
+        "Power": {
+          "Mean": 31.516,
+          "Min": 17.57,
+          "Max": 35.81
+        },
+        "Temp": {
+          "Mean": 68.068,
+          "Min": 56.97,
+          "Max": 73.12
+        },
+        "SmMhz": {
+          "Mean": 1870.874,
+          "Min": 1867,
+          "Max": 1882
+        },
+        "MemMhz": {
+          "Mean": 5501,
+          "Min": 5501,
+          "Max": 5501
+        },
+        "pstates": [
+          {
+            "pstate": "P0",
+            "count": 223
+          }
+        ],
+        "buckets": [
+          {
+            "from_s": 0,
+            "count": 47,
+            "sm_mhz_mean": 1876.2,
+            "gpu_util_mean": 62.4
+          },
+          {
+            "from_s": 10,
+            "count": 47,
+            "sm_mhz_mean": 1874.7,
+            "gpu_util_mean": 50.6
+          },
+          {
+            "from_s": 20,
+            "count": 47,
+            "sm_mhz_mean": 1868.5,
+            "gpu_util_mean": 51.9
+          },
+          {
+            "from_s": 30,
+            "count": 46,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 57.7
+          },
+          {
+            "from_s": 40,
+            "count": 36,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 52.6
+          }
+        ]
+      },
+      "progress": [
+        {
+          "sec": 2.404,
+          "processed": 50
+        },
+        {
+          "sec": 4.808,
+          "processed": 100
+        },
+        {
+          "sec": 6.722,
+          "processed": 150
+        },
+        {
+          "sec": 8.711,
+          "processed": 200
+        },
+        {
+          "sec": 11.003,
+          "processed": 250
+        },
+        {
+          "sec": 14.195,
+          "processed": 300
+        },
+        {
+          "sec": 16.364,
+          "processed": 350
+        },
+        {
+          "sec": 18.441,
+          "processed": 400
+        },
+        {
+          "sec": 20.542,
+          "processed": 450
+        },
+        {
+          "sec": 22.527,
+          "processed": 500
+        },
+        {
+          "sec": 25.353,
+          "processed": 550
+        },
+        {
+          "sec": 27.853,
+          "processed": 600
+        },
+        {
+          "sec": 29.822,
+          "processed": 650
+        },
+        {
+          "sec": 31.912,
+          "processed": 700
+        },
+        {
+          "sec": 34.042,
+          "processed": 750
+        },
+        {
+          "sec": 35.995,
+          "processed": 800
+        },
+        {
+          "sec": 38.062,
+          "processed": 850
+        },
+        {
+          "sec": 40.453,
+          "processed": 900
+        },
+        {
+          "sec": 43.277,
+          "processed": 950
+        },
+        {
+          "sec": 47.28,
+          "processed": 1000
+        },
+        {
+          "sec": 49.252,
+          "processed": 1050
+        }
+      ]
+    },
+    "experiment-1": {
+      "read": 1498,
+      "processed": 1129,
+      "skipped": 367,
+      "detected": 899,
+      "wall_s": 50.055,
+      "fps": 22.56,
+      "warmup_s": 4.347,
+      "compute_mean_ms": 35.87,
+      "stages_ms": {
+        "MFE": {
+          "mean": 42.34,
+          "p95": 78.9
+        },
+        "TF": {
+          "mean": 2.91,
+          "p95": 5.62
+        },
+        "LAC": {
+          "mean": 9.54,
+          "p95": 26.28
+        },
+        "LAD": {
+          "mean": 19.12,
+          "p95": 57.87
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1129,
+          "mean": 17.624,
+          "p50": 15.022,
+          "p95": 40.514
+        },
+        "warp": {
+          "n": 1129,
+          "mean": 6.054,
+          "p50": 4.95,
+          "p95": 12.094
+        },
+        "morphology": {
+          "n": 1129,
+          "mean": 4.696,
+          "p50": 4.143,
+          "p95": 7.64
+        },
+        "LK": {
+          "n": 1129,
+          "mean": 3.747,
+          "p50": 3.249,
+          "p95": 7.896
+        },
+        "threshold_median": {
+          "n": 1129,
+          "mean": 3.618,
+          "p50": 2.918,
+          "p95": 6.591
+        },
+        "gray": {
+          "n": 1129,
+          "mean": 2.992,
+          "p50": 1.996,
+          "p95": 8.195
+        },
+        "region_stats": {
+          "n": 1129,
+          "mean": 2.665,
+          "p50": 1.711,
+          "p95": 6.848
+        },
+        "CCL": {
+          "n": 1129,
+          "mean": 0.903,
+          "p50": 0.878,
+          "p95": 1.396
+        }
+      },
+      "queued_peak": 4,
+      "wait_for_lane_ms_per_window": 31.325,
+      "tf_track_rows": 81795,
+      "reused_rows": 772,
+      "windows_with_reuse": 772,
+      "historical_source_to_publish_ms": {
+        "p50": 130.28,
+        "p95": 218.04
+      },
+      "frame_latency_ms": {
+        "input_to_detection": {
+          "mean": 123.991,
+          "n": 1129,
+          "p50": 116.667,
+          "p95": 197.602
+        },
+        "input_to_preview": {
+          "mean": 129.124,
+          "n": 1129,
+          "p50": 121.916,
+          "p95": 203.805
+        },
+        "source_to_detection": {
+          "mean": 132.194,
+          "n": 1129,
+          "p50": 125.657,
+          "p95": 210.715
+        },
+        "source_to_preview": {
+          "mean": 137.326,
+          "n": 1129,
+          "p50": 130.284,
+          "p95": 218.036
+        }
+      },
+      "gpu_samples": 228,
+      "gpu": {
+        "Util": {
+          "Mean": 56.254,
+          "Min": 0,
+          "Max": 86
+        },
+        "Memory": {
+          "Mean": 1189,
+          "Min": 1110,
+          "Max": 1225
+        },
+        "Power": {
+          "Mean": 33.25,
+          "Min": 27.81,
+          "Max": 43.23
+        },
+        "Temp": {
+          "Mean": 72.377,
+          "Min": 67.59,
+          "Max": 74.56
+        },
+        "SmMhz": {
+          "Mean": 1866.969,
+          "Min": 1860,
+          "Max": 1867
+        },
+        "MemMhz": {
+          "Mean": 5501,
+          "Min": 5501,
+          "Max": 5501
+        },
+        "pstates": [
+          {
+            "pstate": "P0",
+            "count": 228
+          }
+        ],
+        "buckets": [
+          {
+            "from_s": 0,
+            "count": 47,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 53.7
+          },
+          {
+            "from_s": 10,
+            "count": 47,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 51.3
+          },
+          {
+            "from_s": 20,
+            "count": 47,
+            "sm_mhz_mean": 1866.9,
+            "gpu_util_mean": 61.4
+          },
+          {
+            "from_s": 30,
+            "count": 43,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 61.3
+          },
+          {
+            "from_s": 40,
+            "count": 44,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 54
+          }
+        ]
+      },
+      "progress": [
+        {
+          "sec": 2.917,
+          "processed": 50
+        },
+        {
+          "sec": 5.824,
+          "processed": 100
+        },
+        {
+          "sec": 8.123,
+          "processed": 150
+        },
+        {
+          "sec": 10.124,
+          "processed": 200
+        },
+        {
+          "sec": 12.439,
+          "processed": 250
+        },
+        {
+          "sec": 15.084,
+          "processed": 300
+        },
+        {
+          "sec": 17.768,
+          "processed": 350
+        },
+        {
+          "sec": 19.745,
+          "processed": 400
+        },
+        {
+          "sec": 21.698,
+          "processed": 450
+        },
+        {
+          "sec": 23.872,
+          "processed": 500
+        },
+        {
+          "sec": 25.801,
+          "processed": 550
+        },
+        {
+          "sec": 27.796,
+          "processed": 600
+        },
+        {
+          "sec": 29.627,
+          "processed": 650
+        },
+        {
+          "sec": 31.768,
+          "processed": 700
+        },
+        {
+          "sec": 33.783,
+          "processed": 750
+        },
+        {
+          "sec": 35.669,
+          "processed": 800
+        },
+        {
+          "sec": 37.618,
+          "processed": 850
+        },
+        {
+          "sec": 40.494,
+          "processed": 900
+        },
+        {
+          "sec": 42.488,
+          "processed": 950
+        },
+        {
+          "sec": 44.292,
+          "processed": 1000
+        },
+        {
+          "sec": 46.204,
+          "processed": 1050
+        },
+        {
+          "sec": 48.8,
+          "processed": 1100
+        }
+      ]
+    },
+    "experiment-2": {
+      "read": 1498,
+      "processed": 1130,
+      "skipped": 366,
+      "detected": 908,
+      "wall_s": 50.035,
+      "fps": 22.58,
+      "warmup_s": 4.098,
+      "compute_mean_ms": 36.08,
+      "stages_ms": {
+        "MFE": {
+          "mean": 41.77,
+          "p95": 76.52
+        },
+        "TF": {
+          "mean": 2.86,
+          "p95": 5.65
+        },
+        "LAC": {
+          "mean": 9.3,
+          "p95": 25.33
+        },
+        "LAD": {
+          "mean": 19.19,
+          "p95": 58.11
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1130,
+          "mean": 17.172,
+          "p50": 14.032,
+          "p95": 38.038
+        },
+        "warp": {
+          "n": 1130,
+          "mean": 6.049,
+          "p50": 4.936,
+          "p95": 12.624
+        },
+        "morphology": {
+          "n": 1130,
+          "mean": 4.661,
+          "p50": 4.136,
+          "p95": 7.571
+        },
+        "threshold_median": {
+          "n": 1130,
+          "mean": 3.738,
+          "p50": 2.922,
+          "p95": 7.352
+        },
+        "LK": {
+          "n": 1130,
+          "mean": 3.628,
+          "p50": 3.209,
+          "p95": 7.433
+        },
+        "gray": {
+          "n": 1130,
+          "mean": 2.912,
+          "p50": 2.012,
+          "p95": 7.352
+        },
+        "region_stats": {
+          "n": 1130,
+          "mean": 2.654,
+          "p50": 1.648,
+          "p95": 6.866
+        },
+        "CCL": {
+          "n": 1130,
+          "mean": 0.906,
+          "p50": 0.878,
+          "p95": 1.405
+        }
+      },
+      "queued_peak": 4,
+      "wait_for_lane_ms_per_window": 30.616,
+      "tf_track_rows": 83584,
+      "reused_rows": 740,
+      "windows_with_reuse": 740,
+      "historical_source_to_publish_ms": {
+        "p50": 131.62,
+        "p95": 208.12
+      },
+      "frame_latency_ms": {
+        "input_to_detection": {
+          "mean": 122.662,
+          "n": 1130,
+          "p50": 116.037,
+          "p95": 192.096
+        },
+        "input_to_preview": {
+          "mean": 127.623,
+          "n": 1130,
+          "p50": 120.688,
+          "p95": 199.403
+        },
+        "source_to_detection": {
+          "mean": 130.069,
+          "n": 1130,
+          "p50": 126.982,
+          "p95": 201.682
+        },
+        "source_to_preview": {
+          "mean": 135.03,
+          "n": 1130,
+          "p50": 131.618,
+          "p95": 208.116
+        }
+      },
+      "gpu_samples": 221,
+      "gpu": {
+        "Util": {
+          "Mean": 57.113,
+          "Min": 0,
+          "Max": 83
+        },
+        "Memory": {
+          "Mean": 1201.86,
+          "Min": 1109,
+          "Max": 1231
+        },
+        "Power": {
+          "Mean": 33.509,
+          "Min": 18.51,
+          "Max": 37.11
+        },
+        "Temp": {
+          "Mean": 72.84,
+          "Min": 68.38,
+          "Max": 74.78
+        },
+        "SmMhz": {
+          "Mean": 1863.421,
+          "Min": 1860,
+          "Max": 1867
+        },
+        "MemMhz": {
+          "Mean": 5501,
+          "Min": 5501,
+          "Max": 5501
+        },
+        "pstates": [
+          {
+            "pstate": "P0",
+            "count": 221
+          }
+        ],
+        "buckets": [
+          {
+            "from_s": 0,
+            "count": 41,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 58
+          },
+          {
+            "from_s": 10,
+            "count": 39,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 44.2
+          },
+          {
+            "from_s": 20,
+            "count": 47,
+            "sm_mhz_mean": 1864.2,
+            "gpu_util_mean": 57.4
+          },
+          {
+            "from_s": 30,
+            "count": 47,
+            "sm_mhz_mean": 1860,
+            "gpu_util_mean": 63.1
+          },
+          {
+            "from_s": 40,
+            "count": 46,
+            "sm_mhz_mean": 1860,
+            "gpu_util_mean": 61.4
+          },
+          {
+            "from_s": 50,
+            "count": 1,
+            "sm_mhz_mean": 1860,
+            "gpu_util_mean": 33
+          }
+        ]
+      },
+      "progress": [
+        {
+          "sec": 2.349,
+          "processed": 50
+        },
+        {
+          "sec": 4.697,
+          "processed": 100
+        },
+        {
+          "sec": 6.788,
+          "processed": 150
+        },
+        {
+          "sec": 10.437,
+          "processed": 200
+        },
+        {
+          "sec": 13.778,
+          "processed": 250
+        },
+        {
+          "sec": 16.324,
+          "processed": 300
+        },
+        {
+          "sec": 18.53,
+          "processed": 350
+        },
+        {
+          "sec": 20.458,
+          "processed": 400
+        },
+        {
+          "sec": 22.444,
+          "processed": 450
+        },
+        {
+          "sec": 25.194,
+          "processed": 500
+        },
+        {
+          "sec": 27.183,
+          "processed": 550
+        },
+        {
+          "sec": 29.163,
+          "processed": 600
+        },
+        {
+          "sec": 31.151,
+          "processed": 650
+        },
+        {
+          "sec": 33.104,
+          "processed": 700
+        },
+        {
+          "sec": 35.132,
+          "processed": 750
+        },
+        {
+          "sec": 37.205,
+          "processed": 800
+        },
+        {
+          "sec": 39.232,
+          "processed": 850
+        },
+        {
+          "sec": 41.098,
+          "processed": 900
+        },
+        {
+          "sec": 43.034,
+          "processed": 950
+        },
+        {
+          "sec": 44.92,
+          "processed": 1000
+        },
+        {
+          "sec": 46.973,
+          "processed": 1050
+        },
+        {
+          "sec": 48.782,
+          "processed": 1100
+        }
+      ]
+    },
+    "master-2": {
+      "read": 1498,
+      "processed": 1253,
+      "skipped": 243,
+      "detected": 1027,
+      "wall_s": 50.037,
+      "fps": 25.04,
+      "warmup_s": 4.091,
+      "compute_mean_ms": 33.72,
+      "stages_ms": {
+        "MFE": {
+          "mean": 38.74,
+          "p95": 74.36
+        },
+        "TF": {
+          "mean": 2.78,
+          "p95": 5.55
+        },
+        "LAC": {
+          "mean": 8.46,
+          "p95": 24.46
+        },
+        "LAD": {
+          "mean": 18.12,
+          "p95": 52.84
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1253,
+          "mean": 15.563,
+          "p50": 12.352,
+          "p95": 37.08
+        },
+        "warp": {
+          "n": 1253,
+          "mean": 5.739,
+          "p50": 4.575,
+          "p95": 11.92
+        },
+        "morphology": {
+          "n": 1253,
+          "mean": 4.58,
+          "p50": 4.138,
+          "p95": 7.163
+        },
+        "threshold_median": {
+          "n": 1253,
+          "mean": 3.546,
+          "p50": 2.834,
+          "p95": 6.47
+        },
+        "LK": {
+          "n": 1253,
+          "mean": 3.411,
+          "p50": 2.904,
+          "p95": 7.375
+        },
+        "gray": {
+          "n": 1253,
+          "mean": 2.567,
+          "p50": 1.822,
+          "p95": 6.502
+        },
+        "region_stats": {
+          "n": 1253,
+          "mean": 2.413,
+          "p50": 1.625,
+          "p95": 6.379
+        },
+        "CCL": {
+          "n": 1253,
+          "mean": 0.883,
+          "p50": 0.863,
+          "p95": 1.327
+        }
+      },
+      "queued_peak": 4,
+      "wait_for_lane_ms_per_window": 28.491,
+      "tf_track_rows": 91903,
+      "reused_rows": 891,
+      "windows_with_reuse": 891,
+      "historical_source_to_publish_ms": {
+        "p50": 123.3,
+        "p95": 196.15
+      },
+      "frame_latency_ms": {
+        "input_to_detection": {
+          "mean": 118.841,
+          "n": 1253,
+          "p50": 111.584,
+          "p95": 189.16
+        },
+        "input_to_preview": {
+          "mean": 123.459,
+          "n": 1253,
+          "p50": 115.882,
+          "p95": 195.684
+        },
+        "source_to_detection": {
+          "mean": 123.826,
+          "n": 1253,
+          "p50": 119.123,
+          "p95": 190.789
+        },
+        "source_to_preview": {
+          "mean": 128.444,
+          "n": 1253,
+          "p50": 123.303,
+          "p95": 196.154
+        }
+      },
+      "gpu_samples": 232,
+      "gpu": {
+        "Util": {
+          "Mean": 60.194,
+          "Min": 29,
+          "Max": 82
+        },
+        "Memory": {
+          "Mean": 1215.259,
+          "Min": 1127,
+          "Max": 1245
+        },
+        "Power": {
+          "Mean": 34.658,
+          "Min": 29.24,
+          "Max": 37.21
+        },
+        "Temp": {
+          "Mean": 73.662,
+          "Min": 69.69,
+          "Max": 75.31
+        },
+        "SmMhz": {
+          "Mean": 1863.289,
+          "Min": 1860,
+          "Max": 1867
+        },
+        "MemMhz": {
+          "Mean": 5501,
+          "Min": 5501,
+          "Max": 5501
+        },
+        "pstates": [
+          {
+            "pstate": "P0",
+            "count": 232
+          }
+        ],
+        "buckets": [
+          {
+            "from_s": 0,
+            "count": 46,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 61.8
+          },
+          {
+            "from_s": 10,
+            "count": 47,
+            "sm_mhz_mean": 1867,
+            "gpu_util_mean": 60.1
+          },
+          {
+            "from_s": 20,
+            "count": 46,
+            "sm_mhz_mean": 1862.4,
+            "gpu_util_mean": 58.1
+          },
+          {
+            "from_s": 30,
+            "count": 47,
+            "sm_mhz_mean": 1860,
+            "gpu_util_mean": 61.5
+          },
+          {
+            "from_s": 40,
+            "count": 46,
+            "sm_mhz_mean": 1860,
+            "gpu_util_mean": 59.5
+          }
+        ]
+      },
+      "progress": [
+        {
+          "sec": 2.389,
+          "processed": 50
+        },
+        {
+          "sec": 4.724,
+          "processed": 100
+        },
+        {
+          "sec": 6.664,
+          "processed": 150
+        },
+        {
+          "sec": 8.534,
+          "processed": 200
+        },
+        {
+          "sec": 10.469,
+          "processed": 250
+        },
+        {
+          "sec": 12.507,
+          "processed": 300
+        },
+        {
+          "sec": 14.313,
+          "processed": 350
+        },
+        {
+          "sec": 16.444,
+          "processed": 400
+        },
+        {
+          "sec": 18.318,
+          "processed": 450
+        },
+        {
+          "sec": 20.276,
+          "processed": 500
+        },
+        {
+          "sec": 22.304,
+          "processed": 550
+        },
+        {
+          "sec": 24.228,
+          "processed": 600
+        },
+        {
+          "sec": 26.278,
+          "processed": 650
+        },
+        {
+          "sec": 28.37,
+          "processed": 700
+        },
+        {
+          "sec": 30.434,
+          "processed": 750
+        },
+        {
+          "sec": 32.356,
+          "processed": 800
+        },
+        {
+          "sec": 34.282,
+          "processed": 850
+        },
+        {
+          "sec": 36.161,
+          "processed": 900
+        },
+        {
+          "sec": 38.167,
+          "processed": 950
+        },
+        {
+          "sec": 40.182,
+          "processed": 1000
+        },
+        {
+          "sec": 42.191,
+          "processed": 1050
+        },
+        {
+          "sec": 44.153,
+          "processed": 1100
+        },
+        {
+          "sec": 46.028,
+          "processed": 1150
+        },
+        {
+          "sec": 47.816,
+          "processed": 1200
+        },
+        {
+          "sec": 49.888,
+          "processed": 1250
+        }
+      ]
+    },
+    "historical_master": {
+      "read": 1498,
+      "processed": 1052,
+      "skipped": 444,
+      "detected": 883,
+      "wall_s": 50.483,
+      "fps": 20.84,
+      "warmup_s": 7.05,
+      "compute_mean_ms": 36.47,
+      "stages_ms": {
+        "MFE": {
+          "mean": 44.13,
+          "p95": 75.45
+        },
+        "TF": {
+          "mean": 3.04,
+          "p95": 5.94
+        },
+        "LAC": {
+          "mean": 9.79,
+          "p95": 25.1
+        },
+        "LAD": {
+          "mean": 19.79,
+          "p95": 56.94
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1052,
+          "mean": 18.588,
+          "p50": 16.512,
+          "p95": 37.742
+        },
+        "warp": {
+          "n": 1052,
+          "mean": 6.455,
+          "p50": 5.419,
+          "p95": 12.834
+        },
+        "morphology": {
+          "n": 1052,
+          "mean": 4.707,
+          "p50": 4.157,
+          "p95": 7.648
+        },
+        "LK": {
+          "n": 1052,
+          "mean": 3.853,
+          "p50": 3.385,
+          "p95": 8.019
+        },
+        "threshold_median": {
+          "n": 1052,
+          "mean": 3.825,
+          "p50": 3.173,
+          "p95": 7.03
+        },
+        "gray": {
+          "n": 1052,
+          "mean": 2.916,
+          "p50": 2.064,
+          "p95": 6.876
+        },
+        "region_stats": {
+          "n": 1052,
+          "mean": 2.845,
+          "p50": 1.761,
+          "p95": 7.147
+        },
+        "CCL": {
+          "n": 1052,
+          "mean": 0.903,
+          "p50": 0.874,
+          "p95": 1.381
+        }
+      },
+      "queued_peak": 6,
+      "wait_for_lane_ms_per_window": 33.433,
+      "tf_track_rows": 76690,
+      "reused_rows": 742,
+      "windows_with_reuse": 742,
+      "historical_source_to_publish_ms": {
+        "p50": 136.04,
+        "p95": 208.79
+      },
+      "progress": [
+        {
+          "sec": 2.61,
+          "processed": 50
+        },
+        {
+          "sec": 5.207,
+          "processed": 100
+        },
+        {
+          "sec": 7.56,
+          "processed": 150
+        },
+        {
+          "sec": 9.714,
+          "processed": 200
+        },
+        {
+          "sec": 12.214,
+          "processed": 250
+        },
+        {
+          "sec": 14.272,
+          "processed": 300
+        },
+        {
+          "sec": 16.272,
+          "processed": 350
+        },
+        {
+          "sec": 18.342,
+          "processed": 400
+        },
+        {
+          "sec": 20.247,
+          "processed": 450
+        },
+        {
+          "sec": 22.108,
+          "processed": 500
+        },
+        {
+          "sec": 24.573,
+          "processed": 550
+        },
+        {
+          "sec": 27.064,
+          "processed": 600
+        },
+        {
+          "sec": 31.133,
+          "processed": 650
+        },
+        {
+          "sec": 34.042,
+          "processed": 700
+        },
+        {
+          "sec": 37.507,
+          "processed": 750
+        },
+        {
+          "sec": 39.62,
+          "processed": 800
+        },
+        {
+          "sec": 41.522,
+          "processed": 850
+        },
+        {
+          "sec": 43.445,
+          "processed": 900
+        },
+        {
+          "sec": 45.434,
+          "processed": 950
+        },
+        {
+          "sec": 47.511,
+          "processed": 1000
+        },
+        {
+          "sec": 49.785,
+          "processed": 1050
+        }
+      ]
+    },
+    "historical_experiment": {
+      "read": 1498,
+      "processed": 1164,
+      "skipped": 332,
+      "detected": 961,
+      "wall_s": 50.012,
+      "fps": 23.27,
+      "warmup_s": 3.896,
+      "compute_mean_ms": 34.24,
+      "stages_ms": {
+        "MFE": {
+          "mean": 39.44,
+          "p95": 74.45
+        },
+        "TF": {
+          "mean": 2.82,
+          "p95": 5.54
+        },
+        "LAC": {
+          "mean": 8.58,
+          "p95": 24.07
+        },
+        "LAD": {
+          "mean": 19.27,
+          "p95": 56.25
+        }
+      },
+      "mfe_ms": {
+        "RANSAC": {
+          "n": 1164,
+          "mean": 16.023,
+          "p50": 13.116,
+          "p95": 36.738
+        },
+        "warp": {
+          "n": 1164,
+          "mean": 5.75,
+          "p50": 4.754,
+          "p95": 10.827
+        },
+        "morphology": {
+          "n": 1164,
+          "mean": 4.551,
+          "p50": 4.12,
+          "p95": 6.826
+        },
+        "threshold_median": {
+          "n": 1164,
+          "mean": 3.585,
+          "p50": 2.864,
+          "p95": 6.45
+        },
+        "LK": {
+          "n": 1164,
+          "mean": 3.394,
+          "p50": 2.932,
+          "p95": 7.015
+        },
+        "gray": {
+          "n": 1164,
+          "mean": 2.719,
+          "p50": 1.862,
+          "p95": 6.857
+        },
+        "region_stats": {
+          "n": 1164,
+          "mean": 2.497,
+          "p50": 1.683,
+          "p95": 6.488
+        },
+        "CCL": {
+          "n": 1164,
+          "mean": 0.887,
+          "p50": 0.868,
+          "p95": 1.318
+        }
+      },
+      "queued_peak": 4,
+      "wait_for_lane_ms_per_window": 29.544,
+      "tf_track_rows": 86431,
+      "reused_rows": 820,
+      "windows_with_reuse": 820,
+      "historical_source_to_publish_ms": {
+        "p50": 126.97,
+        "p95": 201.53
+      },
+      "progress": [
+        {
+          "sec": 2.366,
+          "processed": 50
+        },
+        {
+          "sec": 4.862,
+          "processed": 100
+        },
+        {
+          "sec": 7.084,
+          "processed": 150
+        },
+        {
+          "sec": 9.223,
+          "processed": 200
+        },
+        {
+          "sec": 11.2,
+          "processed": 250
+        },
+        {
+          "sec": 13.264,
+          "processed": 300
+        },
+        {
+          "sec": 15.367,
+          "processed": 350
+        },
+        {
+          "sec": 17.401,
+          "processed": 400
+        },
+        {
+          "sec": 19.397,
+          "processed": 450
+        },
+        {
+          "sec": 23.465,
+          "processed": 500
+        },
+        {
+          "sec": 25.422,
+          "processed": 550
+        },
+        {
+          "sec": 27.461,
+          "processed": 600
+        },
+        {
+          "sec": 29.365,
+          "processed": 650
+        },
+        {
+          "sec": 31.263,
+          "processed": 700
+        },
+        {
+          "sec": 33.41,
+          "processed": 750
+        },
+        {
+          "sec": 35.383,
+          "processed": 800
+        },
+        {
+          "sec": 37.401,
+          "processed": 850
+        },
+        {
+          "sec": 39.593,
+          "processed": 900
+        },
+        {
+          "sec": 41.532,
+          "processed": 950
+        },
+        {
+          "sec": 43.533,
+          "processed": 1000
+        },
+        {
+          "sec": 45.555,
+          "processed": 1050
+        },
+        {
+          "sec": 47.397,
+          "processed": 1100
+        },
+        {
+          "sec": 49.419,
+          "processed": 1150
+        }
+      ]
+    }
+  }
+}

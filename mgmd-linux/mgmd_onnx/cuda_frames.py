@@ -4,6 +4,7 @@ import ctypes as C
 from dataclasses import dataclass
 import os
 from time import perf_counter
+from typing import Optional
 
 import torch
 
@@ -34,6 +35,7 @@ class CudaFrame:
     strides: tuple
     owner: object = None
     ready: object = None
+    input_started: Optional[float] = None
 
 
 def _to_bgr(y, uv, color_space, full_range):

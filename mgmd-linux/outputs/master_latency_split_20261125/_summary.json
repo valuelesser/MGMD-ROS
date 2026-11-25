@@ -1,0 +1,241 @@
+{
+  "date": "2026-11-25",
+  "base": "0cd9eb6bb4f73e5bc942debfb23c590e9f938aa1",
+  "video": "/data/videos/phantom30.mp4",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "rate_hz": "30000/1001",
+  "warmup_windows": 12,
+  "leading_frames": 25,
+  "confirm_frames": 3,
+  "resident_split_head": true,
+  "viewer": "Windows native FFplay",
+  "runs": {
+    "single": {
+      "read": 1498,
+      "processed": 1046,
+      "skipped": 450,
+      "detected": 840,
+      "wall_s": 50.009,
+      "fps": 20.92,
+      "stages_ms": {
+        "MFE": {
+          "mean": 27.63,
+          "p95": 39.19
+        },
+        "TF": {
+          "mean": 2.12,
+          "p95": 3.64
+        },
+        "LAC": {
+          "mean": 4.29,
+          "p95": 11.67
+        },
+        "LAD": {
+          "mean": 9.77,
+          "p95": 30.64
+        }
+      },
+      "latency_ms": {
+        "admitted_to_compute_finished": {
+          "mean": 44.8,
+          "n": 1046,
+          "p50": 40.115,
+          "p95": 77.177
+        },
+        "center_read": {
+          "mean": 1.579,
+          "n": 1046,
+          "p50": 1.114,
+          "p95": 4.358
+        },
+        "compute_finished_to_main": {
+          "mean": 0.323,
+          "n": 1046,
+          "p50": 0.273,
+          "p95": 0.577
+        },
+        "input_to_detection": {
+          "mean": 76.707,
+          "n": 1046,
+          "p50": 74.176,
+          "p95": 117.086
+        },
+        "input_to_preview": {
+          "mean": 81.01,
+          "n": 1046,
+          "p50": 78.149,
+          "p95": 122.823
+        },
+        "next_read": {
+          "mean": 1.781,
+          "n": 1046,
+          "p50": 1.148,
+          "p95": 4.61
+        },
+        "playback_pacing": {
+          "mean": 0.245,
+          "n": 1046,
+          "p50": 0.005,
+          "p95": 0.509
+        },
+        "prepare_and_publish_detection": {
+          "mean": 4.406,
+          "n": 1046,
+          "p50": 4.187,
+          "p95": 7.916
+        },
+        "publish_detection_to_preview": {
+          "mean": 4.303,
+          "n": 1046,
+          "p50": 3.591,
+          "p95": 7.427
+        },
+        "source_to_detection": {
+          "mean": 99.601,
+          "n": 1046,
+          "p50": 97.875,
+          "p95": 138.946
+        },
+        "source_to_preview": {
+          "mean": 103.905,
+          "n": 1046,
+          "p50": 101.391,
+          "p95": 143.861
+        },
+        "wait_for_next_read": {
+          "mean": 23.573,
+          "n": 1046,
+          "p50": 30.455,
+          "p95": 48.272
+        }
+      },
+      "awaiting_window_ms_mean": 27.178,
+      "compute_to_detection_ms_mean": 4.729,
+      "decode_schedule_offset_ms_mean": 22.895,
+      "log": [
+        "[INFO] [1795589312.806540]: GPU compute topology: 1 detection lane(s), TF on the lane stream",
+        "[INFO] [1795589366.289604]: GPU idle dispatch: queued_peak=1 wait_for_lane_ms_per_window=43.183 source_ms_per_window={}",
+        "[INFO] [1795589366.291119]: GPU summary: read=1498 processed=1046 skipped=450 detection_frames=840 wall=50.009s fps=20.92 compute_mean=41.48ms",
+        "[INFO] [1795589366.302730]: GPU frame latency (ms): {\"admitted_to_compute_finished\": {\"mean\": 44.8, \"n\": 1046, \"p50\": 40.115, \"p95\": 77.177}, \"center_read\": {\"mean\": 1.579, \"n\": 1046, \"p50\": 1.114, \"p95\": 4.358}, \"compute_finished_to_main\": {\"mean\": 0.323, \"n\": 1046, \"p50\": 0.273, \"p95\": 0.577}, \"input_to_detection\": {\"mean\": 76.707, \"n\": 1046, \"p50\": 74.176, \"p95\": 117.086}, \"input_to_preview\": {\"mean\": 81.01, \"n\": 1046, \"p50\": 78.149, \"p95\": 122.823}, \"next_read\": {\"mean\": 1.781, \"n\": 1046, \"p50\": 1.148, \"p95\": 4.61}, \"playback_pacing\": {\"mean\": 0.245, \"n\": 1046, \"p50\": 0.005, \"p95\": 0.509}, \"prepare_and_publish_detection\": {\"mean\": 4.406, \"n\": 1046, \"p50\": 4.187, \"p95\": 7.916}, \"publish_detection_to_preview\": {\"mean\": 4.303, \"n\": 1046, \"p50\": 3.591, \"p95\": 7.427}, \"source_to_detection\": {\"mean\": 99.601, \"n\": 1046, \"p50\": 97.875, \"p95\": 138.946}, \"source_to_preview\": {\"mean\": 103.905, \"n\": 1046, \"p50\": 101.391, \"p95\": 143.861}, \"wait_for_next_read\": {\"mean\": 23.573, \"n\": 1046, \"p50\": 30.455, \"p95\": 48.272}}",
+        "[INFO] [1795589366.305515]: GPU stages (ms mean/p95): MFE=27.63/39.19, TF=2.12/3.64, LAC=4.29/11.67, LAD=9.77/30.64; slowest=MFE",
+        "[INFO] [1795589366.310769]: MFE profile: RANSAC n=1046 mean=9.883 p50=8.620 p95=18.789 ms",
+        "process has finished cleanly"
+      ]
+    },
+    "dual": {
+      "read": 1498,
+      "processed": 1225,
+      "skipped": 271,
+      "detected": 981,
+      "wall_s": 49.994,
+      "fps": 24.5,
+      "stages_ms": {
+        "MFE": {
+          "mean": 39.67,
+          "p95": 69.99
+        },
+        "TF": {
+          "mean": 2.79,
+          "p95": 5.78
+        },
+        "LAC": {
+          "mean": 8.54,
+          "p95": 23.99
+        },
+        "LAD": {
+          "mean": 18.97,
+          "p95": 57.32
+        }
+      },
+      "latency_ms": {
+        "admitted_to_compute_finished": {
+          "mean": 71.868,
+          "n": 1225,
+          "p50": 66.869,
+          "p95": 128.836
+        },
+        "center_read": {
+          "mean": 1.569,
+          "n": 1225,
+          "p50": 1.15,
+          "p95": 3.768
+        },
+        "compute_finished_to_main": {
+          "mean": 6.03,
+          "n": 1225,
+          "p50": 0.729,
+          "p95": 35.146
+        },
+        "input_to_detection": {
+          "mean": 119.124,
+          "n": 1225,
+          "p50": 114.723,
+          "p95": 186.666
+        },
+        "input_to_preview": {
+          "mean": 123.747,
+          "n": 1225,
+          "p50": 119.038,
+          "p95": 192.801
+        },
+        "next_read": {
+          "mean": 1.591,
+          "n": 1225,
+          "p50": 1.188,
+          "p95": 3.79
+        },
+        "playback_pacing": {
+          "mean": 6.56,
+          "n": 1225,
+          "p50": 0.01,
+          "p95": 29.708
+        },
+        "prepare_and_publish_detection": {
+          "mean": 5.976,
+          "n": 1225,
+          "p50": 5.344,
+          "p95": 13.251
+        },
+        "publish_detection_to_preview": {
+          "mean": 4.624,
+          "n": 1225,
+          "p50": 3.88,
+          "p95": 7.987
+        },
+        "source_to_detection": {
+          "mean": 125.72,
+          "n": 1225,
+          "p50": 122.26,
+          "p95": 189.086
+        },
+        "source_to_preview": {
+          "mean": 130.344,
+          "n": 1225,
+          "p50": 126.186,
+          "p95": 195.08
+        },
+        "wait_for_next_read": {
+          "mean": 25.529,
+          "n": 1225,
+          "p50": 24.421,
+          "p95": 62.164
+        }
+      },
+      "awaiting_window_ms_mean": 35.249,
+      "compute_to_detection_ms_mean": 12.006,
+      "decode_schedule_offset_ms_mean": 6.597,
+      "log": [
+        "[INFO] [1795589372.476016]: GPU compute topology: 2 detection lane(s), TF on a shared stream",
+        "[INFO] [1795589426.288988]: GPU idle dispatch: queued_peak=4 wait_for_lane_ms_per_window=29.376 source_ms_per_window={}",
+        "[INFO] [1795589426.289814]: GPU summary: read=1498 processed=1225 skipped=271 detection_frames=981 wall=49.994s fps=24.50 compute_mean=34.47ms",
+        "[INFO] [1795589426.299213]: GPU frame latency (ms): {\"admitted_to_compute_finished\": {\"mean\": 71.868, \"n\": 1225, \"p50\": 66.869, \"p95\": 128.836}, \"center_read\": {\"mean\": 1.569, \"n\": 1225, \"p50\": 1.15, \"p95\": 3.768}, \"compute_finished_to_main\": {\"mean\": 6.03, \"n\": 1225, \"p50\": 0.729, \"p95\": 35.146}, \"input_to_detection\": {\"mean\": 119.124, \"n\": 1225, \"p50\": 114.723, \"p95\": 186.666}, \"input_to_preview\": {\"mean\": 123.747, \"n\": 1225, \"p50\": 119.038, \"p95\": 192.801}, \"next_read\": {\"mean\": 1.591, \"n\": 1225, \"p50\": 1.188, \"p95\": 3.79}, \"playback_pacing\": {\"mean\": 6.56, \"n\": 1225, \"p50\": 0.01, \"p95\": 29.708}, \"prepare_and_publish_detection\": {\"mean\": 5.976, \"n\": 1225, \"p50\": 5.344, \"p95\": 13.251}, \"publish_detection_to_preview\": {\"mean\": 4.624, \"n\": 1225, \"p50\": 3.88, \"p95\": 7.987}, \"source_to_detection\": {\"mean\": 125.72, \"n\": 1225, \"p50\": 122.26, \"p95\": 189.086}, \"source_to_preview\": {\"mean\": 130.344, \"n\": 1225, \"p50\": 126.186, \"p95\": 195.08}, \"wait_for_next_read\": {\"mean\": 25.529, \"n\": 1225, \"p50\": 24.421, \"p95\": 62.164}}",
+        "[INFO] [1795589426.301081]: GPU stages (ms mean/p95): MFE=39.67/69.99, TF=2.79/5.78, LAC=8.54/23.99, LAD=18.97/57.32; slowest=MFE",
+        "[INFO] [1795589426.305615]: MFE profile: RANSAC n=1225 mean=16.376 p50=13.877 p95=35.447 ms",
+        "process has finished cleanly"
+      ]
+    }
+  }
+}

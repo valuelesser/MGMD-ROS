@@ -211,4 +211,5 @@ class ParityPipeline:
         stages = [gray_start.elapsed_time(gray_ready) + mfe_start.elapsed_time(mfe_end),
                   tf_start.elapsed_time(tf_end), start.elapsed_time(classified) if pipe.lac else 0.,
                   classified.elapsed_time(end) if pipe.lad else 0.]
+        center.compute_finished = perf_counter()
         return output, status, count, stages, (track_count, 0 if reused is None else len(reused))

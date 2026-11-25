@@ -36,6 +36,9 @@ class CudaFrame:
     owner: object = None
     ready: object = None
     input_started: Optional[float] = None
+    input_read: Optional[float] = None
+    window_admitted: Optional[float] = None
+    compute_finished: Optional[float] = None
 
 
 def _to_bgr(y, uv, color_space, full_range):

@@ -40,6 +40,7 @@ def ready_windows(decoder, first, limit, started, rate, realtime, profile, count
         if frame is None:
             break
         frame.input_started = input_started
+        frame.input_read = time.perf_counter()
         counts["read"] += 1
         frames.append(frame)
         if len(frames) < 3:
@@ -55,6 +56,7 @@ def ready_windows(decoder, first, limit, started, rate, realtime, profile, count
                 if wall_bins is not None:
                     wall_bins["source_sleep"] += time.perf_counter() - now
         marks = [] if profile else None
+        frame.window_admitted = time.perf_counter()
         yield tuple(frames), None, marks
 
 
@@ -328,10 +330,19 @@ def main():
             detected += bool(data)
             source_due = started + center.seq / source_rate
             latencies["input_to_detection"].append(1000 * (detection_published - center.input_started))
+            if parity:
+                timeline = (center.input_started, center.input_read, following.input_started,
+                            following.input_read, following.window_admitted, center.compute_finished,
+                            compute_done, detection_published)
+                parts = ("center_read", "wait_for_next_read", "next_read", "playback_pacing",
+                         "admitted_to_compute_finished", "compute_finished_to_main", "prepare_and_publish_detection")
+                for name, before, after in zip(parts, timeline, timeline[1:]):
+                    latencies[name].append(1000 * (after - before))
             if realtime:
                 latencies["source_to_detection"].append(1000 * (detection_published - source_due))
             if debug is not None:
                 latencies["input_to_preview"].append(1000 * (preview_published - center.input_started))
+                latencies["publish_detection_to_preview"].append(1000 * (preview_published - detection_published))
                 if realtime:
                     latencies["source_to_preview"].append(1000 * (preview_published - source_due))
             if processed % 50 == 0:

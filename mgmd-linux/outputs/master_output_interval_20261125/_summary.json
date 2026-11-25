@@ -1,0 +1,66 @@
+{
+  "date": "2026-11-25",
+  "base": "9933a3ffb11a110ef3854f81d6b384c08366eb82",
+  "video": "/data/videos/phantom30.mp4",
+  "resolution": [
+    1920,
+    1080
+  ],
+  "source_rate": "30000/1001",
+  "resident_split_head": true,
+  "warmup_windows": 12,
+  "leading_frames": 25,
+  "confirm_frames": 3,
+  "viewer": "Windows native FFplay",
+  "endpoint": "same-topic ROS publish return",
+  "runs": {
+    "single": {
+      "read": 1498,
+      "processed": 1077,
+      "skipped": 419,
+      "detected": 861,
+      "wall_s": 50.038,
+      "fps": 21.52,
+      "output_interval_ms": {
+        "detection": {
+          "mean": 46.415,
+          "n": 1076,
+          "p50": 42.288,
+          "p90": 68.656,
+          "p95": 79.38
+        },
+        "preview": {
+          "mean": 46.415,
+          "n": 1076,
+          "p50": 41.71,
+          "p90": 69.59,
+          "p95": 79.747
+        }
+      }
+    },
+    "dual": {
+      "read": 1498,
+      "processed": 1200,
+      "skipped": 296,
+      "detected": 987,
+      "wall_s": 50.067,
+      "fps": 23.97,
+      "output_interval_ms": {
+        "detection": {
+          "mean": 41.675,
+          "n": 1199,
+          "p50": 36.884,
+          "p90": 81.073,
+          "p95": 97.037
+        },
+        "preview": {
+          "mean": 41.675,
+          "n": 1199,
+          "p50": 36.488,
+          "p90": 81.029,
+          "p95": 96.172
+        }
+      }
+    }
+  }
+}

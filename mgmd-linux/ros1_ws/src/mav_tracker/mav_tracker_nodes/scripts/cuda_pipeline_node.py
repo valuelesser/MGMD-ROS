@@ -149,6 +149,8 @@ def main():
     recent = deque()
     stages = []
     latencies = defaultdict(list)
+    output_intervals = defaultdict(list)
+    previous_detection_published = previous_preview_published = None
     mfe_samples = defaultdict(list)
     elapsed = 0.
     resident = None
@@ -293,6 +295,9 @@ def main():
                 [detection_source] * verified_count + ["tf"] * reuse_count, candidates, *stage_ms,
                 track_ids=[int(row[5]) for row in data]))
             detection_published = time.perf_counter()
+            if previous_detection_published is not None:
+                output_intervals["detection"].append(1000 * (detection_published - previous_detection_published))
+            previous_detection_published = detection_published
             if wall_bins is not None:
                 preview_started = detection_published
                 wall_bins["detection_publish"] += preview_started - publish_started
@@ -318,6 +323,9 @@ def main():
                 debug.publish(Image(header=header, height=height, width=width, encoding="bgr8",
                                     step=width * 3, data=payload))
                 preview_published = time.perf_counter()
+                if previous_preview_published is not None:
+                    output_intervals["preview"].append(1000 * (preview_published - previous_preview_published))
+                previous_preview_published = preview_published
                 if wall_bins is not None:
                     wall_bins["preview_publish"] += preview_published - image_publish_started
             else:
@@ -378,14 +386,16 @@ def main():
             playback_latency = latencies["source_to_preview" if debug is not None else "source_to_detection"]
             rospy.loginfo("GPU source-to-publish latency (ms p50/p95): %.2f/%.2f",
                           *np.percentile(playback_latency, (50, 95)))
-        if latencies:
+        for label, groups in (("frame latency", latencies), ("output interval", output_intervals)):
+            if not groups:
+                continue
             summary = {}
-            for name, samples in latencies.items():
+            for name, samples in groups.items():
                 p50, p90, p95 = np.percentile(samples, (50, 90, 95))
                 summary[name] = {"n": len(samples), "mean": round(mean(samples), 3),
                                  "p50": round(float(p50), 3), "p90": round(float(p90), 3),
                                  "p95": round(float(p95), 3)}
-            rospy.loginfo("GPU frame latency (ms): %s", json.dumps(summary, sort_keys=True))
+            rospy.loginfo("GPU %s (ms): %s", label, json.dumps(summary, sort_keys=True))
         if stages:
             average = np.mean(stages, axis=0)
             p95 = np.percentile(stages, 95, axis=0)
